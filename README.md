@@ -2,6 +2,7 @@
 
 XiLuoLin 是一个面向办公、写作和编程场景的 AI 语音输入助手。当前仓库已完成 Tauri + React + TypeScript + pnpm 的项目骨架初始化，后续会在这个基础上继续实现语音输入、人格化整理、历史记录和统计能力。
 当前仓库也已建立本地 SQLite + Store 数据层，用于保存人格、热词、历史记录和轻量配置。
+当前仓库已接入智谱 GLM-ASR-2512 Provider 的基础能力，可保存本地 ASR 配置，并通过短音频文件调用语音转文本接口。
 
 ## 项目状态
 
@@ -29,7 +30,7 @@ pnpm tauri dev
 ## 说明
 
 - 当前仓库不包含 `.env`、真实 API Key 或录音临时文件。
-- 本次已建立桌面应用骨架和本地数据层，但仍不包含 ASR、OpenAI 或完整语音输入业务流程。
+- 本次已建立桌面应用骨架、本地数据层和智谱 ASR Provider，但仍不包含 OpenAI 文本整理或完整语音输入业务流程。
 - 第三方依赖用途：
   - `@radix-ui/react-dialog`：为 shadcn/ui 弹窗组件提供无障碍交互基础。
   - `@radix-ui/react-label`：为 shadcn/ui 表单标签组件提供无障碍交互基础。
@@ -52,6 +53,7 @@ pnpm tauri dev
   - `tauri-plugin-store`：Rust 侧保存默认人格、快捷键和输出方式等轻量配置。
   - `tauri-plugin-sql`：Tauri 官方 SQLite 插件，已注册到桌面端，为后续前端数据访问预留接口。
   - `rusqlite`：Rust 侧直接管理本地业务表。
+  - `ureq`：Rust 侧调用智谱 GLM-ASR-2512 `audio/transcriptions` 接口，发送短音频 multipart 请求。
   - `@types/node`：为 Vite 配置中的 Node API 提供类型定义。
 
 ## 前端 UI 选型

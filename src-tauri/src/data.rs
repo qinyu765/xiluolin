@@ -11,6 +11,8 @@ const APP_CONFIG_KEY: &str = "app_config";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
     pub default_persona_id: String,
+    #[serde(default)]
+    pub asr_api_key: String,
     pub asr_base_url: String,
     pub asr_model: String,
     pub openai_model: String,
@@ -80,6 +82,7 @@ pub struct HistoryRecordDraft {
 pub fn default_app_config() -> AppConfig {
     AppConfig {
         default_persona_id: DEFAULT_PERSONA_ID.to_string(),
+        asr_api_key: "".to_string(),
         asr_base_url: "https://open.bigmodel.cn/api/paas/v4/".to_string(),
         asr_model: "glm-asr-2512".to_string(),
         openai_model: "gpt-4.1-mini".to_string(),

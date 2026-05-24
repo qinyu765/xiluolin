@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default desktop capability for the main window.",
   "windows": ["main"],
-  "permissions": ["opener:default"]
+  "permissions": ["opener:default", "sql:default", "store:default"]
 }

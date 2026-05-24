@@ -1,6 +1,7 @@
 # XiLuoLin
 
 XiLuoLin 是一个面向办公、写作和编程场景的 AI 语音输入助手。当前仓库已完成 Tauri + React + TypeScript + pnpm 的项目骨架初始化，后续会在这个基础上继续实现语音输入、人格化整理、历史记录和统计能力。
+当前仓库也已建立本地 SQLite + Store 数据层，用于保存人格、热词、历史记录和轻量配置。
 
 ## 项目状态
 
@@ -27,13 +28,16 @@ pnpm tauri dev
 ## 说明
 
 - 当前仓库不包含 `.env`、真实 API Key 或录音临时文件。
-- 本次初始化只建立桌面应用骨架，不包含 ASR、OpenAI、SQLite 或业务流程。
+- 本次已建立桌面应用骨架和本地数据层，但仍不包含 ASR、OpenAI 或完整语音输入业务流程。
 - 第三方依赖用途：
   - `@tauri-apps/api`：前端调用桌面端能力。
   - `@tauri-apps/cli`：Tauri 构建和开发命令。
   - `react` / `react-dom`：前端界面。
   - `vite`：前端开发和构建。
   - `typescript`：类型检查。
+  - `tauri-plugin-store`：Rust 侧保存默认人格、快捷键和输出方式等轻量配置。
+  - `tauri-plugin-sql`：Tauri 官方 SQLite 插件，已注册到桌面端，为后续前端数据访问预留接口。
+  - `rusqlite`：Rust 侧直接管理本地业务表。
 
 ## 原创说明
 

@@ -24,7 +24,9 @@
     }
   },
   "plugins": {
-    "opener": {}
+    "opener": {},
+    "sql": {},
+    "store": {}
   },
   "bundle": {
     "active": true,

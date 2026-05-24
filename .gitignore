@@ -49,6 +49,8 @@ venv/
 # 桌面应用与打包缓存
 release/
 *.tsbuildinfo
+src-tauri/target/
+src-tauri/gen/
 
 # 语音输入法开发临时产物
 recordings/tmp/

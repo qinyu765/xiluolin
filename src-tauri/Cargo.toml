@@ -1,0 +1,19 @@
+[package]
+name = "xiluolin"
+version = "0.1.0"
+description = "AI voice input assistant for office work, writing, and programming."
+authors = ["XiLuoLin Contributors"]
+edition = "2021"
+
+[lib]
+name = "xiluolin_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.2", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.2", features = [] }
+tauri-plugin-opener = "2.5.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

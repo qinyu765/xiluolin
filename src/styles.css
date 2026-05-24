@@ -1,78 +1,97 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 :root {
-  font-family:
-    Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
-  color: #1c2430;
-  background: #f6f8fb;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --radius: 0.5rem;
+  --background: #f6f5f4;
+  --foreground: rgba(0, 0, 0, 0.95);
+  --card: #ffffff;
+  --card-foreground: rgba(0, 0, 0, 0.95);
+  --popover: #ffffff;
+  --popover-foreground: rgba(0, 0, 0, 0.95);
+  --primary: #0075de;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f9ff;
+  --secondary-foreground: #213183;
+  --muted: #f0efed;
+  --muted-foreground: #615d59;
+  --accent: #f2f9ff;
+  --accent-foreground: #005bab;
+  --destructive: oklch(0.58 0.22 28);
+  --border: #e1dedb;
+  --input: #d8d4cf;
+  --ring: #097fe8;
 }
 
-* {
-  box-sizing: border-box;
+.dark {
+  --background: #31302e;
+  --foreground: #ffffff;
+  --card: #3a3835;
+  --card-foreground: #ffffff;
+  --popover: #3a3835;
+  --popover-foreground: #ffffff;
+  --primary: #097fe8;
+  --primary-foreground: #ffffff;
+  --secondary: #213183;
+  --secondary-foreground: #f2f9ff;
+  --muted: #46433f;
+  --muted-foreground: #d7d1cb;
+  --accent: #213183;
+  --accent-foreground: #f2f9ff;
+  --destructive: oklch(0.68 0.2 28);
+  --border: rgba(255, 255, 255, 0.14);
+  --input: rgba(255, 255, 255, 0.18);
+  --ring: #097fe8;
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-}
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
 
-.app-shell {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  gap: 24px;
-  padding: 48px 24px;
-}
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+    min-width: 320px;
+    font-family:
+      Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui,
+      sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-.hero,
-.status-panel {
-  width: min(720px, 100%);
-}
-
-.eyebrow {
-  margin: 0 0 12px;
-  color: #2f6b57;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-h1,
-h2,
-p {
-  margin-top: 0;
-}
-
-h1 {
-  margin-bottom: 16px;
-  font-size: clamp(40px, 7vw, 72px);
-  line-height: 1;
-}
-
-.summary {
-  margin-bottom: 0;
-  color: #495466;
-  font-size: 18px;
-  line-height: 1.7;
-}
-
-.status-panel {
-  padding: 24px;
-  border: 1px solid #dbe3ef;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.status-panel h2 {
-  margin-bottom: 16px;
-  font-size: 20px;
-}
-
-.status-panel ul {
-  margin: 0;
-  padding-left: 20px;
-  color: #495466;
-  line-height: 1.8;
+  button,
+  select,
+  input,
+  textarea {
+    font: inherit;
+  }
 }

@@ -166,6 +166,20 @@ impl LocalDatabase {
         rows.collect()
     }
 
+    pub fn set_default_persona(&self, persona_id: &str) -> rusqlite::Result<()> {
+        let transaction = self.connection.unchecked_transaction()?;
+        transaction.execute("UPDATE personas SET is_default = 0", [])?;
+        let updated = transaction.execute(
+            "UPDATE personas SET is_default = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            [persona_id],
+        )?;
+        if updated == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub fn create_hotword(&self, draft: HotwordDraft) -> rusqlite::Result<Hotword> {
         let id = Uuid::new_v4().to_string();
         self.connection.execute(
@@ -196,6 +210,58 @@ impl LocalDatabase {
 
         let rows = statement.query_map([], hotword_from_row)?;
         rows.collect()
+    }
+
+    pub fn update_hotword(&self, id: &str, draft: HotwordDraft) -> rusqlite::Result<Hotword> {
+        let updated = self.connection.execute(
+            r#"
+            UPDATE hotwords
+            SET source_text = ?2,
+                target_text = ?3,
+                category = ?4,
+                enabled = ?5,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1
+            "#,
+            params![
+                id,
+                draft.source_text,
+                draft.target_text,
+                draft.category,
+                bool_to_int(draft.enabled)
+            ],
+        )?;
+        if updated == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+
+        self.get_hotword(id)
+    }
+
+    pub fn delete_hotword(&self, id: &str) -> rusqlite::Result<()> {
+        let deleted = self
+            .connection
+            .execute("DELETE FROM hotwords WHERE id = ?1", [id])?;
+        if deleted == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+
+        Ok(())
+    }
+
+    pub fn enabled_hotword_context(&self) -> rusqlite::Result<String> {
+        let mut statement = self.connection.prepare(
+            r#"
+            SELECT id, source_text, target_text, category, enabled, created_at, updated_at
+            FROM hotwords
+            WHERE enabled = 1
+            ORDER BY created_at ASC, id ASC
+            "#,
+        )?;
+
+        let rows = statement.query_map([], hotword_from_row)?;
+        let hotwords = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(format_hotword_context(&hotwords))
     }
 
     pub fn create_history_record(
@@ -244,6 +310,13 @@ impl LocalDatabase {
     }
 
     fn seed_builtin_personas(&self) -> rusqlite::Result<()> {
+        let persona_count: i64 =
+            self.connection
+                .query_row("SELECT COUNT(*) FROM personas", [], |row| row.get(0))?;
+        if persona_count > 0 {
+            return Ok(());
+        }
+
         for persona in builtin_personas() {
             self.connection.execute(
                 r#"
@@ -312,6 +385,22 @@ pub fn list_personas(app: tauri::AppHandle) -> Result<Vec<Persona>, String> {
 }
 
 #[tauri::command]
+pub fn set_default_persona(
+    app: tauri::AppHandle,
+    persona_id: String,
+) -> Result<Vec<Persona>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .set_default_persona(&persona_id)
+        .map_err(|error| error.to_string())?;
+    let mut config = read_app_config(app.clone())?;
+    config.default_persona_id = persona_id;
+    update_app_config(app, config)?;
+    database.list_personas().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn create_hotword(app: tauri::AppHandle, draft: HotwordDraft) -> Result<Hotword, String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
@@ -325,6 +414,38 @@ pub fn list_hotwords(app: tauri::AppHandle) -> Result<Vec<Hotword>, String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
     database.list_hotwords().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn update_hotword(
+    app: tauri::AppHandle,
+    id: String,
+    draft: HotwordDraft,
+) -> Result<Hotword, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .update_hotword(&id, draft)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_hotword(app: tauri::AppHandle, id: String) -> Result<Vec<Hotword>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .delete_hotword(&id)
+        .map_err(|error| error.to_string())?;
+    database.list_hotwords().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn enabled_hotword_context(app: tauri::AppHandle) -> Result<String, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .enabled_hotword_context()
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -355,7 +476,9 @@ pub fn list_history_records(
 pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     use tauri_plugin_store::StoreExt;
 
-    let store = app.store(APP_CONFIG_STORE).map_err(|error| error.to_string())?;
+    let store = app
+        .store(APP_CONFIG_STORE)
+        .map_err(|error| error.to_string())?;
     let Some(value) = store.get(APP_CONFIG_KEY) else {
         return Ok(default_app_config());
     };
@@ -367,7 +490,9 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
 pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
     use tauri_plugin_store::StoreExt;
 
-    let store = app.store(APP_CONFIG_STORE).map_err(|error| error.to_string())?;
+    let store = app
+        .store(APP_CONFIG_STORE)
+        .map_err(|error| error.to_string())?;
     let value = serde_json::to_value(&config).map_err(|error| error.to_string())?;
     store.set(APP_CONFIG_KEY.to_string(), value);
     store.save().map_err(|error| error.to_string())?;
@@ -487,6 +612,26 @@ fn history_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryR
         output_mode: row.get(7)?,
         created_at: row.get(8)?,
     })
+}
+
+fn format_hotword_context(hotwords: &[Hotword]) -> String {
+    hotwords
+        .iter()
+        .map(|hotword| {
+            let mapping = if hotword.source_text == hotword.target_text {
+                hotword.target_text.clone()
+            } else {
+                format!("{} -> {}", hotword.source_text, hotword.target_text)
+            };
+
+            if hotword.category.trim().is_empty() {
+                format!("- {mapping}")
+            } else {
+                format!("- {mapping}（{}）", hotword.category)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn bool_to_int(value: bool) -> i64 {

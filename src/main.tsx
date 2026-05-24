@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  CopyIcon,
+  FileAudioIcon,
   Loader2Icon,
   Mic2Icon,
   PencilIcon,
@@ -81,6 +83,25 @@ type AppConfig = {
   auto_save_history: boolean;
 };
 
+type VoiceInputResult = {
+  raw_text: string;
+  final_text: string;
+  used_text_fallback: boolean;
+  history_record: HistoryRecord | null;
+};
+
+type HistoryRecord = {
+  id: string;
+  raw_text: string;
+  final_text: string;
+  persona_id: string;
+  persona_name: string;
+  duration_ms: number;
+  output_chars: number;
+  output_mode: string;
+  created_at: string;
+};
+
 const emptyHotwordDraft: HotwordDraft = {
   source_text: "",
   target_text: "",
@@ -102,10 +123,14 @@ function App() {
   const [asrStatus, setAsrStatus] = useState("正在读取智谱 ASR 配置...");
   const [openaiStatus, setOpenaiStatus] = useState("正在读取 OpenAI 配置...");
   const [hotwordStatus, setHotwordStatus] = useState("正在读取热词词典...");
+  const [voiceStatus, setVoiceStatus] = useState("请选择一段 wav 或 mp3 短音频。");
+  const [selectedAudioName, setSelectedAudioName] = useState("");
+  const [voiceResult, setVoiceResult] = useState<VoiceInputResult | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isAsrSaving, setIsAsrSaving] = useState(false);
   const [isOpenaiSaving, setIsOpenaiSaving] = useState(false);
   const [isHotwordSaving, setIsHotwordSaving] = useState(false);
+  const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
 
   const selectedPersona = useMemo(
     () => personas.find((persona) => persona.id === selectedPersonaId),
@@ -342,6 +367,60 @@ function App() {
     }
   }
 
+  async function handleProcessAudio(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (extension !== "wav" && extension !== "mp3") {
+      setVoiceStatus("仅支持 wav 或 mp3 短音频。");
+      return;
+    }
+
+    setIsVoiceProcessing(true);
+    setSelectedAudioName(file.name);
+    setVoiceResult(null);
+    setVoiceStatus("正在上传短音频并执行 ASR 识别...");
+
+    try {
+      const audioBuffer = await file.arrayBuffer();
+      const audioBytes = Array.from(new Uint8Array(audioBuffer));
+      const result = await invoke<VoiceInputResult>("process_uploaded_audio", {
+        request: {
+          audio_bytes: audioBytes,
+          audio_extension: extension,
+          duration_ms: 0,
+        },
+      });
+      setVoiceResult(result);
+      setVoiceStatus(
+        result.used_text_fallback
+          ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
+          : "语音主流程已完成，结果可复制使用。",
+      );
+    } catch (error) {
+      setVoiceStatus(`语音主流程失败：${String(error)}`);
+    } finally {
+      setIsVoiceProcessing(false);
+    }
+  }
+
+  async function handleCopyFinalText() {
+    if (!voiceResult?.final_text) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(voiceResult.final_text);
+      setVoiceStatus("整理结果已复制到剪贴板。");
+    } catch (error) {
+      setVoiceStatus(`复制失败：${String(error)}`);
+    }
+  }
+
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-4xl content-center gap-6">
@@ -359,6 +438,99 @@ function App() {
             </p>
           </div>
         </section>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
+                T008 主流程
+              </p>
+              <CardTitle className="text-2xl">短音频输入</CardTitle>
+              <CardDescription className="mt-2">
+                上传 wav 或 mp3 短音频，串联 ASR 识别、人格化整理、结果展示和复制。
+              </CardDescription>
+            </div>
+            <CardAction>
+              <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+                {isVoiceProcessing ? "处理中" : "上传音频"}
+              </span>
+            </CardAction>
+          </CardHeader>
+
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 rounded-lg border border-dashed bg-muted/20 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">选择短音频文件</p>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">
+                    {selectedAudioName || "尚未选择文件"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isVoiceProcessing}
+                  asChild
+                >
+                  <Label htmlFor="voice-audio-file" className="cursor-pointer">
+                    {isVoiceProcessing ? (
+                      <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <FileAudioIcon className="size-4" aria-hidden="true" />
+                    )}
+                    选择音频
+                  </Label>
+                </Button>
+              </div>
+              <Input
+                id="voice-audio-file"
+                type="file"
+                accept=".wav,.mp3,audio/wav,audio/mpeg"
+                className="hidden"
+                onChange={handleProcessAudio}
+                disabled={isVoiceProcessing}
+              />
+              <p className="text-sm leading-6 text-muted-foreground">
+                {voiceStatus}
+              </p>
+            </div>
+
+            {voiceResult ? (
+              <div className="grid gap-4">
+                <section className="grid gap-2">
+                  <Label htmlFor="voice-raw-text">原始识别文本</Label>
+                  <Textarea
+                    id="voice-raw-text"
+                    value={voiceResult.raw_text}
+                    readOnly
+                    className="min-h-24 resize-none bg-background text-sm"
+                  />
+                </section>
+
+                <section className="grid gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="voice-final-text">整理结果</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyFinalText}
+                    >
+                      <CopyIcon className="size-4" aria-hidden="true" />
+                      复制结果
+                    </Button>
+                  </div>
+                  <Textarea
+                    id="voice-final-text"
+                    value={voiceResult.final_text}
+                    readOnly
+                    className="min-h-36 resize-none bg-background text-sm"
+                  />
+                </section>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

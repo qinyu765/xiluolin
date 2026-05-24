@@ -1,5 +1,6 @@
 pub mod asr;
 pub mod data;
+pub mod pipeline;
 pub mod text_polish;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -11,6 +12,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             asr::transcribe_audio_path,
             text_polish::polish_text,
+            pipeline::process_uploaded_audio,
             data::initialize_local_data,
             data::list_personas,
             data::set_default_persona,

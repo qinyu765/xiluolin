@@ -67,8 +67,9 @@ pnpm tauri dev
 
 设计取舍：
 
-- 已参考 `https://getdesign.md/hp/design-md` 中的 HP 风格。该风格更偏企业官网和产品目录，不完整注入到当前桌面效率工具。
-- 当前只吸收克制的白底信息层级、清晰蓝色主操作和深色正文，不引入大面积营销式斜切装饰。
+- 当前采用 `https://getdesign.md/notion/design-md` 作为 UI 视觉参考，原因是它更贴近 productivity SaaS、knowledge management 和 workspace tools。
+- 已评估 `https://getdesign.md/hp/design-md`。该风格更偏企业官网和产品目录，不完整注入到当前桌面效率工具。
+- 视觉 token 记录在 `docs/design/ui-style.md`。
 
 ## 原创说明
 

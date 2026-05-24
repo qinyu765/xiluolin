@@ -94,7 +94,7 @@ function App() {
             AI 语音输入助手
           </div>
           <div className="space-y-3">
-            <h1 className="text-5xl font-semibold tracking-normal text-balance sm:text-6xl">
+            <h1 className="text-5xl font-semibold tracking-normal text-balance [font-family:Georgia,'Times_New_Roman',serif] sm:text-6xl">
               XiLuoLin
             </h1>
             <p className="max-w-2xl text-lg leading-8 text-muted-foreground">

@@ -23,6 +23,7 @@ pub fn run() {
             data::enabled_hotword_context,
             data::create_history_record,
             data::list_history_records,
+            data::history_statistics,
             data::read_app_config,
             data::update_app_config
         ])

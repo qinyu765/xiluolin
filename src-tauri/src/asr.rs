@@ -64,23 +64,45 @@ pub fn transcribe_audio_file(
     validate_audio_file(audio_path, config)?;
 
     let url = transcriptions_url(&config.base_url);
-    let form = ureq::unversioned::multipart::Form::new()
-        .text("model", config.model.trim())
+
+    // 打印调试信息
+    eprintln!("ASR Request URL: {}", url);
+    eprintln!("ASR Model: {}", config.model.trim());
+    eprintln!("ASR API Key length: {}", config.api_key.trim().len());
+    eprintln!("ASR API Key first 10 chars: {}", &config.api_key.trim().chars().take(10).collect::<String>());
+    eprintln!("Audio Path: {}", audio_path.display());
+
+    // 使用 reqwest 替代 ureq
+    let client = reqwest::blocking::Client::new();
+    let form = reqwest::blocking::multipart::Form::new()
+        .text("model", config.model.trim().to_string())
         .text("stream", "false")
         .file("file", audio_path)
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
 
-    let response = ureq::post(&url)
+    let response = client
+        .post(&url)
         .header("Authorization", format!("Bearer {}", config.api_key.trim()))
-        .send(form)
+        .multipart(form)
+        .send()
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
-    let response = response
-        .into_body()
-        .read_json::<ZhipuTranscriptionResponse>()
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().unwrap_or_default();
+        eprintln!("ASR Error Response: status={}, body={}", status, body);
+        return Err(AsrError::RequestFailed(format!(
+            "http status: {}, body: {}",
+            status, body
+        )));
+    }
+
+    let transcription: ZhipuTranscriptionResponse = response
+        .json()
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
 
     Ok(AsrTranscription {
-        text: response.text.trim().to_string(),
+        text: transcription.text.trim().to_string(),
     })
 }
 

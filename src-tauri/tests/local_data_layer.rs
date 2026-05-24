@@ -199,6 +199,74 @@ fn history_records_are_returned_newest_first() {
 }
 
 #[test]
+fn history_statistics_are_calculated_from_saved_records() {
+    let database = open_test_database(&temp_db_path("history-statistics"));
+
+    database
+        .create_history_record(HistoryRecordDraft {
+            raw_text: "第一段原文".to_string(),
+            final_text: "字".repeat(80),
+            persona_id: "prompt-engineer".to_string(),
+            persona_name: "Prompt 工程师".to_string(),
+            duration_ms: 30_000,
+            output_mode: "copy".to_string(),
+        })
+        .expect("first history record should be created");
+
+    database
+        .create_history_record(HistoryRecordDraft {
+            raw_text: "第二段原文".to_string(),
+            final_text: "词".repeat(40),
+            persona_id: "prompt-engineer".to_string(),
+            persona_name: "Prompt 工程师".to_string(),
+            duration_ms: 10_000,
+            output_mode: "copy".to_string(),
+        })
+        .expect("second history record should be created");
+
+    database
+        .create_history_record(HistoryRecordDraft {
+            raw_text: "第三段原文".to_string(),
+            final_text: "项".repeat(10),
+            persona_id: "task-collaborator".to_string(),
+            persona_name: "任务协作者".to_string(),
+            duration_ms: 5_000,
+            output_mode: "paste".to_string(),
+        })
+        .expect("third history record should be created");
+
+    let statistics = database
+        .history_statistics()
+        .expect("history statistics should be readable");
+
+    assert_eq!(statistics.total_count, 3);
+    assert_eq!(statistics.total_duration_ms, 45_000);
+    assert_eq!(statistics.total_output_chars, 130);
+    assert_eq!(statistics.estimated_saved_ms, 52_500);
+    assert_eq!(
+        statistics.top_persona_name,
+        Some("Prompt 工程师".to_string())
+    );
+    assert_eq!(statistics.top_persona_count, 2);
+}
+
+#[test]
+fn empty_history_statistics_return_zero_values() {
+    let database = open_test_database(&temp_db_path("empty-history-statistics"));
+
+    let statistics = database
+        .history_statistics()
+        .expect("empty history statistics should be readable");
+
+    assert_eq!(statistics.total_count, 0);
+    assert_eq!(statistics.total_duration_ms, 0);
+    assert_eq!(statistics.total_output_chars, 0);
+    assert_eq!(statistics.estimated_saved_ms, 0);
+    assert_eq!(statistics.top_persona_name, None);
+    assert_eq!(statistics.top_persona_count, 0);
+}
+
+#[test]
 fn default_config_contains_provider_and_output_defaults() {
     let config = default_app_config();
 

@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  BarChart3Icon,
+  Clock3Icon,
   CopyIcon,
   FileAudioIcon,
+  HistoryIcon,
   Loader2Icon,
   Mic2Icon,
   PencilIcon,
@@ -102,6 +105,15 @@ type HistoryRecord = {
   created_at: string;
 };
 
+type HistoryStatistics = {
+  total_count: number;
+  total_duration_ms: number;
+  total_output_chars: number;
+  estimated_saved_ms: number;
+  top_persona_name: string | null;
+  top_persona_count: number;
+};
+
 const emptyHotwordDraft: HotwordDraft = {
   source_text: "",
   target_text: "",
@@ -109,11 +121,31 @@ const emptyHotwordDraft: HotwordDraft = {
   enabled: true,
 };
 
+function formatDuration(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes === 0) {
+    return `${seconds} 秒`;
+  }
+
+  return `${minutes} 分 ${seconds} 秒`;
+}
+
+function formatCreatedAt(createdAt: string) {
+  return createdAt.replace("T", " ").replace(/\.\d+Z?$/, "");
+}
+
 function App() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersonaId, setSelectedPersonaId] = useState("");
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [hotwords, setHotwords] = useState<Hotword[]>([]);
+  const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
+  const [historyStats, setHistoryStats] = useState<HistoryStatistics | null>(
+    null,
+  );
   const [hotwordContext, setHotwordContext] = useState("");
   const [hotwordDraft, setHotwordDraft] =
     useState<HotwordDraft>(emptyHotwordDraft);
@@ -123,6 +155,7 @@ function App() {
   const [asrStatus, setAsrStatus] = useState("正在读取智谱 ASR 配置...");
   const [openaiStatus, setOpenaiStatus] = useState("正在读取 OpenAI 配置...");
   const [hotwordStatus, setHotwordStatus] = useState("正在读取热词词典...");
+  const [historyStatus, setHistoryStatus] = useState("正在读取历史记录...");
   const [voiceStatus, setVoiceStatus] = useState("请选择一段 wav 或 mp3 短音频。");
   const [selectedAudioName, setSelectedAudioName] = useState("");
   const [voiceResult, setVoiceResult] = useState<VoiceInputResult | null>(null);
@@ -148,6 +181,12 @@ function App() {
         const loadedPersonas = await invoke<Persona[]>("list_personas");
         const loadedHotwords = await invoke<Hotword[]>("list_hotwords");
         const loadedContext = await invoke<string>("enabled_hotword_context");
+        const loadedHistoryRecords = await invoke<HistoryRecord[]>(
+          "list_history_records",
+          { limit: 10 },
+        );
+        const loadedHistoryStats =
+          await invoke<HistoryStatistics>("history_statistics");
         const defaultPersona =
           loadedPersonas.find((persona) => persona.is_default) ??
           loadedPersonas[0];
@@ -157,15 +196,19 @@ function App() {
         setSelectedPersonaId(defaultPersona?.id ?? "");
         setHotwords(loadedHotwords);
         setHotwordContext(loadedContext);
+        setHistoryRecords(loadedHistoryRecords);
+        setHistoryStats(loadedHistoryStats);
         setStatus("已加载内置人格，可选择默认整理风格。");
         setAsrStatus("智谱 ASR 配置已加载。");
         setOpenaiStatus("OpenAI 配置已加载。");
         setHotwordStatus("热词词典已加载。");
+        setHistoryStatus("历史记录和统计已加载。");
       } catch (error) {
         setStatus(`读取本地数据失败：${String(error)}`);
         setAsrStatus("智谱 ASR 配置读取失败。");
         setOpenaiStatus("OpenAI 配置读取失败。");
         setHotwordStatus("热词词典读取失败。");
+        setHistoryStatus("历史记录读取失败。");
       }
     }
 
@@ -282,6 +325,16 @@ function App() {
     setHotwordStatus(nextStatus);
   }
 
+  async function reloadHistoryData(nextStatus: string) {
+    const [loadedHistoryRecords, loadedHistoryStats] = await Promise.all([
+      invoke<HistoryRecord[]>("list_history_records", { limit: 10 }),
+      invoke<HistoryStatistics>("history_statistics"),
+    ]);
+    setHistoryRecords(loadedHistoryRecords);
+    setHistoryStats(loadedHistoryStats);
+    setHistoryStatus(nextStatus);
+  }
+
   function openCreateHotwordDialog() {
     setEditingHotwordId(null);
     setHotwordDraft(emptyHotwordDraft);
@@ -396,6 +449,11 @@ function App() {
         },
       });
       setVoiceResult(result);
+      await reloadHistoryData(
+        result.history_record
+          ? "历史记录和统计已更新。"
+          : "当前配置关闭了自动保存，本次未写入历史。",
+      );
       setVoiceStatus(
         result.used_text_fallback
           ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
@@ -529,6 +587,115 @@ function App() {
                 </section>
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
+                T009 历史与统计
+              </p>
+              <CardTitle className="text-2xl">语音输入成效</CardTitle>
+              <CardDescription className="mt-2">
+                基于本地历史记录展示协作次数、口述时间、生成字数、预计节省时间和常用人格。
+              </CardDescription>
+            </div>
+            <CardAction>
+              <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+                {historyStats?.total_count ?? 0} 次记录
+              </span>
+            </CardAction>
+          </CardHeader>
+
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <section className="rounded-lg border bg-muted/30 p-4">
+                <BarChart3Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">语音协作次数</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {historyStats?.total_count ?? 0}
+                </p>
+              </section>
+              <section className="rounded-lg border bg-muted/30 p-4">
+                <Clock3Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">累计口述时间</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {formatDuration(historyStats?.total_duration_ms ?? 0)}
+                </p>
+              </section>
+              <section className="rounded-lg border bg-muted/30 p-4">
+                <PencilIcon className="mb-3 size-4 text-primary" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">口述生成字数</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {historyStats?.total_output_chars ?? 0}
+                </p>
+              </section>
+              <section className="rounded-lg border bg-muted/30 p-4">
+                <HistoryIcon className="mb-3 size-4 text-primary" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">预计节省时间</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {formatDuration(historyStats?.estimated_saved_ms ?? 0)}
+                </p>
+              </section>
+              <section className="rounded-lg border bg-muted/30 p-4 sm:col-span-2 lg:col-span-1">
+                <Mic2Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">常用人格</p>
+                <p className="mt-1 truncate text-lg font-semibold">
+                  {historyStats?.top_persona_name ?? "暂无"}
+                </p>
+                {historyStats?.top_persona_name ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    使用 {historyStats.top_persona_count} 次
+                  </p>
+                ) : null}
+              </section>
+            </div>
+
+            <div className="grid gap-3 border-t pt-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {historyStatus}
+                </p>
+                <span className="inline-flex h-8 w-fit items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+                  最近 {historyRecords.length} 条
+                </span>
+              </div>
+
+              {historyRecords.length > 0 ? (
+                <div className="grid gap-3">
+                  {historyRecords.map((record) => (
+                    <section
+                      key={record.id}
+                      className="grid gap-3 rounded-lg border bg-background p-4"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">
+                            {record.persona_name}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatCreatedAt(record.created_at)} ·{" "}
+                            {formatDuration(record.duration_ms)} ·{" "}
+                            {record.output_chars} 字
+                          </p>
+                        </div>
+                        <span className="inline-flex h-7 w-fit items-center rounded-md border bg-muted/30 px-2.5 text-xs text-muted-foreground">
+                          {record.output_mode === "paste" ? "自动粘贴" : "复制"}
+                        </span>
+                      </div>
+                      <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
+                        {record.final_text}
+                      </p>
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <section className="rounded-lg border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
+                  暂无历史记录。完成一次短音频输入后，这里会展示最近结果和统计数据。
+                </section>
+              )}
+            </div>
           </CardContent>
         </Card>
 

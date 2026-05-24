@@ -1,0 +1,67 @@
+# 依赖目录
+node_modules/
+.pnpm-store/
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+.vite/
+coverage/
+
+# 日志与临时文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+tmp/
+temp/
+.cache/
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 编辑器与系统文件
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Python 工具链
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# 桌面应用与打包缓存
+release/
+*.tsbuildinfo
+
+# 语音输入法开发临时产物
+recordings/tmp/
+temp-recordings/
+*.wav.tmp
+*.mp3.tmp
+*.m4a.tmp
+
+# 仓库协作规范必须提交
+!AGENTS.md
+
+# 中文协作说明仅供本人阅读
+AGENTS_ZH.md
+
+# 前端设计技能运行时生成文件
+DESIGN.md

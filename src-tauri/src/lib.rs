@@ -9,6 +9,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             data::initialize_local_data,
             data::list_personas,
+            data::set_default_persona,
             data::create_hotword,
             data::list_hotwords,
             data::create_history_record,

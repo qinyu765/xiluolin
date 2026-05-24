@@ -145,3 +145,38 @@ fn default_config_contains_provider_and_output_defaults() {
         }
     );
 }
+
+#[test]
+fn default_persona_can_be_changed_and_persisted() {
+    let database = open_test_database(&temp_db_path("default-persona-change"));
+
+    let initial_personas = database.list_personas().expect("personas should load");
+    let prompt_engineer = initial_personas
+        .iter()
+        .find(|persona| persona.id == "prompt-engineer")
+        .expect("prompt engineer should exist");
+    let task_collaborator = initial_personas
+        .iter()
+        .find(|persona| persona.id == "task-collaborator")
+        .expect("task collaborator should exist");
+
+    assert!(prompt_engineer.is_default);
+    assert!(!task_collaborator.is_default);
+
+    database
+        .set_default_persona("task-collaborator")
+        .expect("default persona should update");
+
+    let personas = database.list_personas().expect("personas should reload");
+    let prompt_engineer = personas
+        .iter()
+        .find(|persona| persona.id == "prompt-engineer")
+        .expect("prompt engineer should still exist");
+    let task_collaborator = personas
+        .iter()
+        .find(|persona| persona.id == "task-collaborator")
+        .expect("task collaborator should still exist");
+
+    assert!(!prompt_engineer.is_default);
+    assert!(task_collaborator.is_default);
+}

@@ -166,6 +166,20 @@ impl LocalDatabase {
         rows.collect()
     }
 
+    pub fn set_default_persona(&self, persona_id: &str) -> rusqlite::Result<()> {
+        let transaction = self.connection.unchecked_transaction()?;
+        transaction.execute("UPDATE personas SET is_default = 0", [])?;
+        let updated = transaction.execute(
+            "UPDATE personas SET is_default = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            [persona_id],
+        )?;
+        if updated == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub fn create_hotword(&self, draft: HotwordDraft) -> rusqlite::Result<Hotword> {
         let id = Uuid::new_v4().to_string();
         self.connection.execute(
@@ -244,6 +258,13 @@ impl LocalDatabase {
     }
 
     fn seed_builtin_personas(&self) -> rusqlite::Result<()> {
+        let persona_count: i64 =
+            self.connection
+                .query_row("SELECT COUNT(*) FROM personas", [], |row| row.get(0))?;
+        if persona_count > 0 {
+            return Ok(());
+        }
+
         for persona in builtin_personas() {
             self.connection.execute(
                 r#"
@@ -312,6 +333,22 @@ pub fn list_personas(app: tauri::AppHandle) -> Result<Vec<Persona>, String> {
 }
 
 #[tauri::command]
+pub fn set_default_persona(
+    app: tauri::AppHandle,
+    persona_id: String,
+) -> Result<Vec<Persona>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .set_default_persona(&persona_id)
+        .map_err(|error| error.to_string())?;
+    let mut config = read_app_config(app.clone())?;
+    config.default_persona_id = persona_id;
+    update_app_config(app, config)?;
+    database.list_personas().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn create_hotword(app: tauri::AppHandle, draft: HotwordDraft) -> Result<Hotword, String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
@@ -355,7 +392,9 @@ pub fn list_history_records(
 pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     use tauri_plugin_store::StoreExt;
 
-    let store = app.store(APP_CONFIG_STORE).map_err(|error| error.to_string())?;
+    let store = app
+        .store(APP_CONFIG_STORE)
+        .map_err(|error| error.to_string())?;
     let Some(value) = store.get(APP_CONFIG_KEY) else {
         return Ok(default_app_config());
     };
@@ -367,7 +406,9 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
 pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
     use tauri_plugin_store::StoreExt;
 
-    let store = app.store(APP_CONFIG_STORE).map_err(|error| error.to_string())?;
+    let store = app
+        .store(APP_CONFIG_STORE)
+        .map_err(|error| error.to_string())?;
     let value = serde_json::to_value(&config).map_err(|error| error.to_string())?;
     store.set(APP_CONFIG_KEY.to_string(), value);
     store.save().map_err(|error| error.to_string())?;

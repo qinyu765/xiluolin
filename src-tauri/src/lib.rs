@@ -1,6 +1,7 @@
 pub mod asr;
 pub mod data;
 pub mod pipeline;
+pub mod recording;
 pub mod text_polish;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -9,6 +10,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .manage(recording::RecordingState::new())
         .invoke_handler(tauri::generate_handler![
             asr::transcribe_audio_path,
             text_polish::polish_text,
@@ -23,8 +25,11 @@ pub fn run() {
             data::enabled_hotword_context,
             data::create_history_record,
             data::list_history_records,
+            data::history_statistics,
             data::read_app_config,
-            data::update_app_config
+            data::update_app_config,
+            recording::start_recording,
+            recording::stop_recording
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

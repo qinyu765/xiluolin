@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -80,6 +80,16 @@ pub struct HistoryRecordDraft {
     pub persona_name: String,
     pub duration_ms: i64,
     pub output_mode: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HistoryStatistics {
+    pub total_count: i64,
+    pub total_duration_ms: i64,
+    pub total_output_chars: i64,
+    pub estimated_saved_ms: i64,
+    pub top_persona_name: Option<String>,
+    pub top_persona_count: i64,
 }
 
 pub fn default_app_config() -> AppConfig {
@@ -317,6 +327,49 @@ impl LocalDatabase {
         rows.collect()
     }
 
+    pub fn history_statistics(&self) -> rusqlite::Result<HistoryStatistics> {
+        let (total_count, total_duration_ms, total_output_chars): (i64, i64, i64) =
+            self.connection.query_row(
+                r#"
+                SELECT COUNT(*),
+                       COALESCE(SUM(duration_ms), 0),
+                       COALESCE(SUM(output_chars), 0)
+                FROM history_records
+                "#,
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )?;
+        let top_persona = self
+            .connection
+            .query_row(
+                r#"
+                SELECT persona_name, COUNT(*) AS usage_count
+                FROM history_records
+                GROUP BY persona_id, persona_name
+                ORDER BY usage_count DESC, persona_name ASC
+                LIMIT 1
+                "#,
+                [],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()?;
+        let manual_input_ms = total_output_chars * 60_000 / 80;
+        let estimated_saved_ms = (manual_input_ms - total_duration_ms).max(0);
+        let (top_persona_name, top_persona_count) = match top_persona {
+            Some((name, count)) => (Some(name), count),
+            None => (None, 0),
+        };
+
+        Ok(HistoryStatistics {
+            total_count,
+            total_duration_ms,
+            total_output_chars,
+            estimated_saved_ms,
+            top_persona_name,
+            top_persona_count,
+        })
+    }
+
     fn seed_builtin_personas(&self) -> rusqlite::Result<()> {
         let persona_count: i64 =
             self.connection
@@ -477,6 +530,15 @@ pub fn list_history_records(
     database.initialize().map_err(|error| error.to_string())?;
     database
         .list_history_records(limit.unwrap_or(20))
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn history_statistics(app: tauri::AppHandle) -> Result<HistoryStatistics, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .history_statistics()
         .map_err(|error| error.to_string())
 }
 

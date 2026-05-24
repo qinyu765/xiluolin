@@ -14,12 +14,12 @@ This skill keeps development task execution auditable for the Qiniu Hackathon vo
 ## Required Workflow
 
 1. Read `AGENTS.md`, `docs/requirements-analysis.md`, `docs/solution-design.md`, and `docs/dev/task-tracker.md`.
-2. Confirm the current branch. Work must start from `dev`; feature branches target `dev`.
+2. Confirm the current branch. Work on `dev`; do not create routine feature branches.
 3. Select the next task:
    - If one task is `Doing`, continue it.
    - Otherwise choose the first `Todo` task by tracker order.
    - Do not start a second `Doing` task.
-4. Restate the task goal, success criteria, and verification command or manual check.
+4. Restate the task goal, success criteria, working branch, and verification command or manual check.
 5. Implement only the selected task. Keep changes surgical and aligned with the voice input assistant scope.
 6. Run the relevant verification:
    - Automated tests or build when available.
@@ -31,11 +31,14 @@ This skill keeps development task execution auditable for the Qiniu Hackathon vo
    - `Review` when implementation and verification are ready for review.
    - `Done` only after the PR is merged or the user explicitly confirms completion.
    - `Blocked` with a concrete blocker when work cannot continue.
-9. Before any commit or PR, show:
+9. Before any commit or PR, stop and ask for explicit user approval. Show:
    - Changed files.
    - Verification result.
    - Suggested commit message using `type: 中文描述`.
    - PR description containing feature description, implementation approach, and verification method.
+10. Only after approval:
+   - Create the commit on `dev`.
+   - If this change is being prepared as a stable milestone, create or update the PR from `dev` into `main`.
 
 ## Task Document Template
 
@@ -62,12 +65,13 @@ Use this structure for every completed task document:
 ## Git And PR Rules
 
 - Do not develop directly on `main`.
-- Use `dev` as the baseline branch.
+- Use `dev` as the working branch for routine development.
 - Prefer one task per PR.
-- PRs should target `dev`.
+- PRs should target `main`.
 - Commit messages must use `type: 中文描述`.
 - Do not commit `.env`, real API keys, temporary recordings, build artifacts, or local caches.
 - Keep PR descriptions non-empty and matched to actual changes.
+- Do not run commit or PR commands before explicit user approval.
 
 ## Completion Checklist
 

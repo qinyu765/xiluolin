@@ -42,4 +42,4 @@
 
 ## 后续建议
 
-后续执行 `T002` 时，先调用 `next-dev-task`，从 `docs/dev/task-tracker.md` 读取下一个 `Todo` 任务，并在新功能分支中初始化 Tauri + React + pnpm 项目。
+后续执行 `T002` 时，先调用 `next-dev-task`，从 `docs/dev/task-tracker.md` 读取下一个 `Todo` 任务，并直接在 `dev` 上初始化 Tauri + React + pnpm 项目。阶段性成果准备好后，再从 `dev` 发起合并到 `main` 的 PR。

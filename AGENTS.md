@@ -107,14 +107,11 @@ Project validity requirements:
 ## Branch And PR Workflow
 
 - The development baseline branch is `dev`.
-- All feature branches must be created from `dev`.
+- Daily development happens directly on `dev`.
+- Do not create feature branches for routine work.
 - `main` is the stable presentation branch. Do not develop features directly on `main`.
-- Open PRs from feature branches into `dev`.
 - After a stable milestone, open a PR from `dev` into `main`.
-- Suggested branch names:
-  - `feature/<feature-name>`
-  - `fix/<issue-name>`
-  - `docs/<document-name>`
+- PRs should target `main`.
 - Each PR should do one thing and stay as small as practical.
 - Split large features into multiple independent PRs.
 - PR titles should summarize what was added or changed in one sentence.

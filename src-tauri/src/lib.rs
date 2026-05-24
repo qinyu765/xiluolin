@@ -1,3 +1,4 @@
+pub mod asr;
 pub mod data;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -7,6 +8,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
+            asr::transcribe_audio_path,
             data::initialize_local_data,
             data::list_personas,
             data::set_default_persona,

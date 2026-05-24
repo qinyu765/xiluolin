@@ -37,8 +37,20 @@ This skill keeps development task execution auditable for the Qiniu Hackathon vo
    - Suggested commit message using `type: 中文描述`.
    - PR description containing feature description, implementation approach, and verification method.
 10. Only after approval:
-   - Create the commit on `dev`.
-   - If this change is being prepared as a stable milestone, create or update the PR from `dev` into `main`.
+    - Create the commit on `dev`.
+    - If this change is being prepared as a stable milestone, create or update the PR from `dev` into `main`.
+
+## Execution Pitfalls To Check
+
+Run these checks when the task touches dependencies, external APIs, build tooling, commit, push, or PR creation:
+
+- For a new Rust dependency, expect the first `cargo` command to need network access. If crates.io access fails because of sandbox or TLS/network restrictions, rerun the same command with escalation instead of changing code.
+- For frontend verification on Windows, `node_modules` can be unreadable inside the sandbox and cause false failures such as missing `picomatch/index.js` or `tsc` not found. First confirm with `Test-Path` or `Get-ChildItem`; then run `pnpm build` and `pnpm exec tsc --noEmit` with escalation if the source files are unchanged and the error is dependency-read related.
+- For HTTP client libraries, verify the installed crate API from local registry source before assuming examples from memory. In this project `ureq` 3.x multipart lives under `ureq::unversioned::multipart`.
+- For provider tasks, use mock HTTP tests for request shape and local validation. Real API smoke tests are recommended before merge when credentials and sample files are available, but may be deferred if the task document records the deferral and no secrets are committed.
+- Before creating a PR, read `git remote -v` and use the actual GitHub owner/repo. Do not infer owner or repo from the local folder path.
+- After committing on `dev`, check `git status --short --branch`. If `dev` is ahead of `origin/dev`, push `dev` before creating the `dev -> main` PR.
+- After PR creation, update `docs/dev/task-tracker.md` PR column with the PR number or URL.
 
 ## Task Document Template
 
@@ -56,6 +68,8 @@ Use this structure for every completed task document:
 ## 涉及文件
 
 ## 测试与验证
+
+## 执行复盘
 
 ## 未完成事项
 
@@ -78,8 +92,10 @@ Use this structure for every completed task document:
 Before saying a task is ready for review, verify all items:
 
 - Task tracker state was updated.
+- Task tracker PR column was updated after PR creation.
 - Task development document exists.
 - Verification result is documented.
+- Known execution pitfalls and deferred real-service checks are documented.
 - No unrelated files were changed.
 - README or dependency documentation was updated when dependencies changed.
 - Commit and PR text are ready for the user to review.

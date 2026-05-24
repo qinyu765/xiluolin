@@ -206,6 +206,7 @@ fn default_config_contains_provider_and_output_defaults() {
         config,
         AppConfig {
             default_persona_id: "prompt-engineer".to_string(),
+            asr_api_key: "".to_string(),
             asr_base_url: "https://open.bigmodel.cn/api/paas/v4/".to_string(),
             asr_model: "glm-asr-2512".to_string(),
             openai_model: "gpt-4.1-mini".to_string(),

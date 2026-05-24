@@ -1,8 +1,14 @@
 pub mod asr;
 pub mod data;
+pub mod hotkey;
+pub mod output;
 pub mod pipeline;
 pub mod recording;
 pub mod text_polish;
+
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -10,6 +16,25 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            // 初始化快捷键状态
+            app.manage(Arc::new(Mutex::new(hotkey::HotkeyState::default())));
+
+            // 从配置读取并注册默认快捷键
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Ok(config) = data::read_app_config(app_handle.clone()) {
+                    let _ = hotkey::register_hotkey(
+                        app_handle,
+                        config.shortcut,
+                        config.recording_mode,
+                    ).await;
+                }
+            });
+
+            Ok(())
+        })
         .manage(recording::RecordingState::new())
         .invoke_handler(tauri::generate_handler![
             asr::transcribe_audio_path,
@@ -29,7 +54,10 @@ pub fn run() {
             data::read_app_config,
             data::update_app_config,
             recording::start_recording,
-            recording::stop_recording
+            recording::stop_recording,
+            hotkey::register_hotkey,
+            hotkey::unregister_hotkey,
+            output::output_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

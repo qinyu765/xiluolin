@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
-import { Loader2Icon, Mic2Icon } from "lucide-react";
+import {
+  Loader2Icon,
+  Mic2Icon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +18,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,6 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import "./styles.css";
 
 type Persona = {
@@ -34,35 +51,75 @@ type Persona = {
   is_default: boolean;
 };
 
+type Hotword = {
+  id: string;
+  source_text: string;
+  target_text: string;
+  category: string;
+  enabled: boolean;
+};
+
+type HotwordDraft = {
+  source_text: string;
+  target_text: string;
+  category: string;
+  enabled: boolean;
+};
+
+const emptyHotwordDraft: HotwordDraft = {
+  source_text: "",
+  target_text: "",
+  category: "",
+  enabled: true,
+};
+
 function App() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersonaId, setSelectedPersonaId] = useState("");
+  const [hotwords, setHotwords] = useState<Hotword[]>([]);
+  const [hotwordContext, setHotwordContext] = useState("");
+  const [hotwordDraft, setHotwordDraft] =
+    useState<HotwordDraft>(emptyHotwordDraft);
+  const [editingHotwordId, setEditingHotwordId] = useState<string | null>(null);
+  const [isHotwordDialogOpen, setIsHotwordDialogOpen] = useState(false);
   const [status, setStatus] = useState("正在读取本地人格配置...");
+  const [hotwordStatus, setHotwordStatus] = useState("正在读取热词词典...");
   const [isSaving, setIsSaving] = useState(false);
+  const [isHotwordSaving, setIsHotwordSaving] = useState(false);
 
   const selectedPersona = useMemo(
     () => personas.find((persona) => persona.id === selectedPersonaId),
     [personas, selectedPersonaId],
   );
 
+  const enabledHotwordCount = hotwords.filter(
+    (hotword) => hotword.enabled,
+  ).length;
+
   useEffect(() => {
-    async function loadPersonas() {
+    async function loadData() {
       try {
         await invoke("initialize_local_data");
         const loadedPersonas = await invoke<Persona[]>("list_personas");
+        const loadedHotwords = await invoke<Hotword[]>("list_hotwords");
+        const loadedContext = await invoke<string>("enabled_hotword_context");
         const defaultPersona =
           loadedPersonas.find((persona) => persona.is_default) ??
           loadedPersonas[0];
 
         setPersonas(loadedPersonas);
         setSelectedPersonaId(defaultPersona?.id ?? "");
+        setHotwords(loadedHotwords);
+        setHotwordContext(loadedContext);
         setStatus("已加载内置人格，可选择默认整理风格。");
+        setHotwordStatus("热词词典已加载。");
       } catch (error) {
-        setStatus(`读取人格失败：${String(error)}`);
+        setStatus(`读取本地数据失败：${String(error)}`);
+        setHotwordStatus("热词词典读取失败。");
       }
     }
 
-    loadPersonas();
+    loadData();
   }, []);
 
   async function handleDefaultPersonaChange(personaId: string) {
@@ -85,9 +142,104 @@ function App() {
     }
   }
 
+  async function reloadHotwords(nextStatus: string) {
+    const [loadedHotwords, loadedContext] = await Promise.all([
+      invoke<Hotword[]>("list_hotwords"),
+      invoke<string>("enabled_hotword_context"),
+    ]);
+    setHotwords(loadedHotwords);
+    setHotwordContext(loadedContext);
+    setHotwordStatus(nextStatus);
+  }
+
+  function openCreateHotwordDialog() {
+    setEditingHotwordId(null);
+    setHotwordDraft(emptyHotwordDraft);
+    setIsHotwordDialogOpen(true);
+  }
+
+  function openEditHotwordDialog(hotword: Hotword) {
+    setEditingHotwordId(hotword.id);
+    setHotwordDraft({
+      source_text: hotword.source_text,
+      target_text: hotword.target_text,
+      category: hotword.category,
+      enabled: hotword.enabled,
+    });
+    setIsHotwordDialogOpen(true);
+  }
+
+  async function handleSaveHotword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const draft = {
+      ...hotwordDraft,
+      source_text: hotwordDraft.source_text.trim(),
+      target_text: hotwordDraft.target_text.trim(),
+      category: hotwordDraft.category.trim(),
+    };
+
+    if (!draft.source_text || !draft.target_text) {
+      setHotwordStatus("原始说法和修正写法不能为空。");
+      return;
+    }
+
+    setIsHotwordSaving(true);
+    setHotwordStatus("正在保存热词...");
+
+    try {
+      if (editingHotwordId) {
+        await invoke<Hotword>("update_hotword", {
+          id: editingHotwordId,
+          draft,
+        });
+      } else {
+        await invoke<Hotword>("create_hotword", { draft });
+      }
+      await reloadHotwords("热词已保存，并会进入文本整理上下文。");
+      setIsHotwordDialogOpen(false);
+    } catch (error) {
+      setHotwordStatus(`保存热词失败：${String(error)}`);
+    } finally {
+      setIsHotwordSaving(false);
+    }
+  }
+
+  async function handleHotwordEnabledChange(hotword: Hotword, enabled: boolean) {
+    setHotwordStatus("正在更新热词状态...");
+
+    try {
+      await invoke<Hotword>("update_hotword", {
+        id: hotword.id,
+        draft: {
+          source_text: hotword.source_text,
+          target_text: hotword.target_text,
+          category: hotword.category,
+          enabled,
+        },
+      });
+      await reloadHotwords(enabled ? "热词已启用。" : "热词已停用。");
+    } catch (error) {
+      setHotwordStatus(`更新热词状态失败：${String(error)}`);
+    }
+  }
+
+  async function handleDeleteHotword(id: string) {
+    setHotwordStatus("正在删除热词...");
+
+    try {
+      const updatedHotwords = await invoke<Hotword[]>("delete_hotword", { id });
+      const updatedContext = await invoke<string>("enabled_hotword_context");
+      setHotwords(updatedHotwords);
+      setHotwordContext(updatedContext);
+      setHotwordStatus("热词已删除。");
+    } catch (error) {
+      setHotwordStatus(`删除热词失败：${String(error)}`);
+    }
+  }
+
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-3xl content-center gap-6">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-4xl content-center gap-6">
         <section className="space-y-4">
           <div className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1 text-sm font-medium text-muted-foreground shadow-sm">
             <Mic2Icon className="size-4 text-primary" aria-hidden="true" />
@@ -196,7 +348,199 @@ function App() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
+                T005 热词词典
+              </p>
+              <CardTitle className="text-2xl">热词修正</CardTitle>
+              <CardDescription className="mt-2">
+                维护专有名词、项目名和技术词，启用后的热词会作为文本整理上下文。
+              </CardDescription>
+            </div>
+            <CardAction>
+              <Button type="button" size="sm" onClick={openCreateHotwordDialog}>
+                <PlusIcon className="size-4" aria-hidden="true" />
+                新增热词
+              </Button>
+            </CardAction>
+          </CardHeader>
+
+          <CardContent className="space-y-5">
+            <div className="grid gap-3">
+              {hotwords.length > 0 ? (
+                hotwords.map((hotword) => (
+                  <section
+                    key={hotword.id}
+                    className="grid gap-3 rounded-lg border bg-muted/30 p-4 sm:grid-cols-[1fr_auto] sm:items-center"
+                  >
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold">
+                          {hotword.source_text}
+                          <span className="mx-2 text-muted-foreground">→</span>
+                          {hotword.target_text}
+                        </p>
+                        {hotword.category ? (
+                          <span className="inline-flex h-6 items-center rounded-md border bg-background px-2 text-xs text-muted-foreground">
+                            {hotword.category}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {hotword.enabled ? "已启用" : "已停用"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={hotword.enabled}
+                        onCheckedChange={(enabled) =>
+                          handleHotwordEnabledChange(hotword, enabled)
+                        }
+                        aria-label={`切换 ${hotword.target_text} 热词状态`}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => openEditHotwordDialog(hotword)}
+                        aria-label={`编辑 ${hotword.target_text}`}
+                      >
+                        <PencilIcon className="size-4" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleDeleteHotword(hotword.id)}
+                        aria-label={`删除 ${hotword.target_text}`}
+                      >
+                        <Trash2Icon className="size-4" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </section>
+                ))
+              ) : (
+                <section className="rounded-lg border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
+                  暂无热词。可以先添加项目名、技术词或常见误识别词。
+                </section>
+              )}
+            </div>
+
+            <div className="grid gap-3 border-t pt-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {hotwordStatus}
+                </p>
+                <span className="inline-flex h-8 w-fit items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+                  已启用 {enabledHotwordCount} 个
+                </span>
+              </div>
+              <Textarea
+                value={hotwordContext || "暂无启用热词上下文。"}
+                readOnly
+                className="min-h-24 resize-none bg-background text-sm"
+                aria-label="启用热词上下文"
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <Dialog
+        open={isHotwordDialogOpen}
+        onOpenChange={setIsHotwordDialogOpen}
+      >
+        <DialogContent>
+          <form onSubmit={handleSaveHotword} className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>
+                {editingHotwordId ? "编辑热词" : "新增热词"}
+              </DialogTitle>
+              <DialogDescription>
+                原始说法用于匹配口述识别结果，修正写法会进入 AI 整理上下文。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="hotword-source">原始说法</Label>
+                <Input
+                  id="hotword-source"
+                  value={hotwordDraft.source_text}
+                  onChange={(event) =>
+                    setHotwordDraft((draft) => ({
+                      ...draft,
+                      source_text: event.target.value,
+                    }))
+                  }
+                  placeholder="next 点 js"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="hotword-target">修正写法</Label>
+                <Input
+                  id="hotword-target"
+                  value={hotwordDraft.target_text}
+                  onChange={(event) =>
+                    setHotwordDraft((draft) => ({
+                      ...draft,
+                      target_text: event.target.value,
+                    }))
+                  }
+                  placeholder="Next.js"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="hotword-category">分类</Label>
+                <Input
+                  id="hotword-category"
+                  value={hotwordDraft.category}
+                  onChange={(event) =>
+                    setHotwordDraft((draft) => ({
+                      ...draft,
+                      category: event.target.value,
+                    }))
+                  }
+                  placeholder="技术词"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <Label htmlFor="hotword-enabled">启用热词</Label>
+                <Switch
+                  id="hotword-enabled"
+                  checked={hotwordDraft.enabled}
+                  onCheckedChange={(enabled) =>
+                    setHotwordDraft((draft) => ({ ...draft, enabled }))
+                  }
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsHotwordDialogOpen(false)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={isHotwordSaving}>
+                {isHotwordSaving ? (
+                  <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                保存
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

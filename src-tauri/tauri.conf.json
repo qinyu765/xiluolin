@@ -25,8 +25,7 @@
   },
   "plugins": {
     "opener": {},
-    "sql": {},
-    "store": {}
+    "sql": {}
   },
   "bundle": {
     "active": true,

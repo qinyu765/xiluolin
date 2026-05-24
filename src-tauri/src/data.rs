@@ -15,6 +15,9 @@ pub struct AppConfig {
     pub asr_api_key: String,
     pub asr_base_url: String,
     pub asr_model: String,
+    #[serde(default)]
+    pub openai_api_key: String,
+    pub openai_base_url: String,
     pub openai_model: String,
     pub recording_mode: String,
     pub shortcut: String,
@@ -85,6 +88,8 @@ pub fn default_app_config() -> AppConfig {
         asr_api_key: "".to_string(),
         asr_base_url: "https://open.bigmodel.cn/api/paas/v4/".to_string(),
         asr_model: "glm-asr-2512".to_string(),
+        openai_api_key: "".to_string(),
+        openai_base_url: "https://api.openai.com/v1/".to_string(),
         openai_model: "gpt-4.1-mini".to_string(),
         recording_mode: "toggle".to_string(),
         shortcut: "CommandOrControl+Shift+Space".to_string(),

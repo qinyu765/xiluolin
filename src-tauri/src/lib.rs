@@ -1,5 +1,6 @@
 pub mod asr;
 pub mod data;
+pub mod text_polish;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -9,6 +10,7 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             asr::transcribe_audio_path,
+            text_polish::polish_text,
             data::initialize_local_data,
             data::list_personas,
             data::set_default_persona,

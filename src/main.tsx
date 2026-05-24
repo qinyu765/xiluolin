@@ -72,6 +72,8 @@ type AppConfig = {
   asr_api_key: string;
   asr_base_url: string;
   asr_model: string;
+  openai_api_key: string;
+  openai_base_url: string;
   openai_model: string;
   recording_mode: string;
   shortcut: string;
@@ -98,9 +100,11 @@ function App() {
   const [isHotwordDialogOpen, setIsHotwordDialogOpen] = useState(false);
   const [status, setStatus] = useState("正在读取本地人格配置...");
   const [asrStatus, setAsrStatus] = useState("正在读取智谱 ASR 配置...");
+  const [openaiStatus, setOpenaiStatus] = useState("正在读取 OpenAI 配置...");
   const [hotwordStatus, setHotwordStatus] = useState("正在读取热词词典...");
   const [isSaving, setIsSaving] = useState(false);
   const [isAsrSaving, setIsAsrSaving] = useState(false);
+  const [isOpenaiSaving, setIsOpenaiSaving] = useState(false);
   const [isHotwordSaving, setIsHotwordSaving] = useState(false);
 
   const selectedPersona = useMemo(
@@ -130,10 +134,12 @@ function App() {
         setHotwordContext(loadedContext);
         setStatus("已加载内置人格，可选择默认整理风格。");
         setAsrStatus("智谱 ASR 配置已加载。");
+        setOpenaiStatus("OpenAI 配置已加载。");
         setHotwordStatus("热词词典已加载。");
       } catch (error) {
         setStatus(`读取本地数据失败：${String(error)}`);
         setAsrStatus("智谱 ASR 配置读取失败。");
+        setOpenaiStatus("OpenAI 配置读取失败。");
         setHotwordStatus("热词词典读取失败。");
       }
     }
@@ -198,6 +204,46 @@ function App() {
       setAsrStatus(`保存智谱 ASR 配置失败：${String(error)}`);
     } finally {
       setIsAsrSaving(false);
+    }
+  }
+
+  async function handleSaveOpenaiConfig(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    if (!appConfig) {
+      return;
+    }
+
+    const nextConfig = {
+      ...appConfig,
+      openai_api_key: appConfig.openai_api_key.trim(),
+      openai_base_url: appConfig.openai_base_url.trim(),
+      openai_model: appConfig.openai_model.trim(),
+    };
+
+    if (!nextConfig.openai_base_url || !nextConfig.openai_model) {
+      setOpenaiStatus("Base URL 和模型名不能为空。");
+      return;
+    }
+
+    setIsOpenaiSaving(true);
+    setOpenaiStatus("正在保存 OpenAI 配置...");
+
+    try {
+      const savedConfig = await invoke<AppConfig>("update_app_config", {
+        config: nextConfig,
+      });
+      setAppConfig(savedConfig);
+      setOpenaiStatus(
+        savedConfig.openai_api_key
+          ? "OpenAI 配置已保存。"
+          : "OpenAI 配置已保存，真实整理前仍需填写 API Key。",
+      );
+    } catch (error) {
+      setOpenaiStatus(`保存 OpenAI 配置失败：${String(error)}`);
+    } finally {
+      setIsOpenaiSaving(false);
     }
   }
 
@@ -405,6 +451,96 @@ function App() {
                 语音主流程待接入
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
+                T007 OpenAI 整理
+              </p>
+              <CardTitle className="text-2xl">文本整理服务</CardTitle>
+              <CardDescription className="mt-2">
+                配置 OpenAI Responses API，用于把原始识别文本整理成可直接使用的结果。
+              </CardDescription>
+            </div>
+            <CardAction>
+              <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+                {appConfig?.openai_api_key ? "已配置 Key" : "待配置 Key"}
+              </span>
+            </CardAction>
+          </CardHeader>
+
+          <CardContent>
+            <form className="grid gap-4" onSubmit={handleSaveOpenaiConfig}>
+              <div className="grid gap-2">
+                <Label htmlFor="openai-api-key">OpenAI API Key</Label>
+                <Input
+                  id="openai-api-key"
+                  type="password"
+                  value={appConfig?.openai_api_key ?? ""}
+                  onChange={(event) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, openai_api_key: event.target.value }
+                        : config,
+                    )
+                  }
+                  placeholder="本地保存，不写入仓库"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                <div className="grid gap-2">
+                  <Label htmlFor="openai-base-url">Base URL</Label>
+                  <Input
+                    id="openai-base-url"
+                    value={appConfig?.openai_base_url ?? ""}
+                    onChange={(event) =>
+                      setAppConfig((config) =>
+                        config
+                          ? { ...config, openai_base_url: event.target.value }
+                          : config,
+                      )
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="openai-model">模型</Label>
+                  <Input
+                    id="openai-model"
+                    value={appConfig?.openai_model ?? ""}
+                    onChange={(event) =>
+                      setAppConfig((config) =>
+                        config
+                          ? { ...config, openai_model: event.target.value }
+                          : config,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {openaiStatus}
+                </p>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!appConfig || isOpenaiSaving}
+                >
+                  {isOpenaiSaving ? (
+                    <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <SaveIcon className="size-4" aria-hidden="true" />
+                  )}
+                  保存 OpenAI 配置
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
 

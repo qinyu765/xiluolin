@@ -61,6 +61,7 @@ pub fn run() {
             data::create_history_record,
             data::list_history_records,
             data::history_statistics,
+            data::delete_history_record,
             data::read_app_config,
             data::update_app_config,
             recording::start_recording,

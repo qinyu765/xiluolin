@@ -42,13 +42,15 @@ export function HotwordDialog({
               {isEditing ? "编辑热词" : "新增热词"}
             </DialogTitle>
             <DialogDescription>
-              原始说法用于匹配口述识别结果，修正写法会进入 AI 整理上下文。
+              定义语音识别可能输出的文本和期望的正确写法。必填字段标记为 *。
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="hotword-source">原始说法</Label>
+              <Label htmlFor="hotword-source">
+                原始说法 <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="hotword-source"
                 value={draft.source_text}
@@ -58,12 +60,15 @@ export function HotwordDialog({
                     source_text: event.target.value,
                   })
                 }
-                placeholder="next 点 js"
+                placeholder="语音识别可能输出的文本，如「next 点 js」"
+                required
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="hotword-target">修正写法</Label>
+              <Label htmlFor="hotword-target">
+                修正写法 <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="hotword-target"
                 value={draft.target_text}
@@ -73,12 +78,13 @@ export function HotwordDialog({
                     target_text: event.target.value,
                   })
                 }
-                placeholder="Next.js"
+                placeholder="期望的正确写法，如「Next.js」"
+                required
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="hotword-category">分类</Label>
+              <Label htmlFor="hotword-category">分类（可选）</Label>
               <Input
                 id="hotword-category"
                 value={draft.category}
@@ -88,7 +94,7 @@ export function HotwordDialog({
                     category: event.target.value,
                   })
                 }
-                placeholder="技术词"
+                placeholder="用于组织热词，如「技术词」、「项目名」"
               />
             </div>
 

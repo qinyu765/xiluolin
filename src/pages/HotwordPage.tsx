@@ -39,12 +39,9 @@ export function HotwordPage({
       <Card>
         <CardHeader>
           <div>
-            <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
-              T005 热词词典
-            </p>
-            <CardTitle className="text-2xl">热词修正</CardTitle>
+            <CardTitle className="text-2xl">热词管理</CardTitle>
             <CardDescription className="mt-2">
-              维护专有名词、项目名和技术词，启用后的热词会作为文本整理上下文。
+              记住那些只属于你的重要词汇：专有名词、技术词汇、行业术语、个人习惯用语。启用后的热词会作为文本整理的参考上下文。
             </CardDescription>
           </div>
           <CardAction>
@@ -126,12 +123,17 @@ export function HotwordPage({
                 已启用 {enabledHotwordCount} 个
               </span>
             </div>
-            <Textarea
-              value={hotwordContext || "暂无启用热词上下文。"}
-              readOnly
-              className="min-h-24 resize-none bg-background text-sm"
-              aria-label="启用热词上下文"
-            />
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                以下内容会作为参考上下文注入到文本整理 prompt
+              </p>
+              <Textarea
+                value={hotwordContext || "暂无启用热词上下文。"}
+                readOnly
+                className="min-h-24 resize-none bg-background text-sm"
+                aria-label="启用热词上下文"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

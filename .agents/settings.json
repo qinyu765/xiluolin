@@ -1,0 +1,17 @@
+{
+  "allowedPrompts": [
+    {
+      "tool": "Bash",
+      "prompt": "cd \"D:\\For coding\\project\\Agents\\example\\qiniu-Hackathon-learn\" && pnpm build"
+    },
+    {
+      "tool": "Bash",
+      "prompt": "cd \"D:\\For coding\\project\\Agents\\example\\qiniu-Hackathon-learn\" && pnpm exec tsc --noEmit"
+    },
+    {
+      "tool": "Bash",
+      "prompt": "cargo check"
+    }
+  ]
+}
+  

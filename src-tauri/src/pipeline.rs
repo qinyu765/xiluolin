@@ -92,7 +92,6 @@ pub fn process_voice_input(
     text_config: TextPolishConfig,
     database: &LocalDatabase,
     auto_save_history: bool,
-    output_mode: &str,
 ) -> Result<VoiceInputResult, VoiceInputError> {
     let start_time = std::time::Instant::now();
     eprintln!("[⏱️ 性能] process_voice_input 开始");
@@ -139,7 +138,7 @@ pub fn process_voice_input(
             persona_id: persona.id,
             persona_name: persona.name.clone(),
             duration_ms: request.duration_ms.max(0),
-            output_mode: output_mode.to_string(),
+            output_mode: "auto".to_string(),
         };
 
         // 克隆 database 用于异步任务
@@ -227,7 +226,6 @@ pub fn process_uploaded_audio(
         },
         &database,
         config.auto_save_history,
-        &config.output_mode,
     )
     .map_err(|error| error.to_string())
 }
@@ -305,7 +303,6 @@ pub fn process_recording_file(
         },
         &database,
         config.auto_save_history,
-        &config.output_mode,
     )
     .map_err(|error| error.to_string())
 }

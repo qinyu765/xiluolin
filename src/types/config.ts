@@ -14,7 +14,6 @@ export type AppConfig = {
   zhipu_model: string;
   longpress_shortcut: string;
   toggle_shortcut: string;
-  output_mode: string;
   auto_save_history: boolean;
   mute_system_audio: boolean;
   selected_microphone: string;

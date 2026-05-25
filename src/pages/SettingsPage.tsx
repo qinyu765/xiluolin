@@ -188,31 +188,6 @@ export function SettingsPage({
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="app-output-mode">输出方式</Label>
-                  <Select
-                    value={appConfig?.output_mode ?? "copy"}
-                    onValueChange={(value) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, output_mode: value }
-                          : appConfig!,
-                      )
-                    }
-                  >
-                    <SelectTrigger id="app-output-mode" className="h-10">
-                      <SelectValue placeholder="选择输出方式" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="copy">复制到剪贴板</SelectItem>
-                      <SelectItem value="paste">自动粘贴</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    复制：结果复制到剪贴板。自动粘贴：尝试模拟粘贴到当前输入位置。
-                  </p>
-                </div>
-
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
                     <Label htmlFor="app-auto-save">自动保存历史</Label>

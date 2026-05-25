@@ -1,4 +1,5 @@
 # XiLuoLin
+b站演示视频：https://www.bilibili.com/video/BV1mEGo66EBB/?vd_source=12fed1699cf3108d48cd967e825a59e1
 
 XiLuoLin 是一个面向办公、写作和编程场景的 AI 语音输入助手。通过语音输入、智能识别、人格化整理，帮助用户快速将口述内容转化为可直接使用的文本，减少打字、编辑和润色成本。
 

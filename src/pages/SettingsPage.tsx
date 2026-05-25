@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ShortcutInput } from "@/components/ui/shortcut-input";
 import type { AppConfig, AudioDevice } from "@/types";
 
 type SettingsPageProps = {
@@ -61,21 +62,11 @@ export function SettingsPage({
       toggle_shortcut: appConfig.toggle_shortcut.trim(),
     };
 
-    if (!nextConfig.longpress_shortcut) {
-      toast.error("长按模式快捷键不能为空");
-      return;
-    }
-
-    if (!nextConfig.toggle_shortcut) {
-      toast.error("切换模式快捷键不能为空");
-      return;
-    }
-
     setIsGeneralSaving(true);
     invoke<AppConfig>("update_app_config", { config: nextConfig })
       .then((savedConfig) => {
         onConfigSaved(savedConfig);
-        toast.success("通用设置已保存");
+        toast.success("通用设置已保存，快捷键已生效");
       })
       .catch((error) => {
         toast.error(`保存通用设置失败：${String(error)}`);
@@ -111,21 +102,18 @@ export function SettingsPage({
             <CardContent>
               <form className="grid gap-4" onSubmit={handleGeneralSubmit}>
                 <div className="grid gap-2">
-                  <Label htmlFor="longpress-shortcut">
-                    长按模式快捷键 <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="longpress-shortcut"
+                  <Label htmlFor="longpress-shortcut">长按模式快捷键</Label>
+                  <ShortcutInput
                     value={appConfig?.longpress_shortcut ?? ""}
-                    onChange={(event) =>
+                    defaultValue="RightControl"
+                    onChange={(value) =>
                       onConfigChange(
                         appConfig
-                          ? { ...appConfig, longpress_shortcut: event.target.value }
+                          ? { ...appConfig, longpress_shortcut: value }
                           : appConfig!,
                       )
                     }
-                    placeholder="例如：RightControl"
-                    required
+                    placeholder="点击后按下快捷键"
                   />
                   <p className="text-xs text-muted-foreground">
                     按住快捷键录音，松开停止。默认：右Ctrl
@@ -133,49 +121,21 @@ export function SettingsPage({
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="toggle-shortcut">
-                    切换模式快捷键 <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="toggle-shortcut"
+                  <Label htmlFor="toggle-shortcut">切换模式快捷键</Label>
+                  <ShortcutInput
                     value={appConfig?.toggle_shortcut ?? ""}
-                    onChange={(event) =>
+                    defaultValue="LeftAlt+Space"
+                    onChange={(value) =>
                       onConfigChange(
                         appConfig
-                          ? { ...appConfig, toggle_shortcut: event.target.value }
+                          ? { ...appConfig, toggle_shortcut: value }
                           : appConfig!,
                       )
                     }
-                    placeholder="例如：Alt+Space"
-                    required
+                    placeholder="点击后按下快捷键"
                   />
                   <p className="text-xs text-muted-foreground">
-                    按一次开始录音，再按一次停止。默认：左Alt+Space
-                  </p>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="app-recording-mode">录音模式</Label>
-                  <Select
-                    value={appConfig?.recording_mode ?? "toggle"}
-                    onValueChange={(value) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, recording_mode: value }
-                          : appConfig!,
-                      )
-                    }
-                  >
-                    <SelectTrigger id="app-recording-mode" className="h-10">
-                      <SelectValue placeholder="选择录音模式" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="long_press">长按录音</SelectItem>
-                      <SelectItem value="toggle">切换式录音</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    长按：按住快捷键录音，松开停止。切换：按一次开始，再按一次停止。
+                    按一次开始录音，再按一次停止。默认：左Alt+空格
                   </p>
                 </div>
 

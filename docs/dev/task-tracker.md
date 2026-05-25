@@ -84,4 +84,4 @@
 | T025 | P1 | 人格页整合 | 直接在 `dev` 上整合人格管理和默认人格选择功能到人格页 | Review | dev | 待创建 | `pnpm exec tsc --noEmit`、`pnpm build` | [2026-05-25-t025-persona-page-integration.md](./2026-05-25-t025-persona-page-integration.md) | 合并 T017 人格管理卡片到人格页 |
 | T026 | P1 | 热词页优化 | 直接在 `dev` 上优化热词页说明文案，明确热词功能定义 | Review | dev | 待创建 | `pnpm exec tsc --noEmit`、`pnpm build` | [2026-05-25-t026-hotword-page-optimization.md](./2026-05-25-t026-hotword-page-optimization.md) | 优化字段说明和示例 |
 | T027 | P1 | 设置页重构 | 直接在 `dev` 上重构设置页，添加分类 Tab，移动 ASR 和 OpenAI 配置到设置页 | Review | dev | 待创建 | `pnpm exec tsc --noEmit`、`pnpm build` | [2026-05-25-t027-settings-page-refactor.md](./2026-05-25-t027-settings-page-refactor.md) | 当前实际实现为顶部水平 Tab：通用、模型配置 |
-| T028 | P0 | UI 重构端到端验证 | 直接在 `dev` 上验证 UI 重构后的完整流程，确保所有功能正常 | Todo | dev | 待创建 | 按 T028 文档验收清单逐项验证 | [2026-05-25-t028-ui-e2e-verification.md](./2026-05-25-t028-ui-e2e-verification.md) | 需重点确认首页语音输入入口和快捷键录音事件接线 |
+| T028 | P0 | UI 重构端到端验证 | 直接在 `dev` 上验证 UI 重构后的完整流程，确保所有功能正常 | Doing | dev | 待创建 | 按 T028 文档验收清单逐项验证 | [2026-05-25-t028-ui-e2e-verification.md](./2026-05-25-t028-ui-e2e-verification.md) | 快捷键录音事件监听已完成；录音指示器和完整流程待手动测试 |

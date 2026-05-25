@@ -135,11 +135,11 @@
   - [ ] 设为默认
 - [ ] 语音输入:
   - [ ] 当前首页没有可见录音 / 上传入口
-  - [ ] 验证前端是否已监听 `recording-completed` 和 `recording-error`
-  - [ ] 如果尚未监听,将快捷键录音联调标记为未完成
-  - [ ] 验证快捷键录音时 `indicator.html` 录音指示器是否显示和隐藏
-  - [ ] 验证生产打包后录音指示器资源路径是否可用
-  - [ ] 如果恢复 `QuickStartCard` 或补齐事件监听,再执行录音、识别、整理、复制或输出
+  - [x] 验证前端是否已监听 `recording-completed` 和 `recording-error` - **已完成**，前端已在 `main.tsx:143-279` 监听并处理
+  - [x] 验证快捷键录音事件处理流程 - **已完成**，包含 ASR + 文本润色 + 自动输出 + 历史记录更新
+  - [ ] 验证快捷键录音时 `indicator.html` 录音指示器是否显示和隐藏 - **待手动测试**
+  - [ ] 验证生产打包后录音指示器资源路径是否可用 - **待打包验证**
+  - [ ] 如果恢复 `QuickStartCard` 或补齐事件监听,再执行录音、识别、整理、复制或输出 - **事件监听已补齐，待配置 API Key 后手动测试完整流程**
 - [ ] 查看历史:
   - [ ] 查看历史记录
   - [ ] 复制历史记录
@@ -193,8 +193,8 @@
 | 问题描述 | 严重程度 | 是否修复 | 修复说明 |
 |---------|---------|---------|---------|
 | 首页语音输入入口当前被隐藏,无法从可见 UI 发起录音或上传音频 | 高 | 否 | `QuickStartCard` 在 `HomePage` 中被注释隐藏 |
-| 全局快捷键录音完成事件尚未在前端监听并接入 `process_recording_file` | 高 | 否 | Rust 侧 emit `recording-completed`,前端未发现 listen 逻辑 |
-| 录音指示器窗口已加入,但生产打包资源路径尚未验证 | 中 | 否 | 根目录和 `src-tauri/` 下各有一份内容一致的 `indicator.html`; Rust 侧开发模式读取根目录文件,生产模式使用 `WebviewUrl::App` |
+| 全局快捷键录音完成事件尚未在前端监听并接入 `process_recording_file` | 高 | **是** | 前端已在 `main.tsx` 中监听 `recording-completed` 和 `recording-error` 事件，并接入完整处理流程（ASR + 文本润色 + 自动输出 + 历史记录更新） |
+| 录音指示器窗口已加入,但生产打包资源路径尚未验证 | 中 | 部分 | 根目录 `indicator.html` 已删除，仅保留 `src-tauri/indicator.html`；Rust 侧开发模式读取根目录文件（已不存在），生产模式使用 `WebviewUrl::App`，打包资源配置仍需验证 |
 | `AppSettingsDialog` 仍引用 `recording_mode`,当前 `AppConfig` 类型未包含该字段 | 中 | 否 | 当前主入口未使用该弹窗,但后续清理或恢复时需要处理 |
 
 ## 验证结论

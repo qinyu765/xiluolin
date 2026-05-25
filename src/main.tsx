@@ -12,7 +12,6 @@ import { HotwordPage } from "@/pages/HotwordPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { HotwordDialog } from "@/components/dialogs/HotwordDialog";
 import { PersonaDialog } from "@/components/dialogs/PersonaDialog";
-import { AppSettingsDialog } from "@/components/dialogs/AppSettingsDialog";
 import type {
   Page,
   Persona,
@@ -47,7 +46,6 @@ function App() {
     useState<PersonaDraft>(emptyPersonaDraft);
   const [editingPersonaId, setEditingPersonaId] = useState<string | null>(null);
   const [isPersonaDialogOpen, setIsPersonaDialogOpen] = useState(false);
-  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [status, setStatus] = useState("正在读取本地人格配置...");
   const [asrStatus, setAsrStatus] = useState("正在读取智谱 ASR 配置...");
   const [openaiStatus, setOpenaiStatus] = useState("正在读取 OpenAI 配置...");
@@ -648,20 +646,9 @@ function App() {
 
       {/* 顶部标题栏 */}
       <header className="border-b bg-background px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-semibold tracking-normal [font-family:Georgia,'Times_New_Roman',serif]">
-            XiLuoLin
-          </h1>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsSettingsDialogOpen(true)}
-          >
-            <SettingsIcon className="size-4" aria-hidden="true" />
-            设置
-          </Button>
-        </div>
+        <h1 className="text-3xl font-semibold tracking-normal [font-family:Georgia,'Times_New_Roman',serif]">
+          XiLuoLin
+        </h1>
       </header>
 
       {/* 主内容区 */}
@@ -759,20 +746,16 @@ function App() {
 
             {currentPage === "settings" && (
               <SettingsPage
-                personas={personas}
-                selectedPersonaId={selectedPersonaId}
-                selectedPersona={selectedPersona}
                 appConfig={appConfig}
-                status={status}
+                audioDevices={audioDevices}
                 asrStatus={asrStatus}
                 openaiStatus={openaiStatus}
-                isSaving={isSaving}
                 isAsrSaving={isAsrSaving}
                 isOpenaiSaving={isOpenaiSaving}
-                onDefaultPersonaChange={handleDefaultPersonaChange}
                 onSaveAsrConfig={handleSaveAsrConfig}
                 onSaveOpenaiConfig={handleSaveOpenaiConfig}
                 onConfigChange={setAppConfig}
+                onConfigSaved={setAppConfig}
               />
             )}
           </div>
@@ -797,15 +780,6 @@ function App() {
         onOpenChange={setIsPersonaDialogOpen}
         onDraftChange={setPersonaDraft}
         onSave={handleSavePersona}
-      />
-
-      <AppSettingsDialog
-        open={isSettingsDialogOpen}
-        appConfig={appConfig}
-        audioDevices={audioDevices}
-        onOpenChange={setIsSettingsDialogOpen}
-        onConfigChange={setAppConfig}
-        onConfigSaved={setAppConfig}
       />
     </main>
   );

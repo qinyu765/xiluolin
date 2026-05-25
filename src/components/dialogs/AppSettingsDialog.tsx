@@ -95,10 +95,10 @@ export function AppSettingsDialog({
                       : appConfig!,
                   )
                 }
-                placeholder="例如：RightControl"
+                placeholder="例如：CommandOrControl+Shift+R"
               />
               <p className="text-xs text-muted-foreground">
-                按住快捷键录音，松开停止。默认：右Ctrl
+                按住快捷键录音，松开停止。格式：CommandOrControl+Shift+R 或 Alt+Space
               </p>
             </div>
 
@@ -117,7 +117,7 @@ export function AppSettingsDialog({
                 placeholder="例如：Alt+Space"
               />
               <p className="text-xs text-muted-foreground">
-                按一次开始录音，再按一次停止。默认：左Alt+Space
+                按一次开始录音，再按一次停止。格式：Alt+Space 或 CommandOrControl+R
               </p>
             </div>
 

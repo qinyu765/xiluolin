@@ -105,7 +105,7 @@ export function SettingsPage({
                   <Label htmlFor="longpress-shortcut">长按模式快捷键</Label>
                   <ShortcutInput
                     value={appConfig?.longpress_shortcut ?? ""}
-                    defaultValue="RightControl"
+                    defaultValue="CommandOrControl+Shift+R"
                     onChange={(value) =>
                       onConfigChange(
                         appConfig
@@ -116,7 +116,7 @@ export function SettingsPage({
                     placeholder="点击后按下快捷键"
                   />
                   <p className="text-xs text-muted-foreground">
-                    按住快捷键录音，松开停止。默认：右Ctrl
+                    按住快捷键录音，松开停止。默认：Ctrl+Shift+R
                   </p>
                 </div>
 
@@ -124,7 +124,7 @@ export function SettingsPage({
                   <Label htmlFor="toggle-shortcut">切换模式快捷键</Label>
                   <ShortcutInput
                     value={appConfig?.toggle_shortcut ?? ""}
-                    defaultValue="LeftAlt+Space"
+                    defaultValue="Alt+Space"
                     onChange={(value) =>
                       onConfigChange(
                         appConfig
@@ -135,7 +135,7 @@ export function SettingsPage({
                     placeholder="点击后按下快捷键"
                   />
                   <p className="text-xs text-muted-foreground">
-                    按一次开始录音，再按一次停止。默认：左Alt+空格
+                    按一次开始录音，再按一次停止。默认：Alt+空格
                   </p>
                 </div>
 

@@ -43,9 +43,9 @@
 
 - T028 UI 重构端到端验证尚未执行。
 - 真实智谱 GLM-ASR-2512 和 OpenAI Responses API smoke test 尚未记录。
-- 快捷键录音触发后的桌面端完整联调尚未完成。
+- 快捷键录音触发后的桌面端完整联调尚未完成（前端事件监听已完成，待配置 API Key 后手动测试）。
 - 首页可见语音输入入口尚未恢复或替代。
-- 录音指示器生产打包路径尚未验证，当前存在根目录和 `src-tauri/` 下两份内容一致的 HTML 资源。
+- 录音指示器生产打包路径尚未验证，根目录 `indicator.html` 已删除，仅保留 `src-tauri/indicator.html`。
 - `AppSettingsDialog` 与当前配置类型不一致，后续需要清理或修正。
 
 ## 后续建议

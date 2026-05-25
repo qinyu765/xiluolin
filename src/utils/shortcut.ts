@@ -16,15 +16,11 @@ export function formatShortcutDisplay(shortcut: string): string {
 function formatSingleShortcut(shortcut: string): string {
   const keyMap: Record<string, string> = {
     "Control": "Ctrl",
-    "RightControl": "右Ctrl",
-    "LeftControl": "左Ctrl",
+    "CommandOrControl": "Ctrl",
     "Shift": "Shift",
-    "RightShift": "右Shift",
-    "LeftShift": "左Shift",
     "Alt": "Alt",
-    "RightAlt": "右Alt",
-    "LeftAlt": "左Alt",
     "Meta": "Win",
+    "Super": "Win",
     "Space": "空格",
     "Enter": "回车",
     "Backspace": "退格",

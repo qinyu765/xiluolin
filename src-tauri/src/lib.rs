@@ -1,6 +1,7 @@
 pub mod asr;
 pub mod data;
 pub mod hotkey;
+pub mod indicator;
 pub mod output;
 pub mod pipeline;
 pub mod recording;
@@ -24,22 +25,34 @@ pub fn run() {
             // 从配置读取并注册默认快捷键
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if let Ok(config) = data::read_app_config(app_handle.clone()) {
-                    let longpress = if config.longpress_shortcut.is_empty() {
-                        None
-                    } else {
-                        Some(config.longpress_shortcut)
-                    };
-                    let toggle = if config.toggle_shortcut.is_empty() {
-                        None
-                    } else {
-                        Some(config.toggle_shortcut)
-                    };
-                    let _ = hotkey::register_both_hotkeys(
-                        app_handle,
-                        longpress,
-                        toggle,
-                    ).await;
+                match data::read_app_config(app_handle.clone()) {
+                    Ok(config) => {
+                        println!("读取到配置: longpress={}, toggle={}",
+                            config.longpress_shortcut, config.toggle_shortcut);
+
+                        let longpress = if config.longpress_shortcut.is_empty() {
+                            None
+                        } else {
+                            Some(config.longpress_shortcut.clone())
+                        };
+                        let toggle = if config.toggle_shortcut.is_empty() {
+                            None
+                        } else {
+                            Some(config.toggle_shortcut.clone())
+                        };
+
+                        match hotkey::register_both_hotkeys(
+                            app_handle,
+                            longpress,
+                            toggle,
+                        ).await {
+                            Ok(_) => println!("快捷键注册成功"),
+                            Err(e) => eprintln!("快捷键注册失败: {}", e),
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("读取配置失败: {}", e);
+                    }
                 }
             });
 
@@ -74,6 +87,7 @@ pub fn run() {
             hotkey::register_hotkey,
             hotkey::register_both_hotkeys,
             hotkey::unregister_hotkey,
+            indicator::update_indicator_status,
             output::output_text,
         ])
         .run(tauri::generate_context!())

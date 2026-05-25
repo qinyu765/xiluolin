@@ -185,3 +185,55 @@ pub fn process_uploaded_audio(
     )
     .map_err(|error| error.to_string())
 }
+
+#[tauri::command]
+pub fn process_recording_file(
+    app: tauri::AppHandle,
+    file_path: String,
+    duration_ms: i64,
+) -> Result<VoiceInputResult, String> {
+    use crate::data::{read_app_config, LocalDatabase};
+    use tauri::Manager;
+
+    // 读取录音文件
+    let audio_bytes = std::fs::read(&file_path).map_err(|error| error.to_string())?;
+
+    // 获取文件扩展名
+    let audio_extension = std::path::Path::new(&file_path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("wav")
+        .to_string();
+
+    let config = read_app_config(app.clone())?;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
+    let database = LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
+        .map_err(|error| error.to_string())?;
+    database.initialize().map_err(|error| error.to_string())?;
+
+    process_voice_input(
+        VoiceInputRequest {
+            audio_bytes,
+            audio_extension,
+            duration_ms,
+        },
+        AsrConfig {
+            api_key: config.asr_api_key,
+            base_url: config.asr_base_url,
+            model: config.asr_model,
+        },
+        OpenAiTextConfig {
+            api_key: config.openai_api_key,
+            base_url: config.openai_base_url,
+            model: config.openai_model,
+        },
+        &database,
+        config.auto_save_history,
+        &config.output_mode,
+    )
+    .map_err(|error| error.to_string())
+}

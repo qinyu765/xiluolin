@@ -63,6 +63,7 @@ Run these checks when the task touches dependencies, external APIs, build toolin
 - For provider tasks, use mock HTTP tests for request shape and local validation. Real API smoke tests are recommended before merge when credentials and sample files are available, but may be deferred if the task document records the deferral and no secrets are committed.
 - Before creating a PR, read `git remote -v` and use the actual GitHub owner/repo. Do not infer owner or repo from the local folder path.
 - After committing on `dev`, check `git status --short --branch`. If `dev` is ahead of `origin/dev`, push `dev` before creating the `dev -> main` PR.
+- For PR creation, prefer using GitHub MCP tool (`mcp__github__create_pull_request`) over `gh` CLI, as `gh` may not be installed. Extract owner and repo from `git remote -v` output.
 - After PR creation, do not make a second commit only to update the tracker PR column. Put the PR URL in the final response and, when useful, the PR description.
 
 ## Task Document Template

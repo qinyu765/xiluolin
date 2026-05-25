@@ -54,28 +54,9 @@ async fn keyboard_inject(text: &str) -> Result<(), String> {
         let mut enigo = Enigo::new(&Settings::default())
             .map_err(|e| format!("初始化键盘模拟失败: {}", e))?;
 
-        // 逐字符输入
-        for ch in text.chars() {
-            // 处理特殊字符
-            match ch {
-                '\n' => {
-                    enigo.key(Key::Return, enigo::Direction::Click)
-                        .map_err(|e| format!("输入回车失败: {}", e))?;
-                }
-                '\t' => {
-                    enigo.key(Key::Tab, enigo::Direction::Click)
-                        .map_err(|e| format!("输入Tab失败: {}", e))?;
-                }
-                _ => {
-                    // 普通字符直接输入
-                    enigo.text(&ch.to_string())
-                        .map_err(|e| format!("输入字符失败: {}", e))?;
-                }
-            }
-
-            // 短暂延迟,避免输入过快
-            std::thread::sleep(std::time::Duration::from_micros(500));
-        }
+        // 直接输入整个文本，让 enigo 处理
+        enigo.text(&text)
+            .map_err(|e| format!("输入文本失败: {}", e))?;
 
         Ok::<(), String>(())
     })

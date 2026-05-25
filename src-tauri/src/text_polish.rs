@@ -75,17 +75,26 @@ pub fn polish_text_with_openai(
     validate_request(request, config)?;
 
     match send_polish_request(request, config) {
-        Ok(final_text) => Ok(TextPolishResult {
-            final_text,
-            used_fallback: false,
-            error_message: None,
-        }),
-        Err(error @ TextPolishError::RequestFailed(_)) => Ok(TextPolishResult {
-            final_text: request.raw_text.trim().to_string(),
-            used_fallback: true,
-            error_message: Some(error.to_string()),
-        }),
-        Err(error) => Err(error),
+        Ok(final_text) => {
+            eprintln!("[⏱️ 文本润色] ✅ 润色成功");
+            Ok(TextPolishResult {
+                final_text,
+                used_fallback: false,
+                error_message: None,
+            })
+        }
+        Err(error @ TextPolishError::RequestFailed(_)) => {
+            eprintln!("[⏱️ 文本润色] ❌ 润色失败，使用降级方案: {}", error);
+            Ok(TextPolishResult {
+                final_text: request.raw_text.trim().to_string(),
+                used_fallback: true,
+                error_message: Some(error.to_string()),
+            })
+        }
+        Err(error) => {
+            eprintln!("[⏱️ 文本润色] ❌ 验证失败: {}", error);
+            Err(error)
+        }
     }
 }
 

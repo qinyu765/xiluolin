@@ -8,6 +8,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::{Manager, State};
 
+use crate::audio_control::windows_audio;
+use crate::data;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioDevice {
     pub name: String,
@@ -243,6 +246,13 @@ pub async fn start_recording(
     // writer 已保存到状态中，会在 stop_recording 时正确关闭
     std::mem::forget(stream);
 
+    // 如果配置了静音其他应用，则执行静音
+    if let Ok(config) = data::read_app_config(app_handle.clone()) {
+        if config.mute_system_audio {
+            let _ = windows_audio::mute_all_sessions();
+        }
+    }
+
     Ok("recording_started".to_string())
 }
 
@@ -305,6 +315,9 @@ pub async fn stop_recording(
             }
         }
     }
+
+    // 恢复其他应用的音频
+    let _ = windows_audio::unmute_all_sessions();
 
     Ok(RecordingResult {
         file_path: output_path.to_string_lossy().to_string(),

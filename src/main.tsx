@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
+import { toast, Toaster } from "sonner";
 import {
   BarChart3Icon,
   Clock3Icon,
@@ -12,6 +13,7 @@ import {
   PencilIcon,
   PlusIcon,
   SaveIcon,
+  SettingsIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -90,9 +92,17 @@ type AppConfig = {
   openai_base_url: string;
   openai_model: string;
   recording_mode: string;
-  shortcut: string;
+  longpress_shortcut: string;
+  toggle_shortcut: string;
   output_mode: string;
   auto_save_history: boolean;
+  mute_system_audio: boolean;
+  selected_microphone: string;
+};
+
+type AudioDevice = {
+  name: string;
+  is_default: boolean;
 };
 
 type VoiceInputResult = {
@@ -173,11 +183,13 @@ function App() {
     useState<PersonaDraft>(emptyPersonaDraft);
   const [editingPersonaId, setEditingPersonaId] = useState<string | null>(null);
   const [isPersonaDialogOpen, setIsPersonaDialogOpen] = useState(false);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [status, setStatus] = useState("正在读取本地人格配置...");
   const [asrStatus, setAsrStatus] = useState("正在读取智谱 ASR 配置...");
   const [openaiStatus, setOpenaiStatus] = useState("正在读取 OpenAI 配置...");
   const [hotwordStatus, setHotwordStatus] = useState("正在读取热词词典...");
   const [historyStatus, setHistoryStatus] = useState("正在读取历史记录...");
+  const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([]);
   const [voiceStatus, setVoiceStatus] = useState("请选择一段 wav 或 mp3 短音频。");
   const [selectedAudioName, setSelectedAudioName] = useState("");
   const [voiceResult, setVoiceResult] = useState<VoiceInputResult | null>(null);
@@ -226,6 +238,14 @@ function App() {
         );
         const loadedHistoryStats =
           await invoke<HistoryStatistics>("history_statistics");
+
+        let loadedAudioDevices: AudioDevice[] = [];
+        try {
+          loadedAudioDevices = await invoke<AudioDevice[]>("list_audio_devices");
+        } catch (error) {
+          console.error("Failed to load audio devices:", error);
+        }
+
         const defaultPersona =
           loadedPersonas.find((persona) => persona.is_default) ??
           loadedPersonas[0];
@@ -237,6 +257,7 @@ function App() {
         setHotwordContext(loadedContext);
         setHistoryRecords(loadedHistoryRecords);
         setHistoryStats(loadedHistoryStats);
+        setAudioDevices(loadedAudioDevices);
         setStatus("已加载内置人格，可选择默认整理风格。");
         setAsrStatus("智谱 ASR 配置已加载。");
         setOpenaiStatus("OpenAI 配置已加载。");
@@ -556,7 +577,15 @@ function App() {
 
     const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (extension !== "wav" && extension !== "mp3") {
+      toast.error("仅支持 wav 或 mp3 短音频");
       setVoiceStatus("仅支持 wav 或 mp3 短音频。");
+      return;
+    }
+
+    // 检查 API Key 配置
+    if (!appConfig?.asr_api_key || !appConfig?.openai_api_key) {
+      toast.error("请先在设置页配置 API Key");
+      setVoiceStatus("未配置 API Key，请前往设置页配置。");
       return;
     }
 
@@ -586,8 +615,15 @@ function App() {
           ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
           : "语音主流程已完成，结果可复制使用。",
       );
+      if (result.used_text_fallback) {
+        toast.warning("文本整理失败，已保留原始识别文本");
+      } else {
+        toast.success("语音处理完成");
+      }
     } catch (error) {
-      setVoiceStatus(`语音主流程失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`语音主流程失败：${errorMessage}`);
+      toast.error(`语音处理失败：${errorMessage}`);
     } finally {
       setIsVoiceProcessing(false);
     }
@@ -601,8 +637,11 @@ function App() {
     try {
       await navigator.clipboard.writeText(voiceResult.final_text);
       setVoiceStatus("整理结果已复制到剪贴板。");
+      toast.success("已复制到剪贴板");
     } catch (error) {
-      setVoiceStatus(`复制失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`复制失败：${errorMessage}`);
+      toast.error(`复制失败：${errorMessage}`);
     }
   }
 
@@ -610,12 +649,22 @@ function App() {
     try {
       await navigator.clipboard.writeText(text);
       setHistoryStatus("历史记录已复制到剪贴板。");
+      toast.success("已复制到剪贴板");
     } catch (error) {
-      setHistoryStatus(`复制失败：${String(error)}`);
+      const errorMessage = String(error);
+      setHistoryStatus(`复制失败：${errorMessage}`);
+      toast.error(`复制失败：${errorMessage}`);
     }
   }
 
   async function handleStartRecording() {
+    // 检查 API Key 配置
+    if (!appConfig?.asr_api_key || !appConfig?.openai_api_key) {
+      toast.error("请先在设置页配置 API Key");
+      setVoiceStatus("未配置 API Key，请前往设置页配置。");
+      return;
+    }
+
     setIsRecording(true);
     setRecordingStartTime(Date.now());
     setRecordingDuration(0);
@@ -625,9 +674,19 @@ function App() {
     try {
       await invoke<string>("start_recording");
     } catch (error) {
+      const errorMessage = String(error);
       setIsRecording(false);
       setRecordingStartTime(null);
-      setVoiceStatus(`开始录音失败：${String(error)}`);
+      setVoiceStatus(`开始录音失败：${errorMessage}`);
+
+      // 根据错误类型显示不同的提示
+      if (errorMessage.includes("麦克风权限")) {
+        toast.error("麦克风权限缺失，请在系统设置中开启麦克风权限");
+      } else if (errorMessage.includes("未找到可用的音频输入设备")) {
+        toast.error("未找到麦克风设备，请检查麦克风连接");
+      } else {
+        toast.error(`录音失败：${errorMessage}`);
+      }
     }
   }
 
@@ -662,8 +721,15 @@ function App() {
           ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
           : "语音主流程已完成，结果可复制使用。",
       );
+      if (result.used_text_fallback) {
+        toast.warning("文本整理失败，已保留原始识别文本");
+      } else {
+        toast.success("语音处理完成");
+      }
     } catch (error) {
-      setVoiceStatus(`录音处理失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`录音处理失败：${errorMessage}`);
+      toast.error(`录音处理失败：${errorMessage}`);
     } finally {
       setIsVoiceProcessing(false);
     }
@@ -681,18 +747,42 @@ function App() {
         text: voiceResult.final_text,
       });
       setVoiceStatus(result.message);
+
+      if (result.success) {
+        if (result.method === "keyboard") {
+          toast.success("已自动输入到光标位置");
+        } else if (result.method === "clipboard") {
+          toast.success("已通过剪贴板输入");
+        }
+      } else {
+        toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
+      }
     } catch (error) {
-      setVoiceStatus(`输出文本失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`输出文本失败：${errorMessage}`);
+      toast.error(`输出失败：${errorMessage}`);
     }
   }
 
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
+      <Toaster position="top-center" richColors />
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-4xl content-center gap-6">
         <section className="space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1 text-sm font-medium text-muted-foreground shadow-sm">
-            <Mic2Icon className="size-4 text-primary" aria-hidden="true" />
-            AI 语音输入助手
+          <div className="flex items-center justify-between">
+            <div className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1 text-sm font-medium text-muted-foreground shadow-sm">
+              <Mic2Icon className="size-4 text-primary" aria-hidden="true" />
+              AI 语音输入助手
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSettingsDialogOpen(true)}
+            >
+              <SettingsIcon className="size-4" aria-hidden="true" />
+              设置
+            </Button>
           </div>
           <div className="space-y-3">
             <h1 className="text-5xl font-semibold tracking-normal text-balance [font-family:Georgia,'Times_New_Roman',serif] sm:text-6xl">
@@ -1543,65 +1633,86 @@ function App() {
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <div>
-              <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
-                T020 设置页
-              </p>
-              <CardTitle className="text-2xl">应用设置</CardTitle>
-              <CardDescription className="mt-2">
+      <Dialog
+        open={isSettingsDialogOpen}
+        onOpenChange={setIsSettingsDialogOpen}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <form className="grid gap-4" onSubmit={(e) => {
+            e.preventDefault();
+            if (!appConfig) return;
+
+            const nextConfig = {
+              ...appConfig,
+              longpress_shortcut: appConfig.longpress_shortcut.trim(),
+              toggle_shortcut: appConfig.toggle_shortcut.trim(),
+            };
+
+            if (!nextConfig.longpress_shortcut) {
+              toast.error("长按模式快捷键不能为空");
+              return;
+            }
+
+            if (!nextConfig.toggle_shortcut) {
+              toast.error("切换模式快捷键不能为空");
+              return;
+            }
+
+            invoke<AppConfig>("update_app_config", { config: nextConfig })
+              .then((savedConfig) => {
+                setAppConfig(savedConfig);
+                toast.success("应用设置已保存");
+                setIsSettingsDialogOpen(false);
+              })
+              .catch((error) => {
+                toast.error(`保存应用设置失败：${String(error)}`);
+              });
+          }}>
+            <DialogHeader>
+              <DialogTitle>应用设置</DialogTitle>
+              <DialogDescription>
                 配置快捷键、录音模式、输出方式和历史记录保存选项。
-              </CardDescription>
-            </div>
-            <CardAction>
-              <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-                本地配置
-              </span>
-            </CardAction>
-          </CardHeader>
+              </DialogDescription>
+            </DialogHeader>
 
-          <CardContent>
-            <form className="grid gap-4" onSubmit={(e) => {
-              e.preventDefault();
-              if (!appConfig) return;
-
-              const nextConfig = {
-                ...appConfig,
-                shortcut: appConfig.shortcut.trim(),
-              };
-
-              if (!nextConfig.shortcut) {
-                alert("快捷键不能为空");
-                return;
-              }
-
-              invoke<AppConfig>("update_app_config", { config: nextConfig })
-                .then((savedConfig) => {
-                  setAppConfig(savedConfig);
-                  alert("应用设置已保存");
-                })
-                .catch((error) => {
-                  alert(`保存应用设置失败：${String(error)}`);
-                });
-            }}>
+            <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="app-shortcut">全局快捷键</Label>
+                <Label htmlFor="longpress-shortcut">长按模式快捷键</Label>
                 <Input
-                  id="app-shortcut"
-                  value={appConfig?.shortcut ?? ""}
+                  id="longpress-shortcut"
+                  value={appConfig?.longpress_shortcut ?? ""}
                   onChange={(event) =>
                     setAppConfig((config) =>
                       config
-                        ? { ...config, shortcut: event.target.value }
+                        ? { ...config, longpress_shortcut: event.target.value }
                         : config,
                     )
                   }
-                  placeholder="例如：CommandOrControl+Shift+V"
+                  placeholder="例如：RightControl"
                 />
                 <p className="text-xs text-muted-foreground">
-                  用于触发录音的全局快捷键。修饰键：CommandOrControl、Alt、Shift。
+                  按住快捷键录音，松开停止。默认：右Ctrl
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="toggle-shortcut">切换模式快捷键</Label>
+                <Input
+                  id="toggle-shortcut"
+                  value={appConfig?.toggle_shortcut ?? ""}
+                  onChange={(event) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, toggle_shortcut: event.target.value }
+                        : config,
+                    )
+                  }
+                  placeholder="例如：Alt+Space"
+                />
+                <p className="text-xs text-muted-foreground">
+                  按一次开始录音，再按一次停止。默认：左Alt+Space
                 </p>
               </div>
 
@@ -1621,13 +1732,62 @@ function App() {
                     <SelectValue placeholder="选择录音模式" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hold">长按录音</SelectItem>
+                    <SelectItem value="long_press">长按录音</SelectItem>
                     <SelectItem value="toggle">切换式录音</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   长按：按住快捷键录音，松开停止。切换：按一次开始，再按一次停止。
                 </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="app-microphone">麦克风设备</Label>
+                <Select
+                  value={appConfig?.selected_microphone || "__default__"}
+                  onValueChange={(value) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, selected_microphone: value === "__default__" ? "" : value }
+                        : config,
+                    )
+                  }
+                >
+                  <SelectTrigger id="app-microphone" className="h-10">
+                    <SelectValue placeholder="使用默认麦克风" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">使用默认麦克风</SelectItem>
+                    {audioDevices.map((device) => (
+                      <SelectItem key={device.name} value={device.name}>
+                        {device.name} {device.is_default ? "(默认)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  选择用于录音的麦克风设备。留空则使用系统默认麦克风。
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="app-mute-audio">录音时静音其他应用</Label>
+                  <p className="text-xs text-muted-foreground">
+                    开启后，语音输入时会暂停系统音频播放，输入完成后自动恢复
+                  </p>
+                </div>
+                <Switch
+                  id="app-mute-audio"
+                  checked={appConfig?.mute_system_audio ?? false}
+                  onCheckedChange={(checked) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, mute_system_audio: checked }
+                        : config,
+                    )
+                  }
+                />
               </div>
 
               <div className="grid gap-2">
@@ -1674,20 +1834,17 @@ function App() {
                   }
                 />
               </div>
+            </div>
 
-              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm leading-6 text-muted-foreground">
-                  修改设置后需要保存才能生效。
-                </p>
-                <Button type="submit" size="sm" disabled={!appConfig}>
-                  <SaveIcon className="size-4" aria-hidden="true" />
-                  保存应用设置
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+            <DialogFooter>
+              <Button type="submit" size="sm" disabled={!appConfig}>
+                <SaveIcon className="size-4" aria-hidden="true" />
+                保存设置
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isHotwordDialogOpen}

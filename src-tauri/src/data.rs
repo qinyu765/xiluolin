@@ -20,9 +20,24 @@ pub struct AppConfig {
     pub openai_base_url: String,
     pub openai_model: String,
     pub recording_mode: String,
-    pub shortcut: String,
+    #[serde(default = "default_longpress_shortcut")]
+    pub longpress_shortcut: String,
+    #[serde(default = "default_toggle_shortcut")]
+    pub toggle_shortcut: String,
     pub output_mode: String,
     pub auto_save_history: bool,
+    #[serde(default)]
+    pub mute_system_audio: bool,
+    #[serde(default)]
+    pub selected_microphone: String,
+}
+
+fn default_longpress_shortcut() -> String {
+    "RightControl".to_string()
+}
+
+fn default_toggle_shortcut() -> String {
+    "Alt+Space".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,9 +127,12 @@ pub fn default_app_config() -> AppConfig {
         openai_base_url: "https://api.openai.com/v1/".to_string(),
         openai_model: "gpt-4.1-mini".to_string(),
         recording_mode: "toggle".to_string(),
-        shortcut: "CommandOrControl+Shift+Space".to_string(),
+        longpress_shortcut: default_longpress_shortcut(),
+        toggle_shortcut: default_toggle_shortcut(),
         output_mode: "copy".to_string(),
         auto_save_history: true,
+        mute_system_audio: false,
+        selected_microphone: "".to_string(),
     }
 }
 

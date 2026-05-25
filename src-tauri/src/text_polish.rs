@@ -44,16 +44,27 @@ impl fmt::Display for TextPolishError {
 
 impl std::error::Error for TextPolishError {}
 
+#[derive(Debug, Serialize, Deserialize)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
 #[derive(Debug, Serialize)]
-struct OpenAiResponsesRequest {
+struct OpenAiChatRequest {
     model: String,
-    instructions: String,
-    input: String,
+    messages: Vec<ChatMessage>,
+    temperature: f32,
 }
 
 #[derive(Debug, Deserialize)]
-struct OpenAiResponsesResponse {
-    output_text: Option<String>,
+struct OpenAiChatResponse {
+    choices: Vec<ChatChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatChoice {
+    message: ChatMessage,
 }
 
 pub fn polish_text_with_openai(
@@ -81,30 +92,44 @@ fn send_polish_request(
     request: &TextPolishRequest,
     config: &OpenAiTextConfig,
 ) -> Result<String, TextPolishError> {
-    let body = OpenAiResponsesRequest {
+    let system_message = build_instructions(request);
+    let user_message = build_input(request);
+
+    let body = OpenAiChatRequest {
         model: config.model.trim().to_string(),
-        instructions: build_instructions(request),
-        input: build_input(request),
+        messages: vec![
+            ChatMessage {
+                role: "system".to_string(),
+                content: system_message,
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: user_message,
+            },
+        ],
+        temperature: 0.3,
     };
-    let response = ureq::post(&responses_url(&config.base_url))
-        .header("Authorization", format!("Bearer {}", config.api_key.trim()))
+
+    let response = ureq::post(&chat_completions_url(&config.base_url))
+        .header("Authorization", &format!("Bearer {}", config.api_key.trim()))
         .header("Content-Type", "application/json")
         .send_json(&body)
         .map_err(|error| TextPolishError::RequestFailed(error.to_string()))?;
 
-    let response = response
+    let response: OpenAiChatResponse = response
         .into_body()
-        .read_json::<OpenAiResponsesResponse>()
+        .read_json()
         .map_err(|error| TextPolishError::InvalidResponse(error.to_string()))?;
 
     let final_text = response
-        .output_text
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+        .choices
+        .first()
+        .map(|choice| choice.message.content.trim().to_string())
+        .unwrap_or_default();
+
     if final_text.is_empty() {
         return Err(TextPolishError::InvalidResponse(
-            "响应缺少 output_text".to_string(),
+            "响应缺少文本内容".to_string(),
         ));
     }
 
@@ -150,8 +175,8 @@ fn build_input(request: &TextPolishRequest) -> String {
     )
 }
 
-fn responses_url(base_url: &str) -> String {
-    format!("{}/responses", base_url.trim_end_matches('/'))
+fn chat_completions_url(base_url: &str) -> String {
+    format!("{}/chat/completions", base_url.trim_end_matches('/'))
 }
 
 #[tauri::command]

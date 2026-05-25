@@ -67,46 +67,62 @@ pub fn transcribe_audio_file(
     audio_path: &Path,
     config: &AsrConfig,
 ) -> Result<AsrTranscription, AsrError> {
-    validate_audio_file(audio_path, config)?;
+    let start_time = std::time::Instant::now();
+    eprintln!("[⏱️ ASR] 开始音频转写");
 
-    match config.provider.as_str() {
+    let step1_start = std::time::Instant::now();
+    validate_audio_file(audio_path, config)?;
+    eprintln!("[⏱️ ASR] 验证音频文件 - 耗时 {:?}", step1_start.elapsed());
+
+    let result = match config.provider.as_str() {
         "openai" => transcribe_with_openai(audio_path, config),
         "zhipu" | _ => transcribe_with_zhipu(audio_path, config),
-    }
+    };
+
+    eprintln!("[⏱️ ASR] 总耗时: {:?}", start_time.elapsed());
+    result
 }
 
 fn transcribe_with_openai(
     audio_path: &Path,
     config: &AsrConfig,
 ) -> Result<AsrTranscription, AsrError> {
+    let start_time = std::time::Instant::now();
     let url = format!("{}/audio/transcriptions", config.base_url.trim_end_matches('/'));
 
-    eprintln!("OpenAI ASR Request URL: {}", url);
-    eprintln!("OpenAI Model: {}", config.model.trim());
+    eprintln!("[⏱️ ASR OpenAI] Request URL: {}", url);
+    eprintln!("[⏱️ ASR OpenAI] Model: {}", config.model.trim());
 
     // 构建 multipart form
+    let step1_start = std::time::Instant::now();
     let form = ureq::unversioned::multipart::Form::new()
         .text("model", config.model.trim())
         .file("file", audio_path)
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
+    eprintln!("[⏱️ ASR OpenAI] 构建 multipart form - 耗时 {:?}", step1_start.elapsed());
 
     // 创建禁用自动状态码错误的 agent
+    let step2_start = std::time::Instant::now();
     let agent = ureq::Agent::config_builder()
         .http_status_as_error(false)
         .build()
         .new_agent();
+    eprintln!("[⏱️ ASR OpenAI] 创建 HTTP agent - 耗时 {:?}", step2_start.elapsed());
 
+    let step3_start = std::time::Instant::now();
     let response = agent
         .post(&url)
         .header("Authorization", &format!("Bearer {}", config.api_key.trim()))
         .send(form)
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
+    eprintln!("[⏱️ ASR OpenAI] 发送 HTTP 请求并等待响应 - 耗时 {:?}", step3_start.elapsed());
 
     // 检查状态码
+    let step4_start = std::time::Instant::now();
     let status_code = response.status().as_u16();
     if status_code >= 400 && status_code < 600 {
         let body = response.into_body().read_to_string().unwrap_or_default();
-        eprintln!("OpenAI ASR Error: status={}, body={}", status_code, body);
+        eprintln!("[⏱️ ASR OpenAI] Error: status={}, body={}", status_code, body);
         return Err(AsrError::RequestFailed(format!(
             "http status: {}, body: {}",
             status_code, body
@@ -117,6 +133,9 @@ fn transcribe_with_openai(
         .into_body()
         .read_json()
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
+    eprintln!("[⏱️ ASR OpenAI] 解析响应 - 耗时 {:?}", step4_start.elapsed());
+
+    eprintln!("[⏱️ ASR OpenAI] 总耗时: {:?}", start_time.elapsed());
 
     Ok(AsrTranscription {
         text: transcription.text.trim().to_string(),

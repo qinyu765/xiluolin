@@ -652,13 +652,13 @@ function App() {
       </header>
 
       {/* 主内容区 */}
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         {/* 左侧导航栏 */}
         <Tabs
           value={currentPage}
           onValueChange={(value) => setCurrentPage(value as Page)}
           orientation="vertical"
-          className="w-48 border-r bg-muted/30"
+          className="w-48 shrink-0 border-r bg-muted/30"
         >
           <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 rounded-none bg-transparent p-2">
             <TabsTrigger
@@ -693,7 +693,7 @@ function App() {
         </Tabs>
 
         {/* 右侧内容区 */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="mx-auto max-w-4xl px-6 py-8">
             {currentPage === "home" && (
               <HomePage

@@ -63,9 +63,7 @@ export function HotwordPage({
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-sm font-semibold">
-                        {hotword.source_text}
-                        <span className="mx-2 text-muted-foreground">→</span>
-                        {hotword.target_text}
+                        {hotword.text}
                       </p>
                       {hotword.category ? (
                         <span className="inline-flex h-6 items-center rounded-md border bg-background px-2 text-xs text-muted-foreground">
@@ -84,14 +82,14 @@ export function HotwordPage({
                       onCheckedChange={(enabled) =>
                         onHotwordEnabledChange(hotword, enabled)
                       }
-                      aria-label={`切换 ${hotword.target_text} 热词状态`}
+                      aria-label={`切换 ${hotword.text} 热词状态`}
                     />
                     <Button
                       type="button"
                       variant="outline"
                       size="icon"
                       onClick={() => onEditHotword(hotword)}
-                      aria-label={`编辑 ${hotword.target_text}`}
+                      aria-label={`编辑 ${hotword.text}`}
                     >
                       <PencilIcon className="size-4" aria-hidden="true" />
                     </Button>
@@ -100,7 +98,7 @@ export function HotwordPage({
                       variant="outline"
                       size="icon"
                       onClick={() => onDeleteHotword(hotword.id)}
-                      aria-label={`删除 ${hotword.target_text}`}
+                      aria-label={`删除 ${hotword.text}`}
                     >
                       <Trash2Icon className="size-4" aria-hidden="true" />
                     </Button>

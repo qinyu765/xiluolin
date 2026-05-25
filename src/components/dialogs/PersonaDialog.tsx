@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { IconPicker } from "@/components/ui/icon-picker";
 import type { PersonaDraft } from "@/types";
 
 type PersonaDialogProps = {
@@ -42,7 +43,7 @@ export function PersonaDialog({
               {isEditing ? "编辑人格" : "新建人格"}
             </DialogTitle>
             <DialogDescription>
-              定义人格的名称、描述和整理提示词。必填字段标记为 *。
+              定义人格的名称、风格描述和图标。必填字段标记为 *。
             </DialogDescription>
           </DialogHeader>
 
@@ -67,7 +68,7 @@ export function PersonaDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="persona-description">
-                人格描述 <span className="text-destructive">*</span>
+                风格描述 <span className="text-destructive">*</span>
               </Label>
               <Textarea
                 id="persona-description"
@@ -78,73 +79,22 @@ export function PersonaDialog({
                     description: event.target.value,
                   })
                 }
-                placeholder="一句话说明这个人格的用途"
-                className="min-h-20 resize-none"
-                required
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="persona-prompt">
-                整理提示词 <span className="text-destructive">*</span>
-              </Label>
-              <Textarea
-                id="persona-prompt"
-                value={draft.prompt}
-                onChange={(event) =>
-                  onDraftChange({
-                    ...draft,
-                    prompt: event.target.value,
-                  })
-                }
-                placeholder="指导 AI 整理文本的系统提示词"
+                placeholder="描述这个人格的风格和输出要求，例如：将语音转换为清晰、可执行的 AI Prompt。输出结构：目标、上下文、约束、期望结果。"
                 className="min-h-32 resize-none"
                 required
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="persona-scene">适用场景（可选）</Label>
-              <Input
-                id="persona-scene"
-                value={draft.scene}
-                onChange={(event) =>
+              <Label>图标</Label>
+              <IconPicker
+                value={draft.icon}
+                onChange={(icon) =>
                   onDraftChange({
                     ...draft,
-                    scene: event.target.value,
+                    icon,
                   })
                 }
-                placeholder="例如：技术文档、API 说明"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="persona-tone">输出语气（可选）</Label>
-              <Input
-                id="persona-tone"
-                value={draft.tone}
-                onChange={(event) =>
-                  onDraftChange({
-                    ...draft,
-                    tone: event.target.value,
-                  })
-                }
-                placeholder="例如：专业、准确、简洁"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="persona-structure">输出结构（可选）</Label>
-              <Input
-                id="persona-structure"
-                value={draft.output_structure}
-                onChange={(event) =>
-                  onDraftChange({
-                    ...draft,
-                    output_structure: event.target.value,
-                  })
-                }
-                placeholder="例如：标题、要点、代码示例"
               />
             </div>
           </div>

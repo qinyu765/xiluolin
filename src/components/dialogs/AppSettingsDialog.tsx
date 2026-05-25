@@ -95,10 +95,10 @@ export function AppSettingsDialog({
                       : appConfig!,
                   )
                 }
-                placeholder="例如：RightControl"
+                placeholder="例如：CommandOrControl+Shift+R"
               />
               <p className="text-xs text-muted-foreground">
-                按住快捷键录音，松开停止。默认：右Ctrl
+                按住快捷键录音，松开停止。格式：CommandOrControl+Shift+R 或 Alt+Space
               </p>
             </div>
 
@@ -117,7 +117,7 @@ export function AppSettingsDialog({
                 placeholder="例如：Alt+Space"
               />
               <p className="text-xs text-muted-foreground">
-                按一次开始录音，再按一次停止。默认：左Alt+Space
+                按一次开始录音，再按一次停止。格式：Alt+Space 或 CommandOrControl+R
               </p>
             </div>
 
@@ -172,6 +172,31 @@ export function AppSettingsDialog({
               </Select>
               <p className="text-xs text-muted-foreground">
                 选择用于录音的麦克风设备。留空则使用系统默认麦克风。
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="asr-provider">语音识别服务</Label>
+              <Select
+                value={appConfig?.asr_provider ?? "zhipu"}
+                onValueChange={(value) =>
+                  onConfigChange(
+                    appConfig
+                      ? { ...appConfig, asr_provider: value }
+                      : appConfig!,
+                  )
+                }
+              >
+                <SelectTrigger id="asr-provider" className="h-10">
+                  <SelectValue placeholder="选择语音识别服务" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="zhipu">智谱 GLM-ASR</SelectItem>
+                  <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                选择语音识别服务提供商。智谱或 OpenAI Whisper API。
               </p>
             </div>
 

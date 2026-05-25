@@ -63,6 +63,7 @@ pub struct RecordingState {
     is_recording: Arc<Mutex<bool>>,
     start_time: Arc<Mutex<Option<Instant>>>,
     output_path: Arc<Mutex<Option<PathBuf>>>,
+    writer: Arc<Mutex<Option<Arc<Mutex<Option<WavWriter<std::io::BufWriter<std::fs::File>>>>>>>>,
 }
 
 impl RecordingState {
@@ -71,6 +72,7 @@ impl RecordingState {
             is_recording: Arc::new(Mutex::new(false)),
             start_time: Arc::new(Mutex::new(None)),
             output_path: Arc::new(Mutex::new(None)),
+            writer: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -87,6 +89,17 @@ pub async fn start_recording(
 
     if *is_recording {
         return Err(RecordingError::AlreadyRecording.into());
+    }
+
+    // 清理上一个 writer（如果存在）
+    if let Ok(mut writer_state) = state.writer.lock() {
+        if let Some(writer_arc) = writer_state.take() {
+            if let Ok(mut writer_guard) = writer_arc.try_lock() {
+                if let Some(writer) = writer_guard.take() {
+                    let _ = writer.finalize();
+                }
+            }
+        }
     }
 
     // 创建临时录音文件路径
@@ -124,9 +137,9 @@ pub async fn start_recording(
     let sample_rate = config.sample_rate().0;
     let channels = config.channels();
 
-    // 创建 WAV 文件写入器
+    // 创建 WAV 文件写入器 - 强制使用单声道以兼容智谱 ASR
     let spec = WavSpec {
-        channels,
+        channels: 1,  // 强制单声道
         sample_rate,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
@@ -136,6 +149,12 @@ pub async fn start_recording(
         .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
     let writer = Arc::new(Mutex::new(Some(writer)));
 
+    // 保存 writer 引用到状态中
+    *state
+        .writer
+        .lock()
+        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(Arc::clone(&writer));
+
     // 构建音频流
     let writer_clone = Arc::clone(&writer);
     let stream = match config.sample_format() {
@@ -144,9 +163,12 @@ pub async fn start_recording(
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
                 if let Ok(mut writer_guard) = writer_clone.lock() {
                     if let Some(writer) = writer_guard.as_mut() {
-                        for &sample in data {
-                            let amplitude = (sample * i16::MAX as f32) as i16;
-                            let _ = writer.write_sample(amplitude);
+                        // 如果是多声道，只取第一个声道（左声道）
+                        for (i, &sample) in data.iter().enumerate() {
+                            if i % channels as usize == 0 {
+                                let amplitude = (sample * i16::MAX as f32) as i16;
+                                let _ = writer.write_sample(amplitude);
+                            }
                         }
                     }
                 }
@@ -161,8 +183,11 @@ pub async fn start_recording(
             move |data: &[i16], _: &cpal::InputCallbackInfo| {
                 if let Ok(mut writer_guard) = writer_clone.lock() {
                     if let Some(writer) = writer_guard.as_mut() {
-                        for &sample in data {
-                            let _ = writer.write_sample(sample);
+                        // 如果是多声道，只取第一个声道（左声道）
+                        for (i, &sample) in data.iter().enumerate() {
+                            if i % channels as usize == 0 {
+                                let _ = writer.write_sample(sample);
+                            }
                         }
                     }
                 }
@@ -177,9 +202,12 @@ pub async fn start_recording(
             move |data: &[u16], _: &cpal::InputCallbackInfo| {
                 if let Ok(mut writer_guard) = writer_clone.lock() {
                     if let Some(writer) = writer_guard.as_mut() {
-                        for &sample in data {
-                            let amplitude = (sample as i32 - 32768) as i16;
-                            let _ = writer.write_sample(amplitude);
+                        // 如果是多声道，只取第一个声道（左声道）
+                        for (i, &sample) in data.iter().enumerate() {
+                            if i % channels as usize == 0 {
+                                let amplitude = (sample as i32 - 32768) as i16;
+                                let _ = writer.write_sample(amplitude);
+                            }
                         }
                     }
                 }
@@ -212,9 +240,8 @@ pub async fn start_recording(
         .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(output_path.clone());
 
     // 将 stream 泄漏以保持录音持续进行
-    // 这是一个临时方案，后续需要改进为使用全局状态管理 stream
+    // writer 已保存到状态中，会在 stop_recording 时正确关闭
     std::mem::forget(stream);
-    std::mem::forget(writer);
 
     Ok("recording_started".to_string())
 }
@@ -265,7 +292,19 @@ pub async fn stop_recording(
     }; // MutexGuard 在这里被释放
 
     // 等待一小段时间确保所有音频数据已写入
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // 尝试关闭 writer（非阻塞）
+    if let Ok(mut writer_state) = state.writer.lock() {
+        if let Some(writer_arc) = writer_state.take() {
+            // 尝试获取 writer 锁，如果失败就放弃（避免死锁）
+            if let Ok(mut writer_guard) = writer_arc.try_lock() {
+                if let Some(writer) = writer_guard.take() {
+                    let _ = writer.finalize();
+                }
+            }
+        }
+    }
 
     Ok(RecordingResult {
         file_path: output_path.to_string_lossy().to_string(),

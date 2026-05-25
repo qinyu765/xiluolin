@@ -42,43 +42,25 @@ export function HotwordDialog({
               {isEditing ? "编辑热词" : "新增热词"}
             </DialogTitle>
             <DialogDescription>
-              定义语音识别可能输出的文本和期望的正确写法。必填字段标记为 *。
+              定义需要 AI 准确识别的专业术语、技术词汇或特定表达。必填字段标记为 *。
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="hotword-source">
-                原始说法 <span className="text-destructive">*</span>
+              <Label htmlFor="hotword-text">
+                热词 <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="hotword-source"
-                value={draft.source_text}
+                id="hotword-text"
+                value={draft.text}
                 onChange={(event) =>
                   onDraftChange({
                     ...draft,
-                    source_text: event.target.value,
+                    text: event.target.value,
                   })
                 }
-                placeholder="语音识别可能输出的文本，如「next 点 js」"
-                required
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="hotword-target">
-                修正写法 <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="hotword-target"
-                value={draft.target_text}
-                onChange={(event) =>
-                  onDraftChange({
-                    ...draft,
-                    target_text: event.target.value,
-                  })
-                }
-                placeholder="期望的正确写法，如「Next.js」"
+                placeholder="输入热词，如「Kubernetes」、「Next.js」、「TypeScript」"
                 required
               />
             </div>

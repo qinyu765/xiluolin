@@ -105,6 +105,9 @@ pub async fn register_both_hotkeys(
     longpress_shortcut: Option<String>,
     toggle_shortcut: Option<String>,
 ) -> Result<(), String> {
+    println!("register_both_hotkeys 被调用: longpress={:?}, toggle={:?}",
+        longpress_shortcut, toggle_shortcut);
+
     let state = app.state::<Arc<Mutex<HotkeyState>>>();
     let mut state = state.lock().await;
 
@@ -113,6 +116,7 @@ pub async fn register_both_hotkeys(
         if let Some(shortcut) = &state.longpress_shortcut {
             if let Ok(shortcut_obj) = shortcut.parse::<Shortcut>() {
                 let _ = app.global_shortcut().unregister(shortcut_obj);
+                println!("已注销长按模式快捷键: {}", shortcut);
             }
         }
     }
@@ -120,6 +124,7 @@ pub async fn register_both_hotkeys(
         if let Some(shortcut) = &state.toggle_shortcut {
             if let Ok(shortcut_obj) = shortcut.parse::<Shortcut>() {
                 let _ = app.global_shortcut().unregister(shortcut_obj);
+                println!("已注销切换模式快捷键: {}", shortcut);
             }
         }
     }
@@ -134,6 +139,7 @@ pub async fn register_both_hotkeys(
     // 注册长按模式快捷键
     if let Some(shortcut) = longpress_shortcut {
         if !shortcut.is_empty() {
+            println!("尝试注册长按模式快捷键: {}", shortcut);
             let shortcut_obj: Shortcut = shortcut.parse()
                 .map_err(|e| format!("长按模式快捷键格式错误: {}", e))?;
 
@@ -145,13 +151,15 @@ pub async fn register_both_hotkeys(
                 .map_err(|e| format!("长按模式快捷键注册失败: {}. 可能与其他应用冲突", e))?;
 
             state.longpress_registered = true;
-            state.longpress_shortcut = Some(shortcut);
+            state.longpress_shortcut = Some(shortcut.clone());
+            println!("长按模式快捷键注册成功: {}", shortcut);
         }
     }
 
     // 注册切换模式快捷键
     if let Some(shortcut) = toggle_shortcut {
         if !shortcut.is_empty() {
+            println!("尝试注册切换模式快捷键: {}", shortcut);
             let shortcut_obj: Shortcut = shortcut.parse()
                 .map_err(|e| format!("切换模式快捷键格式错误: {}", e))?;
 
@@ -163,10 +171,12 @@ pub async fn register_both_hotkeys(
                 .map_err(|e| format!("切换模式快捷键注册失败: {}. 可能与其他应用冲突", e))?;
 
             state.toggle_registered = true;
-            state.toggle_shortcut = Some(shortcut);
+            state.toggle_shortcut = Some(shortcut.clone());
+            println!("切换模式快捷键注册成功: {}", shortcut);
         }
     }
 
+    println!("register_both_hotkeys 完成");
     Ok(())
 }
 
@@ -209,6 +219,7 @@ fn handle_hotkey_event(
     event: ShortcutEvent,
     mode: &RecordingMode,
 ) {
+    println!("快捷键事件触发: mode={:?}, state={:?}", mode, event.state);
     let app = app.clone();
     let mode = mode.clone();
 
@@ -235,33 +246,48 @@ async fn handle_long_press_mode(
 
     match event.state {
         tauri_plugin_global_shortcut::ShortcutState::Pressed => {
+            println!("长按模式: 按键按下，准备开始录音");
+            // 显示录音指示器
+            let _ = crate::indicator::show_indicator(app);
             // 按下:开始录音
             let recording_state = app.state::<RecordingState>();
             match start_recording(recording_state, app.clone()).await {
                 Ok(_) => {
+                    println!("长按模式: 录音启动成功");
                     // 更新快捷键状态
                     let mut state = hotkey_state.lock().await;
                     state.is_recording_via_hotkey = true;
                 }
                 Err(e) => {
-                    eprintln!("启动录音失败: {:?}", e);
+                    eprintln!("长按模式: 启动录音失败: {:?}", e);
+                    let _ = crate::indicator::hide_indicator(app);
                     let _ = app.emit("recording-error", e);
                 }
             }
         }
         tauri_plugin_global_shortcut::ShortcutState::Released => {
+            println!("长按模式: 按键松开，准备停止录音");
             // 松开:停止录音
             let recording_state = app.state::<RecordingState>();
             match stop_recording(recording_state).await {
                 Ok(result) => {
+                    println!("长按模式: 录音停止成功，文件路径: {}, 时长: {}ms",
+                        result.file_path, result.duration_ms);
+                    // 隐藏录音指示器
+                    let _ = crate::indicator::hide_indicator(app);
                     // 更新快捷键状态
                     let mut state = hotkey_state.lock().await;
                     state.is_recording_via_hotkey = false;
                     // 触发后续处理流程
-                    let _ = app.emit("recording-completed", result);
+                    println!("长按模式: 准备发送 recording-completed 事件");
+                    match app.emit("recording-completed", &result) {
+                        Ok(_) => println!("长按模式: recording-completed 事件发送成功"),
+                        Err(e) => eprintln!("长按模式: recording-completed 事件发送失败: {:?}", e),
+                    }
                 }
                 Err(e) => {
-                    eprintln!("停止录音失败: {:?}", e);
+                    eprintln!("长按模式: 停止录音失败: {:?}", e);
+                    let _ = crate::indicator::hide_indicator(app);
                     let _ = app.emit("recording-error", e);
                 }
             }
@@ -292,28 +318,43 @@ async fn handle_toggle_mode(
 
     if is_recording {
         // 正在录音:停止录音
+        println!("切换模式: 当前正在录音，准备停止");
         match stop_recording(recording_state).await {
             Ok(result) => {
+                println!("切换模式: 录音停止成功，文件路径: {}, 时长: {}ms",
+                    result.file_path, result.duration_ms);
+                // 隐藏录音指示器
+                let _ = crate::indicator::hide_indicator(app);
                 // 更新快捷键状态
                 let mut state = hotkey_state.lock().await;
                 state.is_recording_via_hotkey = false;
-                let _ = app.emit("recording-completed", result);
+                println!("切换模式: 准备发送 recording-completed 事件");
+                match app.emit("recording-completed", &result) {
+                    Ok(_) => println!("切换模式: recording-completed 事件发送成功"),
+                    Err(e) => eprintln!("切换模式: recording-completed 事件发送失败: {:?}", e),
+                }
             }
             Err(e) => {
-                eprintln!("停止录音失败: {:?}", e);
+                eprintln!("切换模式: 停止录音失败: {:?}", e);
+                let _ = crate::indicator::hide_indicator(app);
                 let _ = app.emit("recording-error", e);
             }
         }
     } else {
         // 未录音:开始录音
+        println!("切换模式: 当前未录音，准备开始");
+        // 显示录音指示器
+        let _ = crate::indicator::show_indicator(app);
         match start_recording(recording_state, app.clone()).await {
             Ok(_) => {
+                println!("切换模式: 录音启动成功");
                 // 更新快捷键状态
                 let mut state = hotkey_state.lock().await;
                 state.is_recording_via_hotkey = true;
             }
             Err(e) => {
-                eprintln!("启动录音失败: {:?}", e);
+                eprintln!("切换模式: 启动录音失败: {:?}", e);
+                let _ = crate::indicator::hide_indicator(app);
                 let _ = app.emit("recording-error", e);
             }
         }

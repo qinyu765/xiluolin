@@ -9,6 +9,12 @@ use std::time::Instant;
 use tauri::{Manager, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioDevice {
+    pub name: String,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingResult {
     pub file_path: String,
     pub duration_ms: u64,
@@ -265,4 +271,30 @@ pub async fn stop_recording(
         file_path: output_path.to_string_lossy().to_string(),
         duration_ms,
     })
+}
+
+#[tauri::command]
+pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
+    let host = cpal::default_host();
+
+    let default_device_name = host
+        .default_input_device()
+        .and_then(|d| d.name().ok());
+
+    let devices = host
+        .input_devices()
+        .map_err(|e| format!("获取音频设备列表失败: {}", e))?;
+
+    let mut result = Vec::new();
+    for device in devices {
+        if let Ok(name) = device.name() {
+            let is_default = default_device_name.as_ref() == Some(&name);
+            result.push(AudioDevice {
+                name,
+                is_default,
+            });
+        }
+    }
+
+    Ok(result)
 }

@@ -25,9 +25,15 @@ pub fn run() {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 if let Ok(config) = data::read_app_config(app_handle.clone()) {
+                    // 根据录音模式注册对应的快捷键
+                    let shortcut = if config.recording_mode == "long_press" {
+                        config.longpress_shortcut
+                    } else {
+                        config.toggle_shortcut
+                    };
                     let _ = hotkey::register_hotkey(
                         app_handle,
-                        config.shortcut,
+                        shortcut,
                         config.recording_mode,
                     ).await;
                 }
@@ -59,6 +65,7 @@ pub fn run() {
             data::update_app_config,
             recording::start_recording,
             recording::stop_recording,
+            recording::list_audio_devices,
             hotkey::register_hotkey,
             hotkey::unregister_hotkey,
             output::output_text,

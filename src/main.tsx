@@ -641,59 +641,58 @@ function App() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen">
       <Toaster position="top-center" richColors />
 
-      {/* 顶部标题栏 */}
-      <header className="border-b bg-background px-6 py-4">
-        <h1 className="text-3xl font-semibold tracking-normal [font-family:Georgia,'Times_New_Roman',serif]">
-          XiLuoLin
-        </h1>
-      </header>
+      {/* 左侧导航栏 - 固定定位 */}
+      <Tabs
+        value={currentPage}
+        onValueChange={(value) => setCurrentPage(value as Page)}
+        orientation="vertical"
+        className="fixed left-0 top-0 z-10 flex h-screen w-48 flex-col border-r bg-muted/30"
+      >
+        {/* 标题区域 */}
+        <div className="border-b px-6 py-4">
+          <h1 className="text-2xl font-semibold tracking-normal [font-family:Georgia,'Times_New_Roman',serif]">
+            XiLuoLin
+          </h1>
+        </div>
 
-      {/* 主内容区 */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* 左侧导航栏 */}
-        <Tabs
-          value={currentPage}
-          onValueChange={(value) => setCurrentPage(value as Page)}
-          orientation="vertical"
-          className="w-48 shrink-0 border-r bg-muted/30"
-        >
-          <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 rounded-none bg-transparent p-2">
-            <TabsTrigger
-              value="home"
-              className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
-            >
-              <HomeIcon className="size-4" aria-hidden="true" />
-              首页
-            </TabsTrigger>
-            <TabsTrigger
-              value="persona"
-              className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
-            >
-              <UserIcon className="size-4" aria-hidden="true" />
-              人格
-            </TabsTrigger>
-            <TabsTrigger
-              value="hotword"
-              className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
-            >
-              <BookmarkIcon className="size-4" aria-hidden="true" />
-              热词
-            </TabsTrigger>
-            <TabsTrigger
-              value="settings"
-              className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
-            >
-              <SettingsIcon className="size-4" aria-hidden="true" />
-              设置
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* 导航菜单 */}
+        <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 rounded-none bg-transparent p-2">
+          <TabsTrigger
+            value="home"
+            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
+          >
+            <HomeIcon className="size-4" aria-hidden="true" />
+            首页
+          </TabsTrigger>
+          <TabsTrigger
+            value="persona"
+            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
+          >
+            <UserIcon className="size-4" aria-hidden="true" />
+            人格
+          </TabsTrigger>
+          <TabsTrigger
+            value="hotword"
+            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
+          >
+            <BookmarkIcon className="size-4" aria-hidden="true" />
+            热词
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
+          >
+            <SettingsIcon className="size-4" aria-hidden="true" />
+            设置
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-        {/* 右侧内容区 */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      {/* 右侧内容区 - 添加左边距 */}
+      <div className="ml-48 flex-1 overflow-y-auto overflow-x-hidden">
           <div className="mx-auto max-w-4xl px-6 py-8">
             {currentPage === "home" && (
               <HomePage
@@ -709,6 +708,7 @@ function App() {
                 historyStats={historyStats}
                 historyRecords={historyRecords}
                 historyStatus={historyStatus}
+                appConfig={appConfig}
                 onPersonaChange={setSelectedPersonaId}
                 onStartRecording={handleStartRecording}
                 onStopRecording={handleStopRecording}
@@ -760,7 +760,6 @@ function App() {
             )}
           </div>
         </div>
-      </div>
 
       <HotwordDialog
         open={isHotwordDialogOpen}

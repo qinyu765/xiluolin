@@ -17,6 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { AppConfig } from "@/types";
+import { formatShortcutDisplay } from "@/utils/shortcut";
 
 type HistoryRecord = {
   id: string;
@@ -43,6 +45,7 @@ type VoiceInputStatsCardProps = {
   historyStats: HistoryStatistics | null;
   historyRecords: HistoryRecord[];
   historyStatus: string;
+  appConfig: AppConfig | null;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
   formatDuration: (ms: number) => string;
@@ -58,20 +61,35 @@ export function VoiceInputStatsCard({
   historyStats,
   historyRecords,
   historyStatus,
+  appConfig,
   onCopyHistoryText,
   onDeleteHistoryRecord,
   formatDuration,
   formatCreatedAt,
   groupHistoryByDate,
 }: VoiceInputStatsCardProps) {
+  const getShortcutHint = () => {
+    const longpress = appConfig?.longpress_shortcut;
+    const toggle = appConfig?.toggle_shortcut;
+
+    if (longpress) {
+      const display = formatShortcutDisplay(longpress);
+      return `按住 ${display} 开始语音输入`;
+    }
+
+    if (toggle) {
+      const display = formatShortcutDisplay(toggle);
+      return `按 ${display} 开始/停止语音输入`;
+    }
+
+    return "请前往设置页配置快捷键";
+  };
+
   return (
     <Card>
       <CardHeader>
         <div>
-          <CardTitle className="text-2xl">语音输入成效</CardTitle>
-          <CardDescription className="mt-2">
-            基于本地历史记录展示协作次数、口述时间、生成字数、预计节省时间和常用人格。
-          </CardDescription>
+          <CardTitle className="text-xl">{getShortcutHint()}</CardTitle>
         </div>
         <CardAction>
           <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">

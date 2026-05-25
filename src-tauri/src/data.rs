@@ -19,10 +19,9 @@ pub struct AppConfig {
     pub openai_api_key: String,
     pub openai_base_url: String,
     pub openai_model: String,
-    pub recording_mode: String,
-    #[serde(default = "default_longpress_shortcut")]
+    #[serde(default)]
     pub longpress_shortcut: String,
-    #[serde(default = "default_toggle_shortcut")]
+    #[serde(default)]
     pub toggle_shortcut: String,
     pub output_mode: String,
     pub auto_save_history: bool,
@@ -30,14 +29,6 @@ pub struct AppConfig {
     pub mute_system_audio: bool,
     #[serde(default)]
     pub selected_microphone: String,
-}
-
-fn default_longpress_shortcut() -> String {
-    "RightControl".to_string()
-}
-
-fn default_toggle_shortcut() -> String {
-    "Alt+Space".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,9 +117,8 @@ pub fn default_app_config() -> AppConfig {
         openai_api_key: "".to_string(),
         openai_base_url: "https://api.openai.com/v1/".to_string(),
         openai_model: "gpt-4.1-mini".to_string(),
-        recording_mode: "toggle".to_string(),
-        longpress_shortcut: default_longpress_shortcut(),
-        toggle_shortcut: default_toggle_shortcut(),
+        longpress_shortcut: "RightControl".to_string(),
+        toggle_shortcut: "LeftAlt+Space".to_string(),
         output_mode: "copy".to_string(),
         auto_save_history: true,
         mute_system_audio: false,
@@ -738,6 +728,23 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
     let value = serde_json::to_value(&config).map_err(|error| error.to_string())?;
     store.set(APP_CONFIG_KEY.to_string(), value);
     store.save().map_err(|error| error.to_string())?;
+
+    // 热更新快捷键
+    let app_clone = app.clone();
+    let config_clone = config.clone();
+    tauri::async_runtime::spawn(async move {
+        let longpress = if config_clone.longpress_shortcut.is_empty() {
+            None
+        } else {
+            Some(config_clone.longpress_shortcut)
+        };
+        let toggle = if config_clone.toggle_shortcut.is_empty() {
+            None
+        } else {
+            Some(config_clone.toggle_shortcut)
+        };
+        let _ = crate::hotkey::register_both_hotkeys(app_clone, longpress, toggle).await;
+    });
 
     Ok(config)
 }

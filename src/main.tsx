@@ -91,6 +91,7 @@ function App() {
   useEffect(() => {
     let unlistenCompleted: (() => void) | null = null;
     let unlistenError: (() => void) | null = null;
+    let isProcessing = false; // 防止重复处理
 
     async function initialize() {
       // 加载初始数据
@@ -143,6 +144,14 @@ function App() {
       unlistenCompleted = await listen<{ file_path: string; duration_ms: number }>(
         "recording-completed",
         async (event) => {
+          // 防止重复处理（React StrictMode 会导致事件监听器注册两次）
+          if (isProcessing) {
+            console.log("⚠️ 已有处理流程在进行中，跳过此次事件");
+            return;
+          }
+          isProcessing = true;
+
+          const flowStartTime = performance.now();
           console.log("✅ 收到 recording-completed 事件:", event.payload);
           console.log("  - 文件路径:", event.payload.file_path);
           console.log("  - 录音时长:", event.payload.duration_ms, "ms");
@@ -153,47 +162,63 @@ function App() {
           setVoiceStatus("录音完成，正在执行 ASR 识别...");
 
           try {
-            console.log("开始调用 process_recording_file...");
+            // 步骤1: 调用 process_recording_file (ASR + 文本润色)
+            const step1Start = performance.now();
+            console.log("[⏱️ 前端] 步骤1: 开始调用 process_recording_file...");
             const result = await invoke<VoiceInputResult>("process_recording_file", {
               filePath: event.payload.file_path,
               durationMs: event.payload.duration_ms,
             });
-            console.log("✅ process_recording_file 完成:", result);
+            const step1Duration = performance.now() - step1Start;
+            console.log(`[⏱️ 前端] 步骤1: process_recording_file 完成 - 耗时 ${step1Duration.toFixed(2)}ms`);
+            console.log("  - 原始文本:", result.raw_text);
+            console.log("  - 最终文本:", result.final_text);
 
             setVoiceResult(result);
 
-            // 重新加载历史记录
-            console.log("开始重新加载历史记录...");
-            const [loadedHistoryRecords, loadedHistoryStats] = await Promise.all([
-              invoke<HistoryRecord[]>("list_history_records", { limit: 10 }),
-              invoke<HistoryStatistics>("history_statistics"),
-            ]);
-            setHistoryRecords(loadedHistoryRecords);
-            setHistoryStats(loadedHistoryStats);
-            setHistoryStatus(
-              result.history_record
-                ? "历史记录和统计已更新。"
-                : "当前配置关闭了自动保存，本次未写入历史。"
-            );
-            console.log("✅ 历史记录重新加载完成");
-
-            // 自动输出文本到光标位置（无论是否使用降级方案）
-            console.log("开始自动输出文本到光标位置...");
+            // 步骤2 和 步骤3 并行执行：重新加载历史记录 + 自动输出文本
+            const step2Start = performance.now();
+            console.log("[⏱️ 前端] 步骤2+3: 并行执行历史记录加载和文本输出...");
             setVoiceStatus("语音处理完成，正在自动输出...");
 
             try {
-              const outputResult = await invoke<{ method: string; success: boolean; message: string }>(
-                "output_text",
-                { text: result.final_text }
+              const [
+                [loadedHistoryRecords, loadedHistoryStats],
+                outputResult
+              ] = await Promise.all([
+                // 并行任务1: 重新加载历史记录
+                Promise.all([
+                  invoke<HistoryRecord[]>("list_history_records", { limit: 10 }),
+                  invoke<HistoryStatistics>("history_statistics"),
+                ]),
+                // 并行任务2: 自动输出文本到光标位置
+                invoke<{ method: string; success: boolean; message: string }>(
+                  "output_text",
+                  { text: result.final_text }
+                )
+              ]);
+
+              const step2Duration = performance.now() - step2Start;
+              console.log(`[⏱️ 前端] 步骤2+3: 并行任务完成 - 总耗时 ${step2Duration.toFixed(2)}ms`);
+
+              // 更新历史记录
+              setHistoryRecords(loadedHistoryRecords);
+              setHistoryStats(loadedHistoryStats);
+              setHistoryStatus(
+                result.history_record
+                  ? "历史记录和统计已更新。"
+                  : "当前配置关闭了自动保存，本次未写入历史。"
               );
-              console.log("✅ 文本输出完成:", outputResult);
+
+              // 处理输出结果
+              console.log("  - 输出方法:", outputResult.method);
+              console.log("  - 输出结果:", outputResult.success ? "成功" : "失败");
+
               setVoiceStatus(outputResult.message);
 
               if (outputResult.success) {
-                if (outputResult.method === "keyboard") {
+                if (outputResult.method === "clipboard") {
                   toast.success("已自动输入到光标位置");
-                } else if (outputResult.method === "clipboard") {
-                  toast.success("已通过剪贴板输入");
                 }
               } else {
                 toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
@@ -209,6 +234,13 @@ function App() {
               console.log("⚠️ 使用了文本降级方案");
               toast.warning("文本整理失败，已保留原始识别文本");
             }
+
+            const totalDuration = performance.now() - flowStartTime;
+            console.log(`[⏱️ 前端] ========================================`);
+            console.log(`[⏱️ 前端] 完整流程总耗时: ${totalDuration.toFixed(2)}ms`);
+            console.log(`[⏱️ 前端]   - 步骤1 (ASR+润色): ${step1Duration.toFixed(2)}ms (${(step1Duration/totalDuration*100).toFixed(1)}%)`);
+            console.log(`[⏱️ 前端]   - 步骤2+3 (并行): ${step2Duration.toFixed(2)}ms (${(step2Duration/totalDuration*100).toFixed(1)}%)`);
+            console.log(`[⏱️ 前端] ========================================`);
           } catch (error) {
             const errorMessage = String(error);
             console.error("❌ 录音处理失败:", errorMessage);
@@ -216,6 +248,7 @@ function App() {
             toast.error(`录音处理失败：${errorMessage}`);
           } finally {
             setIsVoiceProcessing(false);
+            isProcessing = false; // 重置处理标志
             console.log("录音处理流程结束");
           }
         }
@@ -906,7 +939,5 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <App />,
 );

@@ -50,7 +50,7 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
         indicator_url,
     )
     .title("录音中")
-    .inner_size(200.0, 80.0)
+    .inner_size(180.0, 50.0)
     .resizable(false)
     .decorations(false)
     .always_on_top(true)
@@ -60,8 +60,22 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
     .build()
     .map_err(|e| format!("创建指示器窗口失败: {}", e))?;
 
-    // 窗口居中显示
-    let _ = window.center();
+    // 获取屏幕尺寸并定位到中下位置
+    if let Ok(monitor) = window.current_monitor() {
+        if let Some(monitor) = monitor {
+            let size = monitor.size();
+            let window_width = 180.0;
+
+            // 水平居中，垂直位置在屏幕 70% 处
+            let x = (size.width as f64 - window_width) / 2.0;
+            let y = size.height as f64 * 0.7;
+
+            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                x: x as i32,
+                y: y as i32,
+            }));
+        }
+    }
 
     // 显示窗口
     let _ = window.show();

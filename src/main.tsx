@@ -178,6 +178,7 @@ function App() {
 
             // 步骤2 和 步骤3 并行执行：重新加载历史记录 + 自动输出文本
             const step2Start = performance.now();
+            let step2Duration = 0;
             console.log("[⏱️ 前端] 步骤2+3: 并行执行历史记录加载和文本输出...");
             setVoiceStatus("语音处理完成，正在自动输出...");
 
@@ -198,7 +199,7 @@ function App() {
                 )
               ]);
 
-              const step2Duration = performance.now() - step2Start;
+              step2Duration = performance.now() - step2Start;
               console.log(`[⏱️ 前端] 步骤2+3: 并行任务完成 - 总耗时 ${step2Duration.toFixed(2)}ms`);
 
               // 更新历史记录

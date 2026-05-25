@@ -8,6 +8,10 @@ export type AppConfig = {
   openai_api_key: string;
   openai_base_url: string;
   openai_model: string;
+  text_provider: string;
+  zhipu_api_key: string;
+  zhipu_base_url: string;
+  zhipu_model: string;
   longpress_shortcut: string;
   toggle_shortcut: string;
   output_mode: string;

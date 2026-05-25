@@ -7,7 +7,7 @@ use std::{
 use xiluolin_lib::{
     data::default_app_config,
     text_polish::{
-        polish_text_with_openai, OpenAiTextConfig, TextPolishError, TextPolishRequest,
+        polish_text_with_openai, TextPolishConfig, TextPolishError, TextPolishRequest,
     },
 };
 
@@ -69,30 +69,34 @@ fn spawn_mock_openai_server(
     (base_url, handle)
 }
 
-fn openai_config(base_url: String, api_key: &str) -> OpenAiTextConfig {
-    OpenAiTextConfig {
+fn openai_config(base_url: String, api_key: &str) -> TextPolishConfig {
+    TextPolishConfig {
+        provider: "openai".to_string(),
         api_key: api_key.to_string(),
         base_url,
-        model: "gpt-4.1-mini".to_string(),
+        model: "gpt-4o-mini".to_string(),
     }
 }
 
 fn polish_request() -> TextPolishRequest {
     TextPolishRequest {
         raw_text: "这个任务帮我整理一下原始识别文本".to_string(),
-        persona_name: "Prompt 工程师".to_string(),
-        persona_prompt: "你是 Prompt 工程师，请整理成可执行 Prompt。".to_string(),
+        persona_description: "你是 Prompt 工程师，请整理成可执行 Prompt。".to_string(),
         hotword_context: "- codex -> Codex（工具名）".to_string(),
     }
 }
 
 #[test]
-fn default_config_contains_openai_endpoint_and_model() {
+fn default_config_contains_text_provider_and_zhipu_config() {
     let config = default_app_config();
 
+    assert_eq!(config.text_provider, "zhipu");
+    assert_eq!(config.zhipu_api_key, "");
+    assert_eq!(config.zhipu_base_url, "https://open.bigmodel.cn/api/paas/v4");
+    assert_eq!(config.zhipu_model, "glm-4.7-flash");
     assert_eq!(config.openai_api_key, "");
-    assert_eq!(config.openai_base_url, "https://api.openai.com/v1/");
-    assert_eq!(config.openai_model, "gpt-4.1-mini");
+    assert_eq!(config.openai_base_url, "https://api.openai.com/v1");
+    assert_eq!(config.openai_model, "gpt-4o-mini");
 }
 
 #[test]
@@ -107,15 +111,15 @@ fn rejects_missing_openai_api_key_before_network_request() {
 }
 
 #[test]
-fn posts_persona_hotwords_and_raw_text_to_responses_endpoint() {
+fn posts_persona_hotwords_and_raw_text_to_chat_completions_endpoint() {
     let (base_url, handle) = spawn_mock_openai_server(
         "200 OK",
-        r#"{"output_text":"请帮我整理这个任务：原始识别文本。"}"#,
+        r#"{"choices":[{"message":{"role":"assistant","content":"请帮我整理这个任务：原始识别文本。"}}]}"#,
     );
 
     let result = polish_text_with_openai(
         &polish_request(),
-        &openai_config(format!("{base_url}/v1/"), "test-key"),
+        &openai_config(format!("{base_url}/v1"), "test-key"),
     )
     .expect("mock polish should pass");
     let request = handle.join().expect("mock server should finish");
@@ -124,11 +128,11 @@ fn posts_persona_hotwords_and_raw_text_to_responses_endpoint() {
 
     assert_eq!(result.final_text, "请帮我整理这个任务：原始识别文本。");
     assert!(!result.used_fallback);
-    assert!(request_text.starts_with("POST /v1/responses HTTP/1.1"));
+    assert!(request_text.starts_with("POST /v1/chat/completions HTTP/1.1"));
     assert!(request_lowercase.contains("authorization: bearer test-key"));
     assert!(request_lowercase.contains("content-type: application/json"));
-    assert!(request_text.contains(r#""model": "gpt-4.1-mini""#));
-    assert!(request_text.contains(r#""instructions": "#));
+    assert!(request_text.contains(r#""model": "gpt-4o-mini""#));
+    assert!(request_text.contains(r#""role": "system""#));
     assert!(request_text.contains("Prompt 工程师"));
     assert!(request_text.contains("保留用户原意"));
     assert!(request_text.contains("原始识别文本"));

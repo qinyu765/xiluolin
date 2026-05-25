@@ -23,6 +23,14 @@ pub struct AppConfig {
     pub openai_api_key: String,
     pub openai_base_url: String,
     pub openai_model: String,
+    #[serde(default = "default_text_provider")]
+    pub text_provider: String,
+    #[serde(default)]
+    pub zhipu_api_key: String,
+    #[serde(default = "default_zhipu_base_url")]
+    pub zhipu_base_url: String,
+    #[serde(default = "default_zhipu_model")]
+    pub zhipu_model: String,
     #[serde(default)]
     pub longpress_shortcut: String,
     #[serde(default)]
@@ -111,6 +119,18 @@ fn default_openai_asr_model() -> String {
     "whisper-1".to_string()
 }
 
+fn default_text_provider() -> String {
+    "zhipu".to_string()
+}
+
+fn default_zhipu_base_url() -> String {
+    "https://open.bigmodel.cn/api/paas/v4".to_string()
+}
+
+fn default_zhipu_model() -> String {
+    "glm-4.7-flash".to_string()
+}
+
 pub fn default_app_config() -> AppConfig {
     AppConfig {
         default_persona_id: DEFAULT_PERSONA_ID.to_string(),
@@ -122,6 +142,10 @@ pub fn default_app_config() -> AppConfig {
         openai_api_key: "".to_string(),
         openai_base_url: "https://api.openai.com/v1".to_string(),
         openai_model: "gpt-4o-mini".to_string(),
+        text_provider: default_text_provider(),
+        zhipu_api_key: "".to_string(),
+        zhipu_base_url: default_zhipu_base_url(),
+        zhipu_model: default_zhipu_model(),
         longpress_shortcut: "CommandOrControl+Shift+R".to_string(),
         toggle_shortcut: "Alt+Space".to_string(),
         output_mode: "copy".to_string(),

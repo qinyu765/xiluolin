@@ -253,63 +253,146 @@ export function SettingsPage({
             <CardHeader>
               <CardTitle>语音识别服务</CardTitle>
               <CardDescription>
-                配置智谱 GLM-ASR-2512，用于把短音频转换为原始识别文本
+                配置 ASR 服务，用于把短音频转换为原始识别文本
               </CardDescription>
             </CardHeader>
 
             <CardContent>
               <form className="grid gap-4" onSubmit={onSaveAsrConfig}>
                 <div className="grid gap-2">
-                  <Label htmlFor="asr-api-key">
-                    智谱 API Key <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="asr-api-key"
-                    type="password"
-                    value={appConfig?.asr_api_key ?? ""}
-                    onChange={(event) =>
+                  <Label htmlFor="asr-provider">服务商</Label>
+                  <Select
+                    value={appConfig?.asr_provider ?? "zhipu"}
+                    onValueChange={(value) =>
                       onConfigChange(
                         appConfig
-                          ? { ...appConfig, asr_api_key: event.target.value }
+                          ? { ...appConfig, asr_provider: value }
                           : appConfig!,
                       )
                     }
-                    placeholder="本地保存，不写入仓库"
-                    autoComplete="off"
-                    required
-                  />
+                  >
+                    <SelectTrigger id="asr-provider" className="h-10">
+                      <SelectValue placeholder="选择服务商" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="zhipu">智谱 AI (GLM-ASR-2512)</SelectItem>
+                      <SelectItem value="openai">OpenAI (Whisper)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    智谱 GLM-ASR-2512 提供免费额度，OpenAI Whisper 需要付费
+                  </p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-                  <div className="grid gap-2">
-                    <Label htmlFor="asr-base-url">Base URL</Label>
-                    <Input
-                      id="asr-base-url"
-                      value={appConfig?.asr_base_url ?? ""}
-                      onChange={(event) =>
-                        onConfigChange(
-                          appConfig
-                            ? { ...appConfig, asr_base_url: event.target.value }
-                            : appConfig!,
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="asr-model">模型</Label>
-                    <Input
-                      id="asr-model"
-                      value={appConfig?.asr_model ?? ""}
-                      onChange={(event) =>
-                        onConfigChange(
-                          appConfig
-                            ? { ...appConfig, asr_model: event.target.value }
-                            : appConfig!,
-                        )
-                      }
-                    />
-                  </div>
-                </div>
+                {appConfig?.asr_provider === "openai" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="openai-asr-api-key">
+                        OpenAI API Key <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="openai-asr-api-key"
+                        type="password"
+                        value={appConfig?.openai_api_key ?? ""}
+                        onChange={(event) =>
+                          onConfigChange(
+                            appConfig
+                              ? { ...appConfig, openai_api_key: event.target.value }
+                              : appConfig!,
+                          )
+                        }
+                        placeholder="本地保存，不写入仓库"
+                        autoComplete="off"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                      <div className="grid gap-2">
+                        <Label htmlFor="openai-asr-base-url">Base URL</Label>
+                        <Input
+                          id="openai-asr-base-url"
+                          value={appConfig?.openai_base_url ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, openai_base_url: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="openai-asr-model">模型</Label>
+                        <Input
+                          id="openai-asr-model"
+                          value={appConfig?.openai_asr_model ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, openai_asr_model: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="asr-api-key">
+                        智谱 API Key <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="asr-api-key"
+                        type="password"
+                        value={appConfig?.asr_api_key ?? ""}
+                        onChange={(event) =>
+                          onConfigChange(
+                            appConfig
+                              ? { ...appConfig, asr_api_key: event.target.value }
+                              : appConfig!,
+                          )
+                        }
+                        placeholder="本地保存，不写入仓库"
+                        autoComplete="off"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                      <div className="grid gap-2">
+                        <Label htmlFor="asr-base-url">Base URL</Label>
+                        <Input
+                          id="asr-base-url"
+                          value={appConfig?.asr_base_url ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, asr_base_url: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="asr-model">模型</Label>
+                        <Input
+                          id="asr-model"
+                          value={appConfig?.asr_model ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, asr_model: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm leading-6 text-muted-foreground">
@@ -332,63 +415,146 @@ export function SettingsPage({
             <CardHeader>
               <CardTitle>文本整理服务</CardTitle>
               <CardDescription>
-                配置 OpenAI Responses API，用于把原始识别文本整理成可直接使用的结果
+                配置文本处理 API，用于把原始识别文本整理成可直接使用的结果
               </CardDescription>
             </CardHeader>
 
             <CardContent>
               <form className="grid gap-4" onSubmit={onSaveOpenaiConfig}>
                 <div className="grid gap-2">
-                  <Label htmlFor="openai-api-key">
-                    OpenAI API Key <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="openai-api-key"
-                    type="password"
-                    value={appConfig?.openai_api_key ?? ""}
-                    onChange={(event) =>
+                  <Label htmlFor="text-provider">服务商</Label>
+                  <Select
+                    value={appConfig?.text_provider ?? "zhipu"}
+                    onValueChange={(value) =>
                       onConfigChange(
                         appConfig
-                          ? { ...appConfig, openai_api_key: event.target.value }
+                          ? { ...appConfig, text_provider: value }
                           : appConfig!,
                       )
                     }
-                    placeholder="本地保存，不写入仓库"
-                    autoComplete="off"
-                    required
-                  />
+                  >
+                    <SelectTrigger id="text-provider" className="h-10">
+                      <SelectValue placeholder="选择服务商" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="zhipu">智谱 AI (GLM-4.7-Flash)</SelectItem>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    智谱 GLM-4.7-Flash 提供免费额度，适合 MVP 验证
+                  </p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-                  <div className="grid gap-2">
-                    <Label htmlFor="openai-base-url">Base URL</Label>
-                    <Input
-                      id="openai-base-url"
-                      value={appConfig?.openai_base_url ?? ""}
-                      onChange={(event) =>
-                        onConfigChange(
-                          appConfig
-                            ? { ...appConfig, openai_base_url: event.target.value }
-                            : appConfig!,
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="openai-model">模型</Label>
-                    <Input
-                      id="openai-model"
-                      value={appConfig?.openai_model ?? ""}
-                      onChange={(event) =>
-                        onConfigChange(
-                          appConfig
-                            ? { ...appConfig, openai_model: event.target.value }
-                            : appConfig!,
-                        )
-                      }
-                    />
-                  </div>
-                </div>
+                {appConfig?.text_provider === "zhipu" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="zhipu-api-key">
+                        智谱 API Key <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="zhipu-api-key"
+                        type="password"
+                        value={appConfig?.zhipu_api_key ?? ""}
+                        onChange={(event) =>
+                          onConfigChange(
+                            appConfig
+                              ? { ...appConfig, zhipu_api_key: event.target.value }
+                              : appConfig!,
+                          )
+                        }
+                        placeholder="本地保存，不写入仓库"
+                        autoComplete="off"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                      <div className="grid gap-2">
+                        <Label htmlFor="zhipu-base-url">Base URL</Label>
+                        <Input
+                          id="zhipu-base-url"
+                          value={appConfig?.zhipu_base_url ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, zhipu_base_url: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="zhipu-model">模型</Label>
+                        <Input
+                          id="zhipu-model"
+                          value={appConfig?.zhipu_model ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, zhipu_model: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="openai-api-key">
+                        OpenAI API Key <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="openai-api-key"
+                        type="password"
+                        value={appConfig?.openai_api_key ?? ""}
+                        onChange={(event) =>
+                          onConfigChange(
+                            appConfig
+                              ? { ...appConfig, openai_api_key: event.target.value }
+                              : appConfig!,
+                          )
+                        }
+                        placeholder="本地保存，不写入仓库"
+                        autoComplete="off"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                      <div className="grid gap-2">
+                        <Label htmlFor="openai-base-url">Base URL</Label>
+                        <Input
+                          id="openai-base-url"
+                          value={appConfig?.openai_base_url ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, openai_base_url: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="openai-model">模型</Label>
+                        <Input
+                          id="openai-model"
+                          value={appConfig?.openai_model ?? ""}
+                          onChange={(event) =>
+                            onConfigChange(
+                              appConfig
+                                ? { ...appConfig, openai_model: event.target.value }
+                                : appConfig!,
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm leading-6 text-muted-foreground">
@@ -404,7 +570,7 @@ export function SettingsPage({
                     ) : (
                       <SaveIcon className="size-4" aria-hidden="true" />
                     )}
-                    保存 OpenAI 配置
+                    保存文本处理配置
                   </Button>
                 </div>
               </form>

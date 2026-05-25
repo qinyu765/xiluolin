@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Loader2Icon, SaveIcon } from "lucide-react";
+import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -18,312 +19,439 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Persona, AppConfig } from "@/types";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { AppConfig, AudioDevice } from "@/types";
 
 type SettingsPageProps = {
-  personas: Persona[];
-  selectedPersonaId: string;
-  selectedPersona: Persona | undefined;
   appConfig: AppConfig | null;
-  status: string;
+  audioDevices: AudioDevice[];
   asrStatus: string;
   openaiStatus: string;
-  isSaving: boolean;
   isAsrSaving: boolean;
   isOpenaiSaving: boolean;
-  onDefaultPersonaChange: (personaId: string) => void;
   onSaveAsrConfig: (event: React.FormEvent<HTMLFormElement>) => void;
   onSaveOpenaiConfig: (event: React.FormEvent<HTMLFormElement>) => void;
   onConfigChange: (config: AppConfig) => void;
+  onConfigSaved: (config: AppConfig) => void;
 };
 
 export function SettingsPage({
-  personas,
-  selectedPersonaId,
-  selectedPersona,
   appConfig,
-  status,
+  audioDevices,
   asrStatus,
   openaiStatus,
-  isSaving,
   isAsrSaving,
   isOpenaiSaving,
-  onDefaultPersonaChange,
   onSaveAsrConfig,
   onSaveOpenaiConfig,
   onConfigChange,
+  onConfigSaved,
 }: SettingsPageProps) {
+  const [activeTab, setActiveTab] = useState("general");
+  const [isGeneralSaving, setIsGeneralSaving] = useState(false);
+
+  const handleGeneralSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!appConfig) return;
+
+    const nextConfig = {
+      ...appConfig,
+      longpress_shortcut: appConfig.longpress_shortcut.trim(),
+      toggle_shortcut: appConfig.toggle_shortcut.trim(),
+    };
+
+    if (!nextConfig.longpress_shortcut) {
+      toast.error("长按模式快捷键不能为空");
+      return;
+    }
+
+    if (!nextConfig.toggle_shortcut) {
+      toast.error("切换模式快捷键不能为空");
+      return;
+    }
+
+    setIsGeneralSaving(true);
+    invoke<AppConfig>("update_app_config", { config: nextConfig })
+      .then((savedConfig) => {
+        onConfigSaved(savedConfig);
+        toast.success("通用设置已保存");
+      })
+      .catch((error) => {
+        toast.error(`保存通用设置失败：${String(error)}`);
+      })
+      .finally(() => {
+        setIsGeneralSaving(false);
+      });
+  };
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div>
-            <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
-              T004A UI 基础
-            </p>
-            <CardTitle className="text-2xl">默认整理风格</CardTitle>
-            <CardDescription className="mt-2">
-              选择语音内容整理时默认使用的人格。当前阶段只提供内置人格。
-            </CardDescription>
-          </div>
-          <CardAction>
-            <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-              {isSaving ? "保存中" : "本地配置"}
-            </span>
-          </CardAction>
-        </CardHeader>
+      <div>
+        <h1 className="text-3xl font-bold">设置</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          管理应用配置和模型服务
+        </p>
+      </div>
 
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="persona-select">默认人格</Label>
-            <Select
-              value={selectedPersonaId}
-              onValueChange={onDefaultPersonaChange}
-              disabled={isSaving || personas.length === 0}
-            >
-              <SelectTrigger id="persona-select" className="h-10">
-                <SelectValue placeholder="选择默认人格" />
-              </SelectTrigger>
-              <SelectContent>
-                {personas.map((persona) => (
-                  <SelectItem key={persona.id} value={persona.id}>
-                    {persona.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="general">通用</TabsTrigger>
+          <TabsTrigger value="models">模型配置</TabsTrigger>
+        </TabsList>
 
-          {selectedPersona ? (
-            <section className="rounded-lg border bg-muted/40 p-4">
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">
-                    {selectedPersona.name}
-                  </h2>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {selectedPersona.description}
+        <TabsContent value="general" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>通用设置</CardTitle>
+              <CardDescription>
+                配置快捷键、录音模式、输出方式和历史记录保存选项
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="grid gap-4" onSubmit={handleGeneralSubmit}>
+                <div className="grid gap-2">
+                  <Label htmlFor="longpress-shortcut">
+                    长按模式快捷键 <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="longpress-shortcut"
+                    value={appConfig?.longpress_shortcut ?? ""}
+                    onChange={(event) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, longpress_shortcut: event.target.value }
+                          : appConfig!,
+                      )
+                    }
+                    placeholder="例如：RightControl"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    按住快捷键录音，松开停止。默认：右Ctrl
                   </p>
                 </div>
-                {selectedPersona.is_default ? (
-                  <span className="inline-flex h-7 w-fit items-center rounded-md border bg-background px-2.5 text-xs font-medium">
-                    默认
-                  </span>
-                ) : null}
-              </div>
 
-              <dl className="grid gap-3 text-sm sm:grid-cols-3">
-                <div>
-                  <dt className="font-medium text-foreground">适用场景</dt>
-                  <dd className="mt-1 leading-6 text-muted-foreground">
-                    {selectedPersona.scene}
-                  </dd>
+                <div className="grid gap-2">
+                  <Label htmlFor="toggle-shortcut">
+                    切换模式快捷键 <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="toggle-shortcut"
+                    value={appConfig?.toggle_shortcut ?? ""}
+                    onChange={(event) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, toggle_shortcut: event.target.value }
+                          : appConfig!,
+                      )
+                    }
+                    placeholder="例如：Alt+Space"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    按一次开始录音，再按一次停止。默认：左Alt+Space
+                  </p>
                 </div>
-                <div>
-                  <dt className="font-medium text-foreground">输出语气</dt>
-                  <dd className="mt-1 leading-6 text-muted-foreground">
-                    {selectedPersona.tone}
-                  </dd>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="app-recording-mode">录音模式</Label>
+                  <Select
+                    value={appConfig?.recording_mode ?? "toggle"}
+                    onValueChange={(value) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, recording_mode: value }
+                          : appConfig!,
+                      )
+                    }
+                  >
+                    <SelectTrigger id="app-recording-mode" className="h-10">
+                      <SelectValue placeholder="选择录音模式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="long_press">长按录音</SelectItem>
+                      <SelectItem value="toggle">切换式录音</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    长按：按住快捷键录音，松开停止。切换：按一次开始，再按一次停止。
+                  </p>
                 </div>
-                <div>
-                  <dt className="font-medium text-foreground">输出结构</dt>
-                  <dd className="mt-1 leading-6 text-muted-foreground">
-                    {selectedPersona.output_structure}
-                  </dd>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="app-microphone">麦克风设备</Label>
+                  <Select
+                    value={appConfig?.selected_microphone || "__default__"}
+                    onValueChange={(value) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, selected_microphone: value === "__default__" ? "" : value }
+                          : appConfig!,
+                      )
+                    }
+                  >
+                    <SelectTrigger id="app-microphone" className="h-10">
+                      <SelectValue placeholder="使用默认麦克风" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__default__">使用默认麦克风</SelectItem>
+                      {audioDevices.map((device) => (
+                        <SelectItem key={device.name} value={device.name}>
+                          {device.name} {device.is_default ? "(默认)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    选择用于录音的麦克风设备。留空则使用系统默认麦克风。
+                  </p>
                 </div>
-              </dl>
-            </section>
-          ) : null}
 
-          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted-foreground">
-              {status}
-            </p>
-            <Button type="button" variant="outline" size="sm" disabled>
-              {isSaving ? (
-                <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-              ) : null}
-              语音主流程待接入
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="app-mute-audio">录音时静音其他应用</Label>
+                    <p className="text-xs text-muted-foreground">
+                      开启后，语音输入时会暂停系统音频播放，输入完成后自动恢复
+                    </p>
+                  </div>
+                  <Switch
+                    id="app-mute-audio"
+                    checked={appConfig?.mute_system_audio ?? false}
+                    onCheckedChange={(checked) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, mute_system_audio: checked }
+                          : appConfig!,
+                      )
+                    }
+                  />
+                </div>
 
-      <Card>
-        <CardHeader>
-          <div>
-            <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
-              T007 OpenAI 整理
-            </p>
-            <CardTitle className="text-2xl">文本整理服务</CardTitle>
-            <CardDescription className="mt-2">
-              配置 OpenAI Responses API，用于把原始识别文本整理成可直接使用的结果。
-            </CardDescription>
-          </div>
-          <CardAction>
-            <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-              {appConfig?.openai_api_key ? "已配置 Key" : "待配置 Key"}
-            </span>
-          </CardAction>
-        </CardHeader>
+                <div className="grid gap-2">
+                  <Label htmlFor="app-output-mode">输出方式</Label>
+                  <Select
+                    value={appConfig?.output_mode ?? "copy"}
+                    onValueChange={(value) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, output_mode: value }
+                          : appConfig!,
+                      )
+                    }
+                  >
+                    <SelectTrigger id="app-output-mode" className="h-10">
+                      <SelectValue placeholder="选择输出方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="copy">复制到剪贴板</SelectItem>
+                      <SelectItem value="paste">自动粘贴</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    复制：结果复制到剪贴板。自动粘贴：尝试模拟粘贴到当前输入位置。
+                  </p>
+                </div>
 
-        <CardContent>
-          <form className="grid gap-4" onSubmit={onSaveOpenaiConfig}>
-            <div className="grid gap-2">
-              <Label htmlFor="openai-api-key">OpenAI API Key</Label>
-              <Input
-                id="openai-api-key"
-                type="password"
-                value={appConfig?.openai_api_key ?? ""}
-                onChange={(event) =>
-                  onConfigChange(
-                    appConfig
-                      ? { ...appConfig, openai_api_key: event.target.value }
-                      : appConfig!,
-                  )
-                }
-                placeholder="本地保存，不写入仓库"
-                autoComplete="off"
-              />
-            </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="app-auto-save">自动保存历史</Label>
+                    <p className="text-xs text-muted-foreground">
+                      每次语音输入完成后自动保存到历史记录
+                    </p>
+                  </div>
+                  <Switch
+                    id="app-auto-save"
+                    checked={appConfig?.auto_save_history ?? true}
+                    onCheckedChange={(checked) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, auto_save_history: checked }
+                          : appConfig!,
+                      )
+                    }
+                  />
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-              <div className="grid gap-2">
-                <Label htmlFor="openai-base-url">Base URL</Label>
-                <Input
-                  id="openai-base-url"
-                  value={appConfig?.openai_base_url ?? ""}
-                  onChange={(event) =>
-                    onConfigChange(
-                      appConfig
-                        ? { ...appConfig, openai_base_url: event.target.value }
-                        : appConfig!,
-                    )
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="openai-model">模型</Label>
-                <Input
-                  id="openai-model"
-                  value={appConfig?.openai_model ?? ""}
-                  onChange={(event) =>
-                    onConfigChange(
-                      appConfig
-                        ? { ...appConfig, openai_model: event.target.value }
-                        : appConfig!,
-                    )
-                  }
-                />
-              </div>
-            </div>
+                <div className="flex justify-end border-t pt-4">
+                  <Button type="submit" size="sm" disabled={!appConfig || isGeneralSaving}>
+                    {isGeneralSaving ? (
+                      <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <SaveIcon className="size-4" aria-hidden="true" />
+                    )}
+                    保存通用设置
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm leading-6 text-muted-foreground">
-                {openaiStatus}
-              </p>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={!appConfig || isOpenaiSaving}
-              >
-                {isOpenaiSaving ? (
-                  <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <SaveIcon className="size-4" aria-hidden="true" />
-                )}
-                保存 OpenAI 配置
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        <TabsContent value="models" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>语音识别服务</CardTitle>
+              <CardDescription>
+                配置智谱 GLM-ASR-2512，用于把短音频转换为原始识别文本
+              </CardDescription>
+            </CardHeader>
 
-      <Card>
-        <CardHeader>
-          <div>
-            <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
-              T006 智谱 ASR
-            </p>
-            <CardTitle className="text-2xl">语音识别服务</CardTitle>
-            <CardDescription className="mt-2">
-              配置智谱 GLM-ASR-2512，用于把短音频转换为原始识别文本。
-            </CardDescription>
-          </div>
-          <CardAction>
-            <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-              {appConfig?.asr_api_key ? "已配置 Key" : "待配置 Key"}
-            </span>
-          </CardAction>
-        </CardHeader>
+            <CardContent>
+              <form className="grid gap-4" onSubmit={onSaveAsrConfig}>
+                <div className="grid gap-2">
+                  <Label htmlFor="asr-api-key">
+                    智谱 API Key <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="asr-api-key"
+                    type="password"
+                    value={appConfig?.asr_api_key ?? ""}
+                    onChange={(event) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, asr_api_key: event.target.value }
+                          : appConfig!,
+                      )
+                    }
+                    placeholder="本地保存，不写入仓库"
+                    autoComplete="off"
+                    required
+                  />
+                </div>
 
-        <CardContent>
-          <form className="grid gap-4" onSubmit={onSaveAsrConfig}>
-            <div className="grid gap-2">
-              <Label htmlFor="asr-api-key">智谱 API Key</Label>
-              <Input
-                id="asr-api-key"
-                type="password"
-                value={appConfig?.asr_api_key ?? ""}
-                onChange={(event) =>
-                  onConfigChange(
-                    appConfig
-                      ? { ...appConfig, asr_api_key: event.target.value }
-                      : appConfig!,
-                  )
-                }
-                placeholder="本地保存，不写入仓库"
-                autoComplete="off"
-              />
-            </div>
+                <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                  <div className="grid gap-2">
+                    <Label htmlFor="asr-base-url">Base URL</Label>
+                    <Input
+                      id="asr-base-url"
+                      value={appConfig?.asr_base_url ?? ""}
+                      onChange={(event) =>
+                        onConfigChange(
+                          appConfig
+                            ? { ...appConfig, asr_base_url: event.target.value }
+                            : appConfig!,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="asr-model">模型</Label>
+                    <Input
+                      id="asr-model"
+                      value={appConfig?.asr_model ?? ""}
+                      onChange={(event) =>
+                        onConfigChange(
+                          appConfig
+                            ? { ...appConfig, asr_model: event.target.value }
+                            : appConfig!,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-              <div className="grid gap-2">
-                <Label htmlFor="asr-base-url">Base URL</Label>
-                <Input
-                  id="asr-base-url"
-                  value={appConfig?.asr_base_url ?? ""}
-                  onChange={(event) =>
-                    onConfigChange(
-                      appConfig
-                        ? { ...appConfig, asr_base_url: event.target.value }
-                        : appConfig!,
-                    )
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="asr-model">模型</Label>
-                <Input
-                  id="asr-model"
-                  value={appConfig?.asr_model ?? ""}
-                  onChange={(event) =>
-                    onConfigChange(
-                      appConfig
-                        ? { ...appConfig, asr_model: event.target.value }
-                        : appConfig!,
-                    )
-                  }
-                />
-              </div>
-            </div>
+                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {asrStatus}
+                  </p>
+                  <Button type="submit" size="sm" disabled={!appConfig || isAsrSaving}>
+                    {isAsrSaving ? (
+                      <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <SaveIcon className="size-4" aria-hidden="true" />
+                    )}
+                    保存 ASR 配置
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
 
-            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm leading-6 text-muted-foreground">
-                {asrStatus}
-              </p>
-              <Button type="submit" size="sm" disabled={!appConfig || isAsrSaving}>
-                {isAsrSaving ? (
-                  <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <SaveIcon className="size-4" aria-hidden="true" />
-                )}
-                保存 ASR 配置
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>文本整理服务</CardTitle>
+              <CardDescription>
+                配置 OpenAI Responses API，用于把原始识别文本整理成可直接使用的结果
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+              <form className="grid gap-4" onSubmit={onSaveOpenaiConfig}>
+                <div className="grid gap-2">
+                  <Label htmlFor="openai-api-key">
+                    OpenAI API Key <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="openai-api-key"
+                    type="password"
+                    value={appConfig?.openai_api_key ?? ""}
+                    onChange={(event) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, openai_api_key: event.target.value }
+                          : appConfig!,
+                      )
+                    }
+                    placeholder="本地保存，不写入仓库"
+                    autoComplete="off"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                  <div className="grid gap-2">
+                    <Label htmlFor="openai-base-url">Base URL</Label>
+                    <Input
+                      id="openai-base-url"
+                      value={appConfig?.openai_base_url ?? ""}
+                      onChange={(event) =>
+                        onConfigChange(
+                          appConfig
+                            ? { ...appConfig, openai_base_url: event.target.value }
+                            : appConfig!,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="openai-model">模型</Label>
+                    <Input
+                      id="openai-model"
+                      value={appConfig?.openai_model ?? ""}
+                      onChange={(event) =>
+                        onConfigChange(
+                          appConfig
+                            ? { ...appConfig, openai_model: event.target.value }
+                            : appConfig!,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {openaiStatus}
+                  </p>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={!appConfig || isOpenaiSaving}
+                  >
+                    {isOpenaiSaving ? (
+                      <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <SaveIcon className="size-4" aria-hidden="true" />
+                    )}
+                    保存 OpenAI 配置
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

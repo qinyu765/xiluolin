@@ -1543,6 +1543,150 @@ function App() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
+                T020 设置页
+              </p>
+              <CardTitle className="text-2xl">应用设置</CardTitle>
+              <CardDescription className="mt-2">
+                配置快捷键、录音模式、输出方式和历史记录保存选项。
+              </CardDescription>
+            </div>
+            <CardAction>
+              <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+                本地配置
+              </span>
+            </CardAction>
+          </CardHeader>
+
+          <CardContent>
+            <form className="grid gap-4" onSubmit={(e) => {
+              e.preventDefault();
+              if (!appConfig) return;
+
+              const nextConfig = {
+                ...appConfig,
+                shortcut: appConfig.shortcut.trim(),
+              };
+
+              if (!nextConfig.shortcut) {
+                alert("快捷键不能为空");
+                return;
+              }
+
+              invoke<AppConfig>("update_app_config", { config: nextConfig })
+                .then((savedConfig) => {
+                  setAppConfig(savedConfig);
+                  alert("应用设置已保存");
+                })
+                .catch((error) => {
+                  alert(`保存应用设置失败：${String(error)}`);
+                });
+            }}>
+              <div className="grid gap-2">
+                <Label htmlFor="app-shortcut">全局快捷键</Label>
+                <Input
+                  id="app-shortcut"
+                  value={appConfig?.shortcut ?? ""}
+                  onChange={(event) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, shortcut: event.target.value }
+                        : config,
+                    )
+                  }
+                  placeholder="例如：CommandOrControl+Shift+V"
+                />
+                <p className="text-xs text-muted-foreground">
+                  用于触发录音的全局快捷键。修饰键：CommandOrControl、Alt、Shift。
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="app-recording-mode">录音模式</Label>
+                <Select
+                  value={appConfig?.recording_mode ?? "toggle"}
+                  onValueChange={(value) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, recording_mode: value }
+                        : config,
+                    )
+                  }
+                >
+                  <SelectTrigger id="app-recording-mode" className="h-10">
+                    <SelectValue placeholder="选择录音模式" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hold">长按录音</SelectItem>
+                    <SelectItem value="toggle">切换式录音</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  长按：按住快捷键录音，松开停止。切换：按一次开始，再按一次停止。
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="app-output-mode">输出方式</Label>
+                <Select
+                  value={appConfig?.output_mode ?? "copy"}
+                  onValueChange={(value) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, output_mode: value }
+                        : config,
+                    )
+                  }
+                >
+                  <SelectTrigger id="app-output-mode" className="h-10">
+                    <SelectValue placeholder="选择输出方式" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="copy">复制到剪贴板</SelectItem>
+                    <SelectItem value="paste">自动粘贴</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  复制：结果复制到剪贴板。自动粘贴：尝试模拟粘贴到当前输入位置。
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="app-auto-save">自动保存历史</Label>
+                  <p className="text-xs text-muted-foreground">
+                    每次语音输入完成后自动保存到历史记录
+                  </p>
+                </div>
+                <Switch
+                  id="app-auto-save"
+                  checked={appConfig?.auto_save_history ?? true}
+                  onCheckedChange={(checked) =>
+                    setAppConfig((config) =>
+                      config
+                        ? { ...config, auto_save_history: checked }
+                        : config,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  修改设置后需要保存才能生效。
+                </p>
+                <Button type="submit" size="sm" disabled={!appConfig}>
+                  <SaveIcon className="size-4" aria-hidden="true" />
+                  保存应用设置
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog

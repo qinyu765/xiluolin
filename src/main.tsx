@@ -280,8 +280,7 @@ function App() {
   function openEditHotwordDialog(hotword: Hotword) {
     setEditingHotwordId(hotword.id);
     setHotwordDraft({
-      source_text: hotword.source_text,
-      target_text: hotword.target_text,
+      text: hotword.text,
       category: hotword.category,
       enabled: hotword.enabled,
     });
@@ -292,13 +291,12 @@ function App() {
     event.preventDefault();
     const draft = {
       ...hotwordDraft,
-      source_text: hotwordDraft.source_text.trim(),
-      target_text: hotwordDraft.target_text.trim(),
+      text: hotwordDraft.text.trim(),
       category: hotwordDraft.category.trim(),
     };
 
-    if (!draft.source_text || !draft.target_text) {
-      setHotwordStatus("原始说法和修正写法不能为空。");
+    if (!draft.text) {
+      setHotwordStatus("热词不能为空。");
       return;
     }
 
@@ -330,8 +328,7 @@ function App() {
       await invoke<Hotword>("update_hotword", {
         id: hotword.id,
         draft: {
-          source_text: hotword.source_text,
-          target_text: hotword.target_text,
+          text: hotword.text,
           category: hotword.category,
           enabled,
         },

@@ -127,24 +127,30 @@ fn validate_request(
 }
 
 fn build_instructions(request: &TextPolishRequest) -> String {
-    format!(
+    let mut instructions = format!(
         "你是 AI 语音输入助手，负责把 ASR 原始识别文本整理成可直接使用的文本。\n\
         当前人格：{}\n\
-        人格要求：{}\n\
-        通用要求：保留用户原意；自动补标点和断句；去除明显口头禅和重复表达；不要编造用户没有表达的信息；只输出整理后的文本。",
+        人格要求：{}\n",
         request.persona_name.trim(),
         request.persona_prompt.trim()
-    )
+    );
+
+    // 注入热词到 instructions
+    if !request.hotword_context.trim().is_empty() {
+        instructions.push_str("\n用户定义了以下热词：\n");
+        instructions.push_str(request.hotword_context.trim());
+        instructions.push_str("\n\n处理语音识别文本时，优先识别和使用这些热词。");
+    }
+
+    instructions.push_str("\n\n通用要求：保留用户原意；自动补标点和断句；去除明显口头禅和重复表达；不要编造用户没有表达的信息；只输出整理后的文本。");
+    instructions
 }
 
 fn build_input(request: &TextPolishRequest) -> String {
-    let mut input = format!("原始识别文本：\n{}", request.raw_text.trim());
-    if !request.hotword_context.trim().is_empty() {
-        input.push_str("\n\n热词词典：\n");
-        input.push_str(request.hotword_context.trim());
-    }
-    input.push_str("\n\n输出要求：按当前人格整理为可直接复制使用的中文文本。");
-    input
+    format!(
+        "原始识别文本：\n{}\n\n输出要求：按当前人格整理为可直接复制使用的中文文本。",
+        request.raw_text.trim()
+    )
 }
 
 fn responses_url(base_url: &str) -> String {

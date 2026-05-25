@@ -59,8 +59,7 @@ pub struct PersonaDraft {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hotword {
     pub id: String,
-    pub source_text: String,
-    pub target_text: String,
+    pub text: String,
     pub category: String,
     pub enabled: bool,
     pub created_at: String,
@@ -69,8 +68,7 @@ pub struct Hotword {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HotwordDraft {
-    pub source_text: String,
-    pub target_text: String,
+    pub text: String,
     pub category: String,
     pub enabled: bool,
 }
@@ -155,8 +153,7 @@ impl LocalDatabase {
 
             CREATE TABLE IF NOT EXISTS hotwords (
                 id TEXT PRIMARY KEY,
-                source_text TEXT NOT NULL,
-                target_text TEXT NOT NULL,
+                text TEXT NOT NULL,
                 category TEXT NOT NULL,
                 enabled INTEGER NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -315,13 +312,12 @@ impl LocalDatabase {
         let id = Uuid::new_v4().to_string();
         self.connection.execute(
             r#"
-            INSERT INTO hotwords (id, source_text, target_text, category, enabled)
-            VALUES (?1, ?2, ?3, ?4, ?5)
+            INSERT INTO hotwords (id, text, category, enabled)
+            VALUES (?1, ?2, ?3, ?4)
             "#,
             params![
                 id,
-                draft.source_text,
-                draft.target_text,
+                draft.text,
                 draft.category,
                 bool_to_int(draft.enabled)
             ],
@@ -333,7 +329,7 @@ impl LocalDatabase {
     pub fn list_hotwords(&self) -> rusqlite::Result<Vec<Hotword>> {
         let mut statement = self.connection.prepare(
             r#"
-            SELECT id, source_text, target_text, category, enabled, created_at, updated_at
+            SELECT id, text, category, enabled, created_at, updated_at
             FROM hotwords
             ORDER BY created_at ASC, id ASC
             "#,
@@ -347,17 +343,15 @@ impl LocalDatabase {
         let updated = self.connection.execute(
             r#"
             UPDATE hotwords
-            SET source_text = ?2,
-                target_text = ?3,
-                category = ?4,
-                enabled = ?5,
+            SET text = ?2,
+                category = ?3,
+                enabled = ?4,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?1
             "#,
             params![
                 id,
-                draft.source_text,
-                draft.target_text,
+                draft.text,
                 draft.category,
                 bool_to_int(draft.enabled)
             ],
@@ -383,7 +377,7 @@ impl LocalDatabase {
     pub fn enabled_hotword_context(&self) -> rusqlite::Result<String> {
         let mut statement = self.connection.prepare(
             r#"
-            SELECT id, source_text, target_text, category, enabled, created_at, updated_at
+            SELECT id, text, category, enabled, created_at, updated_at
             FROM hotwords
             WHERE enabled = 1
             ORDER BY created_at ASC, id ASC
@@ -529,7 +523,7 @@ impl LocalDatabase {
     fn get_hotword(&self, id: &str) -> rusqlite::Result<Hotword> {
         self.connection.query_row(
             r#"
-            SELECT id, source_text, target_text, category, enabled, created_at, updated_at
+            SELECT id, text, category, enabled, created_at, updated_at
             FROM hotwords
             WHERE id = ?1
             "#,
@@ -840,12 +834,11 @@ fn persona_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Persona> {
 fn hotword_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Hotword> {
     Ok(Hotword {
         id: row.get(0)?,
-        source_text: row.get(1)?,
-        target_text: row.get(2)?,
-        category: row.get(3)?,
-        enabled: int_to_bool(row.get(4)?),
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
+        text: row.get(1)?,
+        category: row.get(2)?,
+        enabled: int_to_bool(row.get(3)?),
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
     })
 }
 
@@ -867,16 +860,10 @@ fn format_hotword_context(hotwords: &[Hotword]) -> String {
     hotwords
         .iter()
         .map(|hotword| {
-            let mapping = if hotword.source_text == hotword.target_text {
-                hotword.target_text.clone()
-            } else {
-                format!("{} -> {}", hotword.source_text, hotword.target_text)
-            };
-
             if hotword.category.trim().is_empty() {
-                format!("- {mapping}")
+                format!("- {}", hotword.text)
             } else {
-                format!("- {mapping}（{}）", hotword.category)
+                format!("- {}（{}）", hotword.text, hotword.category)
             }
         })
         .collect::<Vec<_>>()

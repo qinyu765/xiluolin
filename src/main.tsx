@@ -139,10 +139,13 @@ function App() {
       }
 
       // 监听快捷键录音完成事件
+      console.log("正在注册 recording-completed 事件监听器...");
       unlistenCompleted = await listen<{ file_path: string; duration_ms: number }>(
         "recording-completed",
         async (event) => {
-          console.log("收到 recording-completed 事件:", event.payload);
+          console.log("✅ 收到 recording-completed 事件:", event.payload);
+          console.log("  - 文件路径:", event.payload.file_path);
+          console.log("  - 录音时长:", event.payload.duration_ms, "ms");
 
           setIsRecording(false);
           setRecordingStartTime(null);
@@ -150,14 +153,17 @@ function App() {
           setVoiceStatus("录音完成，正在执行 ASR 识别...");
 
           try {
+            console.log("开始调用 process_recording_file...");
             const result = await invoke<VoiceInputResult>("process_recording_file", {
               filePath: event.payload.file_path,
               durationMs: event.payload.duration_ms,
             });
+            console.log("✅ process_recording_file 完成:", result);
 
             setVoiceResult(result);
 
             // 重新加载历史记录
+            console.log("开始重新加载历史记录...");
             const [loadedHistoryRecords, loadedHistoryStats] = await Promise.all([
               invoke<HistoryRecord[]>("list_history_records", { limit: 10 }),
               invoke<HistoryStatistics>("history_statistics"),
@@ -169,49 +175,57 @@ function App() {
                 ? "历史记录和统计已更新。"
                 : "当前配置关闭了自动保存，本次未写入历史。"
             );
+            console.log("✅ 历史记录重新加载完成");
+
+            // 自动输出文本到光标位置（无论是否使用降级方案）
+            console.log("开始自动输出文本到光标位置...");
+            setVoiceStatus("语音处理完成，正在自动输出...");
+
+            try {
+              const outputResult = await invoke<{ method: string; success: boolean; message: string }>(
+                "output_text",
+                { text: result.final_text }
+              );
+              console.log("✅ 文本输出完成:", outputResult);
+              setVoiceStatus(outputResult.message);
+
+              if (outputResult.success) {
+                if (outputResult.method === "keyboard") {
+                  toast.success("已自动输入到光标位置");
+                } else if (outputResult.method === "clipboard") {
+                  toast.success("已通过剪贴板输入");
+                }
+              } else {
+                toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
+              }
+            } catch (outputError) {
+              const errorMessage = String(outputError);
+              console.error("❌ 输出文本失败:", errorMessage);
+              setVoiceStatus(`输出文本失败：${errorMessage}`);
+              toast.error(`输出文本失败：${errorMessage}`);
+            }
 
             if (result.used_text_fallback) {
-              setVoiceStatus("ASR 已完成，OpenAI 整理失败，已保留原文作为结果。");
+              console.log("⚠️ 使用了文本降级方案");
               toast.warning("文本整理失败，已保留原始识别文本");
-            } else {
-              setVoiceStatus("语音处理完成，正在自动输出...");
-
-              // 自动输出到光标位置
-              try {
-                const outputResult = await invoke<{ method: string; success: boolean; message: string }>(
-                  "output_text",
-                  { text: result.final_text }
-                );
-                setVoiceStatus(outputResult.message);
-
-                if (outputResult.success) {
-                  if (outputResult.method === "keyboard") {
-                    toast.success("已自动输入到光标位置");
-                  } else if (outputResult.method === "clipboard") {
-                    toast.success("已通过剪贴板输入");
-                  }
-                } else {
-                  toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
-                }
-              } catch (outputError) {
-                const errorMessage = String(outputError);
-                setVoiceStatus(`输出文本失败：${errorMessage}`);
-                toast.error(`输出失败：${errorMessage}`);
-              }
             }
           } catch (error) {
             const errorMessage = String(error);
+            console.error("❌ 录音处理失败:", errorMessage);
             setVoiceStatus(`录音处理失败：${errorMessage}`);
             toast.error(`录音处理失败：${errorMessage}`);
           } finally {
             setIsVoiceProcessing(false);
+            console.log("录音处理流程结束");
           }
         }
       );
+      console.log("✅ recording-completed 事件监听器注册成功");
 
       // 监听快捷键录音错误事件
+      console.log("正在注册 recording-error 事件监听器...");
       unlistenError = await listen<string>("recording-error", (event) => {
-        console.log("收到 recording-error 事件:", event.payload);
+        console.log("❌ 收到 recording-error 事件:", event.payload);
 
         setIsRecording(false);
         setRecordingStartTime(null);
@@ -228,13 +242,22 @@ function App() {
           toast.error(`录音失败：${errorMessage}`);
         }
       });
+      console.log("✅ recording-error 事件监听器注册成功");
     }
 
     initialize();
+    console.log("🚀 应用初始化完成，事件监听器已就绪");
 
     return () => {
-      if (unlistenCompleted) unlistenCompleted();
-      if (unlistenError) unlistenError();
+      console.log("🧹 清理事件监听器...");
+      if (unlistenCompleted) {
+        unlistenCompleted();
+        console.log("✅ recording-completed 监听器已清理");
+      }
+      if (unlistenError) {
+        unlistenError();
+        console.log("✅ recording-error 监听器已清理");
+      }
     };
   }, []);
 

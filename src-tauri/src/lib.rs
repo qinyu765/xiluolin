@@ -40,6 +40,7 @@ pub fn run() {
             asr::transcribe_audio_path,
             text_polish::polish_text,
             pipeline::process_uploaded_audio,
+            pipeline::process_recording_file,
             data::initialize_local_data,
             data::list_personas,
             data::set_default_persona,

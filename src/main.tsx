@@ -164,6 +164,9 @@ function App() {
   const [isOpenaiSaving, setIsOpenaiSaving] = useState(false);
   const [isHotwordSaving, setIsHotwordSaving] = useState(false);
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
 
   const selectedPersona = useMemo(
     () => personas.find((persona) => persona.id === selectedPersonaId),
@@ -173,6 +176,19 @@ function App() {
   const enabledHotwordCount = hotwords.filter(
     (hotword) => hotword.enabled,
   ).length;
+
+  // 录音时长计时器
+  useEffect(() => {
+    if (!isRecording || recordingStartTime === null) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setRecordingDuration(Date.now() - recordingStartTime);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isRecording, recordingStartTime]);
 
   useEffect(() => {
     async function loadData() {
@@ -479,6 +495,77 @@ function App() {
     }
   }
 
+  async function handleStartRecording() {
+    setIsRecording(true);
+    setRecordingStartTime(Date.now());
+    setRecordingDuration(0);
+    setVoiceResult(null);
+    setVoiceStatus("正在录音中...");
+
+    try {
+      await invoke<string>("start_recording");
+    } catch (error) {
+      setIsRecording(false);
+      setRecordingStartTime(null);
+      setVoiceStatus(`开始录音失败：${String(error)}`);
+    }
+  }
+
+  async function handleStopRecording() {
+    if (!isRecording) {
+      return;
+    }
+
+    setIsRecording(false);
+    setRecordingStartTime(null);
+    setIsVoiceProcessing(true);
+    setVoiceStatus("正在停止录音并处理...");
+
+    try {
+      const recordingResult = await invoke<{ file_path: string; duration_ms: number }>("stop_recording");
+      setVoiceStatus("录音完成，正在执行 ASR 识别...");
+
+      // 使用新的命令处理录音文件
+      const result = await invoke<VoiceInputResult>("process_recording_file", {
+        filePath: recordingResult.file_path,
+        durationMs: recordingResult.duration_ms,
+      });
+
+      setVoiceResult(result);
+      await reloadHistoryData(
+        result.history_record
+          ? "历史记录和统计已更新。"
+          : "当前配置关闭了自动保存，本次未写入历史。",
+      );
+      setVoiceStatus(
+        result.used_text_fallback
+          ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
+          : "语音主流程已完成，结果可复制使用。",
+      );
+    } catch (error) {
+      setVoiceStatus(`录音处理失败：${String(error)}`);
+    } finally {
+      setIsVoiceProcessing(false);
+    }
+  }
+
+  async function handleOutputText() {
+    if (!voiceResult?.final_text) {
+      return;
+    }
+
+    setVoiceStatus("正在输出文本...");
+
+    try {
+      const result = await invoke<{ method: string; success: boolean; message: string }>("output_text", {
+        text: voiceResult.final_text,
+      });
+      setVoiceStatus(result.message);
+    } catch (error) {
+      setVoiceStatus(`输出文本失败：${String(error)}`);
+    }
+  }
+
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-4xl content-center gap-6">
@@ -501,22 +588,85 @@ function App() {
           <CardHeader>
             <div>
               <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
-                T008 主流程
+                T015 主界面
               </p>
-              <CardTitle className="text-2xl">短音频输入</CardTitle>
+              <CardTitle className="text-2xl">语音输入</CardTitle>
               <CardDescription className="mt-2">
-                上传 wav 或 mp3 短音频，串联 ASR 识别、人格化整理、结果展示和复制。
+                点击录音按钮开始说话，再次点击停止录音并自动处理。支持上传音频文件测试。
               </CardDescription>
             </div>
             <CardAction>
               <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-                {isVoiceProcessing ? "处理中" : "上传音频"}
+                {isRecording ? "录音中" : isVoiceProcessing ? "处理中" : "就绪"}
               </span>
             </CardAction>
           </CardHeader>
 
           <CardContent className="space-y-5">
+            {/* 人格选择 */}
+            <div className="space-y-2">
+              <Label htmlFor="main-persona-select">当前人格</Label>
+              <Select
+                value={selectedPersonaId}
+                onValueChange={setSelectedPersonaId}
+                disabled={isRecording || isVoiceProcessing || personas.length === 0}
+              >
+                <SelectTrigger id="main-persona-select" className="h-10">
+                  <SelectValue placeholder="选择人格" />
+                </SelectTrigger>
+                <SelectContent>
+                  {personas.map((persona) => (
+                    <SelectItem key={persona.id} value={persona.id}>
+                      {persona.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPersona ? (
+                <p className="text-xs text-muted-foreground">
+                  {selectedPersona.description}
+                </p>
+              ) : null}
+            </div>
+
+            {/* 录音控制区 */}
             <div className="grid gap-3 rounded-lg border border-dashed bg-muted/20 p-5">
+              <div className="flex flex-col items-center gap-4">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant={isRecording ? "destructive" : "default"}
+                  className="h-16 w-16 rounded-full"
+                  onClick={isRecording ? handleStopRecording : handleStartRecording}
+                  disabled={isVoiceProcessing}
+                >
+                  {isRecording ? (
+                    <div className="size-6 rounded-sm bg-white" />
+                  ) : (
+                    <Mic2Icon className="size-6" aria-hidden="true" />
+                  )}
+                </Button>
+                <div className="text-center">
+                  <p className="text-sm font-medium">
+                    {isRecording
+                      ? `录音中 ${formatDuration(recordingDuration)}`
+                      : isVoiceProcessing
+                        ? "处理中..."
+                        : "点击开始录音"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {voiceStatus}
+                  </p>
+                </div>
+              </div>
+
+              {/* 或上传音频文件 */}
+              <div className="flex items-center gap-3 border-t pt-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">或上传音频文件</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">选择短音频文件</p>
@@ -527,7 +677,7 @@ function App() {
                 <Button
                   type="button"
                   size="sm"
-                  disabled={isVoiceProcessing}
+                  disabled={isRecording || isVoiceProcessing}
                   asChild
                 >
                   <Label htmlFor="voice-audio-file" className="cursor-pointer">
@@ -546,11 +696,8 @@ function App() {
                 accept=".wav,.mp3,audio/wav,audio/mpeg"
                 className="hidden"
                 onChange={handleProcessAudio}
-                disabled={isVoiceProcessing}
+                disabled={isRecording || isVoiceProcessing}
               />
-              <p className="text-sm leading-6 text-muted-foreground">
-                {voiceStatus}
-              </p>
             </div>
 
             {voiceResult ? (
@@ -568,15 +715,25 @@ function App() {
                 <section className="grid gap-2">
                   <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="voice-final-text">整理结果</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyFinalText}
-                    >
-                      <CopyIcon className="size-4" aria-hidden="true" />
-                      复制结果
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyFinalText}
+                      >
+                        <CopyIcon className="size-4" aria-hidden="true" />
+                        复制
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleOutputText}
+                      >
+                        <SaveIcon className="size-4" aria-hidden="true" />
+                        输出
+                      </Button>
+                    </div>
                   </div>
                   <Textarea
                     id="voice-final-text"

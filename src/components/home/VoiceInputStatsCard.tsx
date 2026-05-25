@@ -1,0 +1,257 @@
+import React from "react";
+import {
+  BarChart3Icon,
+  Clock3Icon,
+  CopyIcon,
+  HistoryIcon,
+  Mic2Icon,
+  PencilIcon,
+  Trash2Icon,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+type HistoryRecord = {
+  id: string;
+  raw_text: string;
+  final_text: string;
+  persona_id: string;
+  persona_name: string;
+  duration_ms: number;
+  output_chars: number;
+  output_mode: string;
+  created_at: string;
+};
+
+type HistoryStatistics = {
+  total_count: number;
+  total_duration_ms: number;
+  total_output_chars: number;
+  estimated_saved_ms: number;
+  top_persona_name: string | null;
+  top_persona_count: number;
+};
+
+type VoiceInputStatsCardProps = {
+  historyStats: HistoryStatistics | null;
+  historyRecords: HistoryRecord[];
+  historyStatus: string;
+  onCopyHistoryText: (text: string) => void;
+  onDeleteHistoryRecord: (id: string) => void;
+  formatDuration: (ms: number) => string;
+  formatCreatedAt: (createdAt: string) => string;
+  groupHistoryByDate: (records: HistoryRecord[]) => {
+    todayRecords: HistoryRecord[];
+    yesterdayRecords: HistoryRecord[];
+    olderRecords: Map<string, HistoryRecord[]>;
+  };
+};
+
+export function VoiceInputStatsCard({
+  historyStats,
+  historyRecords,
+  historyStatus,
+  onCopyHistoryText,
+  onDeleteHistoryRecord,
+  formatDuration,
+  formatCreatedAt,
+  groupHistoryByDate,
+}: VoiceInputStatsCardProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle className="text-2xl">语音输入成效</CardTitle>
+          <CardDescription className="mt-2">
+            基于本地历史记录展示协作次数、口述时间、生成字数、预计节省时间和常用人格。
+          </CardDescription>
+        </div>
+        <CardAction>
+          <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+            {historyStats?.total_count ?? 0} 次记录
+          </span>
+        </CardAction>
+      </CardHeader>
+
+      <CardContent className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section className="rounded-lg border bg-muted/30 p-4">
+            <BarChart3Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground">语音协作次数</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {historyStats?.total_count ?? 0}
+            </p>
+          </section>
+          <section className="rounded-lg border bg-muted/30 p-4">
+            <Clock3Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground">累计口述时间</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {formatDuration(historyStats?.total_duration_ms ?? 0)}
+            </p>
+          </section>
+          <section className="rounded-lg border bg-muted/30 p-4">
+            <PencilIcon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground">口述生成字数</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {historyStats?.total_output_chars ?? 0}
+            </p>
+          </section>
+          <section className="rounded-lg border bg-muted/30 p-4">
+            <HistoryIcon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground">预计节省时间</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {formatDuration(historyStats?.estimated_saved_ms ?? 0)}
+            </p>
+          </section>
+          <section className="rounded-lg border bg-muted/30 p-4 sm:col-span-2 lg:col-span-1">
+            <Mic2Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <p className="text-xs text-muted-foreground">常用人格</p>
+            <p className="mt-1 truncate text-lg font-semibold">
+              {historyStats?.top_persona_name ?? "暂无"}
+            </p>
+            {historyStats?.top_persona_name ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                使用 {historyStats.top_persona_count} 次
+              </p>
+            ) : null}
+          </section>
+        </div>
+
+        <div className="grid gap-3 border-t pt-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-muted-foreground">
+              {historyStatus}
+            </p>
+            <span className="inline-flex h-8 w-fit items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+              最近 {historyRecords.length} 条
+            </span>
+          </div>
+
+          {historyRecords.length > 0 ? (
+            (() => {
+              const { todayRecords, yesterdayRecords, olderRecords } = groupHistoryByDate(historyRecords);
+              return (
+                <div className="grid gap-4">
+                  {todayRecords.length > 0 && (
+                    <div className="grid gap-3">
+                      <h3 className="text-sm font-semibold text-foreground">今天</h3>
+                      {todayRecords.map((record) => (
+                        <HistoryRecordItem
+                          key={record.id}
+                          record={record}
+                          onCopy={onCopyHistoryText}
+                          onDelete={onDeleteHistoryRecord}
+                          formatCreatedAt={formatCreatedAt}
+                          formatDuration={formatDuration}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {yesterdayRecords.length > 0 && (
+                    <div className="grid gap-3">
+                      <h3 className="text-sm font-semibold text-foreground">昨天</h3>
+                      {yesterdayRecords.map((record) => (
+                        <HistoryRecordItem
+                          key={record.id}
+                          record={record}
+                          onCopy={onCopyHistoryText}
+                          onDelete={onDeleteHistoryRecord}
+                          formatCreatedAt={formatCreatedAt}
+                          formatDuration={formatDuration}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {Array.from(olderRecords.entries()).map(([dateKey, records]) => (
+                    <div key={dateKey} className="grid gap-3">
+                      <h3 className="text-sm font-semibold text-foreground">{dateKey}</h3>
+                      {records.map((record) => (
+                        <HistoryRecordItem
+                          key={record.id}
+                          record={record}
+                          onCopy={onCopyHistoryText}
+                          onDelete={onDeleteHistoryRecord}
+                          formatCreatedAt={formatCreatedAt}
+                          formatDuration={formatDuration}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          ) : (
+            <section className="rounded-lg border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
+              暂无历史记录。完成一次短音频输入后,这里会展示最近结果和统计数据。
+            </section>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type HistoryRecordItemProps = {
+  record: HistoryRecord;
+  onCopy: (text: string) => void;
+  onDelete: (id: string) => void;
+  formatCreatedAt: (createdAt: string) => string;
+  formatDuration: (ms: number) => string;
+};
+
+function HistoryRecordItem({
+  record,
+  onCopy,
+  onDelete,
+  formatCreatedAt,
+  formatDuration,
+}: HistoryRecordItemProps) {
+  return (
+    <section className="grid gap-3 rounded-lg border bg-background p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">
+            {record.persona_name}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatCreatedAt(record.created_at)} ·{" "}
+            {formatDuration(record.duration_ms)} ·{" "}
+            {record.output_chars} 字
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => onCopy(record.final_text)}
+          >
+            <CopyIcon className="size-3.5" aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-muted-foreground hover:text-destructive"
+            onClick={() => onDelete(record.id)}
+          >
+            <Trash2Icon className="size-3.5" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+      <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
+        {record.final_text}
+      </p>
+    </section>
+  );
+}

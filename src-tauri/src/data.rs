@@ -493,6 +493,14 @@ impl LocalDatabase {
         })
     }
 
+    pub fn delete_history_record(&self, id: &str) -> rusqlite::Result<()> {
+        self.connection.execute(
+            "DELETE FROM history_records WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
     fn seed_builtin_personas(&self) -> rusqlite::Result<()> {
         let persona_count: i64 =
             self.connection
@@ -694,6 +702,15 @@ pub fn history_statistics(app: tauri::AppHandle) -> Result<HistoryStatistics, St
     database.initialize().map_err(|error| error.to_string())?;
     database
         .history_statistics()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_history_record(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .delete_history_record(&id)
         .map_err(|error| error.to_string())
 }
 

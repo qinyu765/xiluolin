@@ -11,9 +11,13 @@
         box-sizing: border-box;
       }
 
+      html {
+        background: transparent;
+      }
+
       body {
-        width: 200px;
-        height: 80px;
+        width: 100vw;
+        height: 100vh;
         background: transparent;
         overflow: hidden;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -21,17 +25,21 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 0;
+        margin: 0;
       }
 
       .indicator {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 16px;
-        padding: 16px 24px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        display: flex;
+        background: rgba(30, 30, 35, 0.95);
+        border-radius: 10px;
+        padding: 10px 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        display: inline-flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
         animation: slideIn 0.3s ease-out;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        width: fit-content;
       }
 
       @keyframes slideIn {
@@ -46,11 +54,12 @@
       }
 
       .pulse {
-        width: 12px;
-        height: 12px;
+        width: 8px;
+        height: 8px;
         background: #ff4757;
         border-radius: 50%;
         animation: pulse 1.5s ease-in-out infinite;
+        flex-shrink: 0;
       }
 
       @keyframes pulse {
@@ -67,22 +76,23 @@
 
       .text {
         color: white;
-        font-size: 16px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
       }
 
       .waveform {
         display: flex;
         align-items: center;
-        gap: 3px;
-        height: 20px;
+        gap: 2px;
+        height: 16px;
       }
 
       .bar {
-        width: 3px;
-        background: rgba(255, 255, 255, 0.8);
-        border-radius: 2px;
+        width: 2px;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 1.5px;
         animation: wave 1s ease-in-out infinite;
       }
 
@@ -102,10 +112,10 @@
       @keyframes wave {
         0%,
         100% {
-          height: 8px;
+          height: 5px;
         }
         50% {
-          height: 20px;
+          height: 16px;
         }
       }
     </style>

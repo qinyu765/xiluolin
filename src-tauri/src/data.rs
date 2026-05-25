@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -157,12 +157,21 @@ pub fn default_app_config() -> AppConfig {
 
 pub struct LocalDatabase {
     connection: Connection,
+    path: PathBuf,
 }
 
 impl LocalDatabase {
     pub fn open(path: impl AsRef<Path>) -> rusqlite::Result<Self> {
-        let connection = Connection::open(path)?;
-        Ok(Self { connection })
+        let path_buf = path.as_ref().to_path_buf();
+        let connection = Connection::open(&path_buf)?;
+        Ok(Self {
+            connection,
+            path: path_buf,
+        })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     pub fn initialize(&self) -> rusqlite::Result<()> {

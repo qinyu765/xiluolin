@@ -131,25 +131,36 @@ pub fn process_voice_input(
     .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
     eprintln!("[⏱️ 性能] 步骤4: 文本润色 - 耗时 {:?}", step4_start.elapsed());
 
-    // 5. 保存历史记录
-    let step5_start = std::time::Instant::now();
+    // 5. 异步保存历史记录（不阻塞主流程）
     let history_record = if auto_save_history {
-        Some(
-            database
-                .create_history_record(HistoryRecordDraft {
-                    raw_text: transcription.text.clone(),
-                    final_text: polish_result.final_text.clone(),
-                    persona_id: persona.id,
-                    persona_name: persona.name,
-                    duration_ms: request.duration_ms.max(0),
-                    output_mode: output_mode.to_string(),
-                })
-                .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?,
-        )
+        let draft = HistoryRecordDraft {
+            raw_text: transcription.text.clone(),
+            final_text: polish_result.final_text.clone(),
+            persona_id: persona.id,
+            persona_name: persona.name.clone(),
+            duration_ms: request.duration_ms.max(0),
+            output_mode: output_mode.to_string(),
+        };
+
+        // 克隆 database 用于异步任务
+        let db_path = database.path().to_path_buf();
+        std::thread::spawn(move || {
+            let step5_start = std::time::Instant::now();
+            match LocalDatabase::open(db_path) {
+                Ok(db) => {
+                    if let Err(e) = db.create_history_record(draft) {
+                        eprintln!("[⚠️ 异步] 保存历史记录失败: {}", e);
+                    } else {
+                        eprintln!("[⏱️ 异步] 保存历史记录完成 - 耗时 {:?}", step5_start.elapsed());
+                    }
+                }
+                Err(e) => eprintln!("[⚠️ 异步] 打开数据库失败: {}", e),
+            }
+        });
+        None // 异步保存，不返回记录
     } else {
         None
     };
-    eprintln!("[⏱️ 性能] 步骤5: 保存历史记录 - 耗时 {:?}", step5_start.elapsed());
 
     eprintln!("[⏱️ 性能] process_voice_input 总耗时: {:?}", start_time.elapsed());
 
@@ -242,10 +253,13 @@ pub fn process_recording_file(
 
     let config = read_app_config(app.clone())?;
 
-    // 调试：打印配置中的 API Key
+    // 调试：打印配置信息（隐藏敏感数据）
     eprintln!("=== 配置调试信息 ===");
+    eprintln!("ASR Provider: {}", config.asr_provider);
     eprintln!("ASR API Key 长度: {}", config.asr_api_key.len());
-    eprintln!("ASR API Key: {}", config.asr_api_key);
+    if !config.asr_api_key.is_empty() {
+        eprintln!("ASR API Key: {}...", &config.asr_api_key.chars().take(8).collect::<String>());
+    }
     eprintln!("ASR Base URL: {}", config.asr_base_url);
     eprintln!("ASR Model: {}", config.asr_model);
     eprintln!("===================");

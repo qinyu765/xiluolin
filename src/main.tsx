@@ -522,10 +522,7 @@ function App() {
     setPersonaDraft({
       name: persona.name,
       description: persona.description,
-      scene: persona.scene,
-      tone: persona.tone,
-      output_structure: persona.output_structure,
-      prompt: persona.prompt,
+      icon: persona.icon,
     });
     setIsPersonaDialogOpen(true);
   }
@@ -536,14 +533,11 @@ function App() {
       ...personaDraft,
       name: personaDraft.name.trim(),
       description: personaDraft.description.trim(),
-      scene: personaDraft.scene.trim(),
-      tone: personaDraft.tone.trim(),
-      output_structure: personaDraft.output_structure.trim(),
-      prompt: personaDraft.prompt.trim(),
+      icon: personaDraft.icon.trim(),
     };
 
-    if (!draft.name || !draft.description || !draft.prompt) {
-      setStatus("人格名称、描述和提示词不能为空。");
+    if (!draft.name || !draft.description) {
+      setStatus("人格名称和描述不能为空。");
       return;
     }
 

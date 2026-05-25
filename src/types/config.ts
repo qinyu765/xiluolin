@@ -1,5 +1,6 @@
 export type AppConfig = {
   default_persona_id: string;
+  asr_provider: string;
   asr_api_key: string;
   asr_base_url: string;
   asr_model: string;
@@ -12,6 +13,7 @@ export type AppConfig = {
   auto_save_history: boolean;
   mute_system_audio: boolean;
   selected_microphone: string;
+  recording_mode: string;
 };
 
 export type AudioDevice = {

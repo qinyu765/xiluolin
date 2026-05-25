@@ -169,6 +169,7 @@ pub fn process_uploaded_audio(
     process_voice_input(
         request,
         AsrConfig {
+            provider: config.asr_provider.clone(),
             api_key: config.asr_api_key,
             base_url: config.asr_base_url,
             model: config.asr_model,
@@ -205,6 +206,15 @@ pub fn process_recording_file(
         .to_string();
 
     let config = read_app_config(app.clone())?;
+
+    // 调试：打印配置中的 API Key
+    eprintln!("=== 配置调试信息 ===");
+    eprintln!("ASR API Key 长度: {}", config.asr_api_key.len());
+    eprintln!("ASR API Key: {}", config.asr_api_key);
+    eprintln!("ASR Base URL: {}", config.asr_base_url);
+    eprintln!("ASR Model: {}", config.asr_model);
+    eprintln!("===================");
+
     let app_data_dir = app
         .path()
         .app_data_dir()
@@ -221,6 +231,7 @@ pub fn process_recording_file(
             duration_ms,
         },
         AsrConfig {
+            provider: config.asr_provider.clone(),
             api_key: config.asr_api_key,
             base_url: config.asr_base_url,
             model: config.asr_model,

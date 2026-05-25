@@ -11,6 +11,8 @@ const APP_CONFIG_KEY: &str = "app_config";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
     pub default_persona_id: String,
+    #[serde(default = "default_asr_provider")]
+    pub asr_provider: String,
     #[serde(default)]
     pub asr_api_key: String,
     pub asr_base_url: String,
@@ -99,15 +101,20 @@ pub struct HistoryStatistics {
     pub top_persona_count: i64,
 }
 
+fn default_asr_provider() -> String {
+    "zhipu".to_string()
+}
+
 pub fn default_app_config() -> AppConfig {
     AppConfig {
         default_persona_id: DEFAULT_PERSONA_ID.to_string(),
+        asr_provider: default_asr_provider(),
         asr_api_key: "".to_string(),
-        asr_base_url: "https://open.bigmodel.cn/api/paas/v4/".to_string(),
+        asr_base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
         asr_model: "glm-asr-2512".to_string(),
         openai_api_key: "".to_string(),
-        openai_base_url: "https://api.openai.com/v1/".to_string(),
-        openai_model: "gpt-4.1-mini".to_string(),
+        openai_base_url: "https://api.openai.com/v1".to_string(),
+        openai_model: "gpt-4o-mini".to_string(),
         longpress_shortcut: "CommandOrControl+Shift+R".to_string(),
         toggle_shortcut: "Alt+Space".to_string(),
         output_mode: "copy".to_string(),

@@ -175,6 +175,31 @@ export function AppSettingsDialog({
               </p>
             </div>
 
+            <div className="grid gap-2">
+              <Label htmlFor="asr-provider">语音识别服务</Label>
+              <Select
+                value={appConfig?.asr_provider ?? "zhipu"}
+                onValueChange={(value) =>
+                  onConfigChange(
+                    appConfig
+                      ? { ...appConfig, asr_provider: value }
+                      : appConfig!,
+                  )
+                }
+              >
+                <SelectTrigger id="asr-provider" className="h-10">
+                  <SelectValue placeholder="选择语音识别服务" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="zhipu">智谱 GLM-ASR</SelectItem>
+                  <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                选择语音识别服务提供商。智谱或 OpenAI Whisper API。
+              </p>
+            </div>
+
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="app-mute-audio">录音时静音其他应用</Label>

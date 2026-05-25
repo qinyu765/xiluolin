@@ -4,6 +4,7 @@ export type AppConfig = {
   asr_api_key: string;
   asr_base_url: string;
   asr_model: string;
+  openai_asr_model: string;
   openai_api_key: string;
   openai_base_url: string;
   openai_model: string;

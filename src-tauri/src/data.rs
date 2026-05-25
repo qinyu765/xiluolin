@@ -17,6 +17,8 @@ pub struct AppConfig {
     pub asr_api_key: String,
     pub asr_base_url: String,
     pub asr_model: String,
+    #[serde(default = "default_openai_asr_model")]
+    pub openai_asr_model: String,
     #[serde(default)]
     pub openai_api_key: String,
     pub openai_base_url: String,
@@ -105,6 +107,10 @@ fn default_asr_provider() -> String {
     "zhipu".to_string()
 }
 
+fn default_openai_asr_model() -> String {
+    "whisper-1".to_string()
+}
+
 pub fn default_app_config() -> AppConfig {
     AppConfig {
         default_persona_id: DEFAULT_PERSONA_ID.to_string(),
@@ -112,6 +118,7 @@ pub fn default_app_config() -> AppConfig {
         asr_api_key: "".to_string(),
         asr_base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
         asr_model: "glm-asr-2512".to_string(),
+        openai_asr_model: default_openai_asr_model(),
         openai_api_key: "".to_string(),
         openai_base_url: "https://api.openai.com/v1".to_string(),
         openai_model: "gpt-4o-mini".to_string(),

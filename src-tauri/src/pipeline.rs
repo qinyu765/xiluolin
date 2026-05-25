@@ -166,13 +166,19 @@ pub fn process_uploaded_audio(
         .map_err(|error| error.to_string())?;
     database.initialize().map_err(|error| error.to_string())?;
 
+    let asr_model = if config.asr_provider == "openai" {
+        config.openai_asr_model.clone()
+    } else {
+        config.asr_model.clone()
+    };
+
     process_voice_input(
         request,
         AsrConfig {
             provider: config.asr_provider.clone(),
             api_key: config.asr_api_key,
             base_url: config.asr_base_url,
-            model: config.asr_model,
+            model: asr_model,
         },
         OpenAiTextConfig {
             api_key: config.openai_api_key,
@@ -224,6 +230,12 @@ pub fn process_recording_file(
         .map_err(|error| error.to_string())?;
     database.initialize().map_err(|error| error.to_string())?;
 
+    let asr_model = if config.asr_provider == "openai" {
+        config.openai_asr_model.clone()
+    } else {
+        config.asr_model.clone()
+    };
+
     process_voice_input(
         VoiceInputRequest {
             audio_bytes,
@@ -234,7 +246,7 @@ pub fn process_recording_file(
             provider: config.asr_provider.clone(),
             api_key: config.asr_api_key,
             base_url: config.asr_base_url,
-            model: config.asr_model,
+            model: asr_model,
         },
         OpenAiTextConfig {
             api_key: config.openai_api_key,

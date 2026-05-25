@@ -36,11 +36,7 @@ pub struct Persona {
     pub id: String,
     pub name: String,
     pub description: String,
-    pub scene: String,
-    pub tone: String,
-    pub output_structure: String,
-    pub prompt: String,
-    pub is_builtin: bool,
+    pub icon: String,
     pub is_default: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -50,10 +46,7 @@ pub struct Persona {
 pub struct PersonaDraft {
     pub name: String,
     pub description: String,
-    pub scene: String,
-    pub tone: String,
-    pub output_structure: String,
-    pub prompt: String,
+    pub icon: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,12 +134,8 @@ impl LocalDatabase {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT NOT NULL,
-                scene TEXT NOT NULL,
-                tone TEXT NOT NULL,
-                output_structure TEXT NOT NULL,
-                prompt TEXT NOT NULL,
-                is_builtin INTEGER NOT NULL,
-                is_default INTEGER NOT NULL,
+                icon TEXT NOT NULL DEFAULT 'Sparkles',
+                is_default INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
@@ -188,10 +177,9 @@ impl LocalDatabase {
     pub fn list_personas(&self) -> rusqlite::Result<Vec<Persona>> {
         let mut statement = self.connection.prepare(
             r#"
-            SELECT id, name, description, scene, tone, output_structure, prompt,
-                   is_builtin, is_default, created_at, updated_at
+            SELECT id, name, description, icon, is_default, created_at, updated_at
             FROM personas
-            ORDER BY is_default DESC, is_builtin DESC, created_at ASC
+            ORDER BY is_default DESC, created_at ASC
             "#,
         )?;
 
@@ -218,20 +206,15 @@ impl LocalDatabase {
         self.connection.execute(
             r#"
             INSERT INTO personas (
-                id, name, description, scene, tone,
-                output_structure, prompt, is_builtin, is_default
+                id, name, description, icon, is_default
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            VALUES (?1, ?2, ?3, ?4, ?5)
             "#,
             params![
                 id,
                 draft.name,
                 draft.description,
-                draft.scene,
-                draft.tone,
-                draft.output_structure,
-                draft.prompt,
-                0, // is_builtin = false
+                draft.icon,
                 0  // is_default = false
             ],
         )?;
@@ -240,37 +223,20 @@ impl LocalDatabase {
     }
 
     pub fn update_persona(&self, id: &str, draft: PersonaDraft) -> rusqlite::Result<Persona> {
-        // 只允许更新自定义人格
-        let is_builtin: i64 = self.connection.query_row(
-            "SELECT is_builtin FROM personas WHERE id = ?1",
-            [id],
-            |row| row.get(0),
-        )?;
-
-        if is_builtin != 0 {
-            return Err(rusqlite::Error::InvalidQuery);
-        }
-
         let updated = self.connection.execute(
             r#"
             UPDATE personas
             SET name = ?2,
                 description = ?3,
-                scene = ?4,
-                tone = ?5,
-                output_structure = ?6,
-                prompt = ?7,
+                icon = ?4,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?1 AND is_builtin = 0
+            WHERE id = ?1
             "#,
             params![
                 id,
                 draft.name,
                 draft.description,
-                draft.scene,
-                draft.tone,
-                draft.output_structure,
-                draft.prompt
+                draft.icon
             ],
         )?;
 
@@ -282,9 +248,8 @@ impl LocalDatabase {
     }
 
     pub fn delete_persona(&self, id: &str) -> rusqlite::Result<()> {
-        // 只允许删除自定义人格
         let deleted = self.connection.execute(
-            "DELETE FROM personas WHERE id = ?1 AND is_builtin = 0",
+            "DELETE FROM personas WHERE id = ?1",
             [id],
         )?;
 
@@ -298,8 +263,7 @@ impl LocalDatabase {
     fn get_persona(&self, id: &str) -> rusqlite::Result<Persona> {
         self.connection.query_row(
             r#"
-            SELECT id, name, description, scene, tone, output_structure, prompt,
-                   is_builtin, is_default, created_at, updated_at
+            SELECT id, name, description, icon, is_default, created_at, updated_at
             FROM personas
             WHERE id = ?1
             "#,
@@ -497,21 +461,16 @@ impl LocalDatabase {
             self.connection.execute(
                 r#"
                 INSERT INTO personas (
-                    id, name, description, scene, tone,
-                    output_structure, prompt, is_builtin, is_default
+                    id, name, description, icon, is_default
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                VALUES (?1, ?2, ?3, ?4, ?5)
                 ON CONFLICT(id) DO NOTHING
                 "#,
                 params![
                     persona.id,
                     persona.name,
                     persona.description,
-                    persona.scene,
-                    persona.tone,
-                    persona.output_structure,
-                    persona.prompt,
-                    bool_to_int(persona.is_builtin),
+                    persona.icon,
                     bool_to_int(persona.is_default)
                 ],
             )?;
@@ -759,45 +718,36 @@ fn builtin_personas() -> Vec<PersonaSeed> {
         PersonaSeed {
             id: "prompt-engineer",
             name: "Prompt 工程师",
-            description: "把口述想法整理成适合交给 AI Agent 执行的 Prompt。",
-            scene: "Agent Prompt、编程辅助",
-            tone: "清晰、直接、可执行",
-            output_structure: "目标、上下文、约束、期望结果",
-            prompt: "你是 Prompt 工程师。请把用户的口述内容整理成适合交给 AI Agent 执行的 Prompt。输出时明确目标、上下文、约束和期望结果。保持表达清晰、直接、可执行。",
-            is_builtin: true,
+            description: "将语音转换为清晰、可执行的 AI Prompt。输出结构：目标、上下文、约束、期望结果。适合与 Agent 工具协作。",
+            icon: "Bot",
             is_default: true,
         },
         PersonaSeed {
             id: "task-collaborator",
             name: "任务协作者",
-            description: "把口述任务整理成清晰、温和、可执行的协作说明。",
-            scene: "任务发布、需求沟通",
-            tone: "温和、明确、有条理",
-            output_structure: "背景、要求、交付物、时间节点",
-            prompt: "你是任务协作者。请把用户的口述内容整理成清晰、温和、可执行的任务说明。输出时补全必要背景，拆分关键要求，避免命令式压迫感。",
-            is_builtin: true,
+            description: "将口述任务整理为结构化的工作指令。包含：背景、要求、交付物、时间节点。语气温和明确。",
+            icon: "ClipboardList",
             is_default: false,
         },
         PersonaSeed {
             id: "idea-organizer",
             name: "灵感整理师",
-            description: "把零散口述整理成标题、要点、草稿或待办。",
-            scene: "写作、创作、想法记录",
-            tone: "自然、聚焦、适合继续展开",
-            output_structure: "标题候选、关键要点、后续待办",
-            prompt: "你是灵感整理师。请把用户的口述内容整理成适合保存和继续创作的文本。优先提炼标题、要点、待办或草稿段落。",
-            is_builtin: true,
+            description: "将碎片化想法整理为可展开的创作素材。输出：标题候选、关键要点、后续待办。适合写作和创作场景。",
+            icon: "Lightbulb",
             is_default: false,
         },
         PersonaSeed {
             id: "formal-message",
             name: "正式消息助手",
-            description: "把口述内容整理成适合发送的办公消息或邮件回复。",
-            scene: "办公消息、邮件、回复",
-            tone: "礼貌、准确、清楚",
-            output_structure: "可直接发送的段落",
-            prompt: "你是正式消息助手。请把用户的口述内容整理成礼貌、准确、适合发送的办公消息。保留原意，避免夸大或补充用户没有表达的信息。",
-            is_builtin: true,
+            description: "将口语化表达转换为正式的办公消息或邮件。语气礼貌准确，可直接发送。",
+            icon: "Mail",
+            is_default: false,
+        },
+        PersonaSeed {
+            id: "translator",
+            name: "翻译官",
+            description: "如果文本为中文，翻译成自然流畅的英文；如已是英文则仅做清理润色，不改变语言。专有名词保持原样。",
+            icon: "Languages",
             is_default: false,
         },
     ]
@@ -807,11 +757,7 @@ struct PersonaSeed {
     id: &'static str,
     name: &'static str,
     description: &'static str,
-    scene: &'static str,
-    tone: &'static str,
-    output_structure: &'static str,
-    prompt: &'static str,
-    is_builtin: bool,
+    icon: &'static str,
     is_default: bool,
 }
 
@@ -820,14 +766,10 @@ fn persona_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Persona> {
         id: row.get(0)?,
         name: row.get(1)?,
         description: row.get(2)?,
-        scene: row.get(3)?,
-        tone: row.get(4)?,
-        output_structure: row.get(5)?,
-        prompt: row.get(6)?,
-        is_builtin: int_to_bool(row.get(7)?),
-        is_default: int_to_bool(row.get(8)?),
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
+        icon: row.get(3)?,
+        is_default: int_to_bool(row.get(4)?),
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
     })
 }
 

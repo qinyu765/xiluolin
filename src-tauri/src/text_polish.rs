@@ -12,8 +12,7 @@ pub struct OpenAiTextConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextPolishRequest {
     pub raw_text: String,
-    pub persona_name: String,
-    pub persona_prompt: String,
+    pub persona_description: String,
     pub hotword_context: String,
 }
 
@@ -129,10 +128,8 @@ fn validate_request(
 fn build_instructions(request: &TextPolishRequest) -> String {
     let mut instructions = format!(
         "你是 AI 语音输入助手，负责把 ASR 原始识别文本整理成可直接使用的文本。\n\
-        当前人格：{}\n\
-        人格要求：{}\n",
-        request.persona_name.trim(),
-        request.persona_prompt.trim()
+        风格要求：{}\n",
+        request.persona_description.trim()
     );
 
     // 注入热词到 instructions
@@ -148,7 +145,7 @@ fn build_instructions(request: &TextPolishRequest) -> String {
 
 fn build_input(request: &TextPolishRequest) -> String {
     format!(
-        "原始识别文本：\n{}\n\n输出要求：按当前人格整理为可直接复制使用的中文文本。",
+        "原始识别文本：\n{}\n\n输出要求：按风格要求整理为可直接复制使用的文本。",
         request.raw_text.trim()
     )
 }

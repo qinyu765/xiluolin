@@ -107,8 +107,7 @@ pub fn process_voice_input(
     let polish_result = polish_text_with_openai(
         &TextPolishRequest {
             raw_text: transcription.text.clone(),
-            persona_name: persona.name.clone(),
-            persona_prompt: persona.prompt.clone(),
+            persona_description: persona.description.clone(),
             hotword_context,
         },
         &openai_config,

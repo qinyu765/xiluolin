@@ -6,7 +6,6 @@ export type AppConfig = {
   openai_api_key: string;
   openai_base_url: string;
   openai_model: string;
-  recording_mode: string;
   longpress_shortcut: string;
   toggle_shortcut: string;
   output_mode: string;

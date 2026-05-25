@@ -72,6 +72,15 @@ type HotwordDraft = {
   enabled: boolean;
 };
 
+type PersonaDraft = {
+  name: string;
+  description: string;
+  scene: string;
+  tone: string;
+  output_structure: string;
+  prompt: string;
+};
+
 type AppConfig = {
   default_persona_id: string;
   asr_api_key: string;
@@ -121,6 +130,15 @@ const emptyHotwordDraft: HotwordDraft = {
   enabled: true,
 };
 
+const emptyPersonaDraft: PersonaDraft = {
+  name: "",
+  description: "",
+  scene: "",
+  tone: "",
+  output_structure: "",
+  prompt: "",
+};
+
 function formatDuration(milliseconds: number) {
   const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
   const minutes = Math.floor(totalSeconds / 60);
@@ -151,6 +169,10 @@ function App() {
     useState<HotwordDraft>(emptyHotwordDraft);
   const [editingHotwordId, setEditingHotwordId] = useState<string | null>(null);
   const [isHotwordDialogOpen, setIsHotwordDialogOpen] = useState(false);
+  const [personaDraft, setPersonaDraft] =
+    useState<PersonaDraft>(emptyPersonaDraft);
+  const [editingPersonaId, setEditingPersonaId] = useState<string | null>(null);
+  const [isPersonaDialogOpen, setIsPersonaDialogOpen] = useState(false);
   const [status, setStatus] = useState("正在读取本地人格配置...");
   const [asrStatus, setAsrStatus] = useState("正在读取智谱 ASR 配置...");
   const [openaiStatus, setOpenaiStatus] = useState("正在读取 OpenAI 配置...");
@@ -163,6 +185,7 @@ function App() {
   const [isAsrSaving, setIsAsrSaving] = useState(false);
   const [isOpenaiSaving, setIsOpenaiSaving] = useState(false);
   const [isHotwordSaving, setIsHotwordSaving] = useState(false);
+  const [isPersonaSaving, setIsPersonaSaving] = useState(false);
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
@@ -433,6 +456,94 @@ function App() {
       setHotwordStatus("热词已删除。");
     } catch (error) {
       setHotwordStatus(`删除热词失败：${String(error)}`);
+    }
+  }
+
+  function openCreatePersonaDialog() {
+    setEditingPersonaId(null);
+    setPersonaDraft(emptyPersonaDraft);
+    setIsPersonaDialogOpen(true);
+  }
+
+  function openEditPersonaDialog(persona: Persona) {
+    setEditingPersonaId(persona.id);
+    setPersonaDraft({
+      name: persona.name,
+      description: persona.description,
+      scene: persona.scene,
+      tone: persona.tone,
+      output_structure: persona.output_structure,
+      prompt: persona.prompt,
+    });
+    setIsPersonaDialogOpen(true);
+  }
+
+  async function handleSavePersona(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const draft = {
+      ...personaDraft,
+      name: personaDraft.name.trim(),
+      description: personaDraft.description.trim(),
+      scene: personaDraft.scene.trim(),
+      tone: personaDraft.tone.trim(),
+      output_structure: personaDraft.output_structure.trim(),
+      prompt: personaDraft.prompt.trim(),
+    };
+
+    if (!draft.name || !draft.description || !draft.prompt) {
+      setStatus("人格名称、描述和提示词不能为空。");
+      return;
+    }
+
+    setIsPersonaSaving(true);
+    setStatus("正在保存人格...");
+
+    try {
+      if (editingPersonaId) {
+        await invoke<Persona>("update_persona", {
+          id: editingPersonaId,
+          draft,
+        });
+      } else {
+        await invoke<Persona>("create_persona", { draft });
+      }
+      const updatedPersonas = await invoke<Persona[]>("list_personas");
+      setPersonas(updatedPersonas);
+      setStatus("人格已保存。");
+      setIsPersonaDialogOpen(false);
+    } catch (error) {
+      setStatus(`保存人格失败：${String(error)}`);
+    } finally {
+      setIsPersonaSaving(false);
+    }
+  }
+
+  async function handleDeletePersona(id: string) {
+    setStatus("正在删除人格...");
+
+    try {
+      const updatedPersonas = await invoke<Persona[]>("delete_persona", { id });
+      setPersonas(updatedPersonas);
+      setStatus("人格已删除。");
+    } catch (error) {
+      setStatus(`删除人格失败：${String(error)}`);
+    }
+  }
+
+  async function handleSetDefaultPersona(personaId: string) {
+    setStatus("正在设置默认人格...");
+
+    try {
+      const updatedPersonas = await invoke<Persona[]>("set_default_persona", {
+        personaId,
+      });
+      const updatedConfig = await invoke<AppConfig>("read_app_config");
+      setAppConfig(updatedConfig);
+      setPersonas(updatedPersonas);
+      setSelectedPersonaId(personaId);
+      setStatus("默认人格已设置。");
+    } catch (error) {
+      setStatus(`设置默认人格失败：${String(error)}`);
     }
   }
 
@@ -872,6 +983,193 @@ function App() {
                   暂无历史记录。完成一次短音频输入后，这里会展示最近结果和统计数据。
                 </section>
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
+                T017 人格页
+              </p>
+              <CardTitle className="text-2xl">人格管理</CardTitle>
+              <CardDescription className="mt-2">
+                管理内置人格和自定义人格，设置默认人格。内置人格不可编辑或删除。
+              </CardDescription>
+            </div>
+            <CardAction>
+              <Button type="button" size="sm" onClick={openCreatePersonaDialog}>
+                <PlusIcon className="size-4" aria-hidden="true" />
+                新建人格
+              </Button>
+            </CardAction>
+          </CardHeader>
+
+          <CardContent className="space-y-5">
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">内置人格</h3>
+              <div className="grid gap-3">
+                {personas.filter((p) => p.is_builtin).length > 0 ? (
+                  personas
+                    .filter((p) => p.is_builtin)
+                    .map((persona) => (
+                      <section
+                        key={persona.id}
+                        className="grid gap-3 rounded-lg border bg-muted/30 p-4"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">
+                                {persona.name}
+                              </p>
+                              {persona.is_default ? (
+                                <span className="inline-flex h-6 items-center rounded-md border bg-background px-2 text-xs font-medium">
+                                  默认
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                              {persona.description}
+                            </p>
+                          </div>
+                          {!persona.is_default ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSetDefaultPersona(persona.id)}
+                            >
+                              设为默认
+                            </Button>
+                          ) : null}
+                        </div>
+                        <dl className="grid gap-3 border-t pt-3 text-sm sm:grid-cols-3">
+                          <div>
+                            <dt className="font-medium text-foreground">适用场景</dt>
+                            <dd className="mt-1 leading-6 text-muted-foreground">
+                              {persona.scene}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">输出语气</dt>
+                            <dd className="mt-1 leading-6 text-muted-foreground">
+                              {persona.tone}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">输出结构</dt>
+                            <dd className="mt-1 leading-6 text-muted-foreground">
+                              {persona.output_structure}
+                            </dd>
+                          </div>
+                        </dl>
+                      </section>
+                    ))
+                ) : (
+                  <section className="rounded-lg border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
+                    暂无内置人格。
+                  </section>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t pt-4">
+              <h3 className="text-sm font-semibold">自定义人格</h3>
+              <div className="grid gap-3">
+                {personas.filter((p) => !p.is_builtin).length > 0 ? (
+                  personas
+                    .filter((p) => !p.is_builtin)
+                    .map((persona) => (
+                      <section
+                        key={persona.id}
+                        className="grid gap-3 rounded-lg border bg-background p-4"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">
+                                {persona.name}
+                              </p>
+                              {persona.is_default ? (
+                                <span className="inline-flex h-6 items-center rounded-md border bg-background px-2 text-xs font-medium">
+                                  默认
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                              {persona.description}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!persona.is_default ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSetDefaultPersona(persona.id)}
+                              >
+                                设为默认
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openEditPersonaDialog(persona)}
+                              aria-label={`编辑 ${persona.name}`}
+                            >
+                              <PencilIcon className="size-4" aria-hidden="true" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleDeletePersona(persona.id)}
+                              aria-label={`删除 ${persona.name}`}
+                            >
+                              <Trash2Icon className="size-4" aria-hidden="true" />
+                            </Button>
+                          </div>
+                        </div>
+                        <dl className="grid gap-3 border-t pt-3 text-sm sm:grid-cols-3">
+                          <div>
+                            <dt className="font-medium text-foreground">适用场景</dt>
+                            <dd className="mt-1 leading-6 text-muted-foreground">
+                              {persona.scene}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">输出语气</dt>
+                            <dd className="mt-1 leading-6 text-muted-foreground">
+                              {persona.tone}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">输出结构</dt>
+                            <dd className="mt-1 leading-6 text-muted-foreground">
+                              {persona.output_structure}
+                            </dd>
+                          </div>
+                        </dl>
+                      </section>
+                    ))
+                ) : (
+                  <section className="rounded-lg border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
+                    暂无自定义人格。可以新建人格来定义自己的文本整理风格。
+                  </section>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm leading-6 text-muted-foreground">
+                {status}
+              </p>
+              <span className="inline-flex h-8 w-fit items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+                共 {personas.length} 个人格
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -1330,6 +1628,134 @@ function App() {
               </Button>
               <Button type="submit" disabled={isHotwordSaving}>
                 {isHotwordSaving ? (
+                  <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                保存
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isPersonaDialogOpen}
+        onOpenChange={setIsPersonaDialogOpen}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <form onSubmit={handleSavePersona} className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>
+                {editingPersonaId ? "编辑人格" : "新建人格"}
+              </DialogTitle>
+              <DialogDescription>
+                定义人格的名称、描述、适用场景和整理提示词。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="persona-name">人格名称</Label>
+                <Input
+                  id="persona-name"
+                  value={personaDraft.name}
+                  onChange={(event) =>
+                    setPersonaDraft((draft) => ({
+                      ...draft,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="例如：技术文档助手"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="persona-description">人格描述</Label>
+                <Textarea
+                  id="persona-description"
+                  value={personaDraft.description}
+                  onChange={(event) =>
+                    setPersonaDraft((draft) => ({
+                      ...draft,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="简要说明这个人格的用途"
+                  className="min-h-20 resize-none"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="persona-scene">适用场景</Label>
+                <Input
+                  id="persona-scene"
+                  value={personaDraft.scene}
+                  onChange={(event) =>
+                    setPersonaDraft((draft) => ({
+                      ...draft,
+                      scene: event.target.value,
+                    }))
+                  }
+                  placeholder="例如：技术文档、API 说明"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="persona-tone">输出语气</Label>
+                <Input
+                  id="persona-tone"
+                  value={personaDraft.tone}
+                  onChange={(event) =>
+                    setPersonaDraft((draft) => ({
+                      ...draft,
+                      tone: event.target.value,
+                    }))
+                  }
+                  placeholder="例如：专业、准确、简洁"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="persona-structure">输出结构</Label>
+                <Input
+                  id="persona-structure"
+                  value={personaDraft.output_structure}
+                  onChange={(event) =>
+                    setPersonaDraft((draft) => ({
+                      ...draft,
+                      output_structure: event.target.value,
+                    }))
+                  }
+                  placeholder="例如：标题、要点、代码示例"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="persona-prompt">整理提示词</Label>
+                <Textarea
+                  id="persona-prompt"
+                  value={personaDraft.prompt}
+                  onChange={(event) =>
+                    setPersonaDraft((draft) => ({
+                      ...draft,
+                      prompt: event.target.value,
+                    }))
+                  }
+                  placeholder="输入用于指导 AI 整理文本的系统提示词"
+                  className="min-h-32 resize-none"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsPersonaDialogOpen(false)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={isPersonaSaving}>
+                {isPersonaSaving ? (
                   <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
                 ) : null}
                 保存

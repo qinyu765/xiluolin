@@ -41,6 +41,16 @@ pub struct Persona {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PersonaDraft {
+    pub name: String,
+    pub description: String,
+    pub scene: String,
+    pub tone: String,
+    pub output_structure: String,
+    pub prompt: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hotword {
     pub id: String,
     pub source_text: String,
@@ -196,6 +206,101 @@ impl LocalDatabase {
         }
         transaction.commit()?;
         Ok(())
+    }
+
+    pub fn create_persona(&self, draft: PersonaDraft) -> rusqlite::Result<Persona> {
+        let id = Uuid::new_v4().to_string();
+        self.connection.execute(
+            r#"
+            INSERT INTO personas (
+                id, name, description, scene, tone,
+                output_structure, prompt, is_builtin, is_default
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "#,
+            params![
+                id,
+                draft.name,
+                draft.description,
+                draft.scene,
+                draft.tone,
+                draft.output_structure,
+                draft.prompt,
+                0, // is_builtin = false
+                0  // is_default = false
+            ],
+        )?;
+
+        self.get_persona(&id)
+    }
+
+    pub fn update_persona(&self, id: &str, draft: PersonaDraft) -> rusqlite::Result<Persona> {
+        // 只允许更新自定义人格
+        let is_builtin: i64 = self.connection.query_row(
+            "SELECT is_builtin FROM personas WHERE id = ?1",
+            [id],
+            |row| row.get(0),
+        )?;
+
+        if is_builtin != 0 {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+
+        let updated = self.connection.execute(
+            r#"
+            UPDATE personas
+            SET name = ?2,
+                description = ?3,
+                scene = ?4,
+                tone = ?5,
+                output_structure = ?6,
+                prompt = ?7,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1 AND is_builtin = 0
+            "#,
+            params![
+                id,
+                draft.name,
+                draft.description,
+                draft.scene,
+                draft.tone,
+                draft.output_structure,
+                draft.prompt
+            ],
+        )?;
+
+        if updated == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+
+        self.get_persona(id)
+    }
+
+    pub fn delete_persona(&self, id: &str) -> rusqlite::Result<()> {
+        // 只允许删除自定义人格
+        let deleted = self.connection.execute(
+            "DELETE FROM personas WHERE id = ?1 AND is_builtin = 0",
+            [id],
+        )?;
+
+        if deleted == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+
+        Ok(())
+    }
+
+    fn get_persona(&self, id: &str) -> rusqlite::Result<Persona> {
+        self.connection.query_row(
+            r#"
+            SELECT id, name, description, scene, tone, output_structure, prompt,
+                   is_builtin, is_default, created_at, updated_at
+            FROM personas
+            WHERE id = ?1
+            "#,
+            [id],
+            persona_from_row,
+        )
     }
 
     pub fn create_hotword(&self, draft: HotwordDraft) -> rusqlite::Result<Hotword> {
@@ -458,6 +563,38 @@ pub fn set_default_persona(
     let mut config = read_app_config(app.clone())?;
     config.default_persona_id = persona_id;
     update_app_config(app, config)?;
+    database.list_personas().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn create_persona(app: tauri::AppHandle, draft: PersonaDraft) -> Result<Persona, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .create_persona(draft)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn update_persona(
+    app: tauri::AppHandle,
+    id: String,
+    draft: PersonaDraft,
+) -> Result<Persona, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .update_persona(&id, draft)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_persona(app: tauri::AppHandle, id: String) -> Result<Vec<Persona>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .delete_persona(&id)
+        .map_err(|error| error.to_string())?;
     database.list_personas().map_err(|error| error.to_string())
 }
 

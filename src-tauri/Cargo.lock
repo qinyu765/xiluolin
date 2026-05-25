@@ -6961,6 +6961,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-sql",
  "tauri-plugin-store",
+ "thiserror 2.0.18",
  "tokio",
  "ureq",
  "uuid",

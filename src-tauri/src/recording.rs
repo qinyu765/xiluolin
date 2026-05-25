@@ -1,6 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use hound::{WavSpec, WavWriter};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -13,14 +14,42 @@ pub struct RecordingResult {
     pub duration_ms: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct RecordingError {
-    pub message: String,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecordingError {
+    AlreadyRecording,
+    NoRecordingInProgress,
+    MicrophonePermissionDenied,
+    NoInputDeviceAvailable,
+    DeviceConfigFailed(String),
+    FileCreationFailed(String),
+    StreamBuildFailed(String),
+    StreamStartFailed(String),
+    UnsupportedSampleFormat(String),
+    StateLockFailed(String),
 }
 
-impl From<String> for RecordingError {
-    fn from(message: String) -> Self {
-        RecordingError { message }
+impl fmt::Display for RecordingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AlreadyRecording => write!(formatter, "录音已在进行中，请先停止当前录音"),
+            Self::NoRecordingInProgress => write!(formatter, "当前没有正在进行的录音"),
+            Self::MicrophonePermissionDenied => write!(formatter, "麦克风权限缺失，请在系统设置中开启麦克风权限"),
+            Self::NoInputDeviceAvailable => write!(formatter, "未找到可用的音频输入设备，请检查麦克风连接"),
+            Self::DeviceConfigFailed(message) => write!(formatter, "获取音频设备配置失败：{message}"),
+            Self::FileCreationFailed(message) => write!(formatter, "创建录音文件失败：{message}"),
+            Self::StreamBuildFailed(message) => write!(formatter, "构建录音流失败：{message}"),
+            Self::StreamStartFailed(message) => write!(formatter, "启动录音流失败：{message}"),
+            Self::UnsupportedSampleFormat(format) => write!(formatter, "不支持的音频采样格式：{format}"),
+            Self::StateLockFailed(message) => write!(formatter, "录音状态锁定失败：{message}"),
+        }
+    }
+}
+
+impl std::error::Error for RecordingError {}
+
+impl From<RecordingError> for String {
+    fn from(error: RecordingError) -> Self {
+        error.to_string()
     }
 }
 
@@ -44,25 +73,25 @@ impl RecordingState {
 pub async fn start_recording(
     state: State<'_, RecordingState>,
     app_handle: tauri::AppHandle,
-) -> Result<String, RecordingError> {
+) -> Result<String, String> {
     let mut is_recording = state
         .is_recording
         .lock()
-        .map_err(|e| format!("Failed to lock recording state: {}", e))?;
+        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?;
 
     if *is_recording {
-        return Err("Recording is already in progress".to_string().into());
+        return Err(RecordingError::AlreadyRecording.into());
     }
 
     // 创建临时录音文件路径
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+        .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
 
     let recordings_dir = app_data_dir.join("recordings");
     fs::create_dir_all(&recordings_dir)
-        .map_err(|e| format!("Failed to create recordings directory: {}", e))?;
+        .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
 
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
     let output_path = recordings_dir.join(format!("recording_{}.wav", timestamp));
@@ -71,12 +100,20 @@ pub async fn start_recording(
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| "No input device available".to_string())?;
+        .ok_or_else(|| RecordingError::NoInputDeviceAvailable)?;
 
     // 获取设备支持的配置
     let config = device
         .default_input_config()
-        .map_err(|e| format!("Failed to get default input config: {}", e))?;
+        .map_err(|e| {
+            // 检查是否是权限问题
+            let error_msg = e.to_string().to_lowercase();
+            if error_msg.contains("permission") || error_msg.contains("access") {
+                RecordingError::MicrophonePermissionDenied
+            } else {
+                RecordingError::DeviceConfigFailed(e.to_string())
+            }
+        })?;
 
     let sample_rate = config.sample_rate().0;
     let channels = config.channels();
@@ -90,7 +127,7 @@ pub async fn start_recording(
     };
 
     let writer = WavWriter::create(&output_path, spec)
-        .map_err(|e| format!("Failed to create WAV writer: {}", e))?;
+        .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
     let writer = Arc::new(Mutex::new(Some(writer)));
 
     // 构建音频流
@@ -109,7 +146,7 @@ pub async fn start_recording(
                 }
             },
             move |err| {
-                eprintln!("Recording stream error: {}", err);
+                eprintln!("录音流错误: {}", err);
             },
             None,
         ),
@@ -125,7 +162,7 @@ pub async fn start_recording(
                 }
             },
             move |err| {
-                eprintln!("Recording stream error: {}", err);
+                eprintln!("录音流错误: {}", err);
             },
             None,
         ),
@@ -142,31 +179,31 @@ pub async fn start_recording(
                 }
             },
             move |err| {
-                eprintln!("Recording stream error: {}", err);
+                eprintln!("录音流错误: {}", err);
             },
             None,
         ),
         _ => {
-            return Err(format!("Unsupported sample format: {:?}", config.sample_format()).into())
+            return Err(RecordingError::UnsupportedSampleFormat(format!("{:?}", config.sample_format())).into())
         }
     }
-    .map_err(|e| format!("Failed to build input stream: {}", e))?;
+    .map_err(|e| RecordingError::StreamBuildFailed(e.to_string()))?;
 
     // 启动录音流
     stream
         .play()
-        .map_err(|e| format!("Failed to start recording stream: {}", e))?;
+        .map_err(|e| RecordingError::StreamStartFailed(e.to_string()))?;
 
     // 保存状态
     *is_recording = true;
     *state
         .start_time
         .lock()
-        .map_err(|e| format!("Failed to lock start time: {}", e))? = Some(Instant::now());
+        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(Instant::now());
     *state
         .output_path
         .lock()
-        .map_err(|e| format!("Failed to lock output path: {}", e))? = Some(output_path.clone());
+        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(output_path.clone());
 
     // 将 stream 泄漏以保持录音持续进行
     // 这是一个临时方案，后续需要改进为使用全局状态管理 stream
@@ -179,44 +216,44 @@ pub async fn start_recording(
 #[tauri::command]
 pub async fn stop_recording(
     state: State<'_, RecordingState>,
-) -> Result<RecordingResult, RecordingError> {
+) -> Result<RecordingResult, String> {
     // 检查录音状态并获取必要信息
     let (duration_ms, output_path) = {
         let mut is_recording = state
             .is_recording
             .lock()
-            .map_err(|e| format!("Failed to lock recording state: {}", e))?;
+            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?;
 
         if !*is_recording {
-            return Err("No recording in progress".to_string().into());
+            return Err(RecordingError::NoRecordingInProgress.into());
         }
 
         // 计算录音时长
         let start_time = state
             .start_time
             .lock()
-            .map_err(|e| format!("Failed to lock start time: {}", e))?
-            .ok_or_else(|| "Start time not found".to_string())?;
+            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
+            .ok_or_else(|| RecordingError::StateLockFailed("开始时间未找到".to_string()))?;
         let duration_ms = start_time.elapsed().as_millis() as u64;
 
         // 获取输出路径
         let output_path = state
             .output_path
             .lock()
-            .map_err(|e| format!("Failed to lock output path: {}", e))?
+            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
             .clone()
-            .ok_or_else(|| "Output path not found".to_string())?;
+            .ok_or_else(|| RecordingError::StateLockFailed("输出路径未找到".to_string()))?;
 
         // 重置状态
         *is_recording = false;
         *state
             .start_time
             .lock()
-            .map_err(|e| format!("Failed to lock start time: {}", e))? = None;
+            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = None;
         *state
             .output_path
             .lock()
-            .map_err(|e| format!("Failed to lock output path: {}", e))? = None;
+            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = None;
 
         (duration_ms, output_path)
     }; // MutexGuard 在这里被释放

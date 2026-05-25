@@ -30,3 +30,4 @@ chrono = "0.4"
 tokio = { version = "1", features = ["time"] }
 enigo = "0.2"
 arboard = "3.4"
+thiserror = "2.0"

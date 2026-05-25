@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
+import { toast, Toaster } from "sonner";
 import {
   BarChart3Icon,
   Clock3Icon,
@@ -556,7 +557,15 @@ function App() {
 
     const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (extension !== "wav" && extension !== "mp3") {
+      toast.error("仅支持 wav 或 mp3 短音频");
       setVoiceStatus("仅支持 wav 或 mp3 短音频。");
+      return;
+    }
+
+    // 检查 API Key 配置
+    if (!appConfig?.asr_api_key || !appConfig?.openai_api_key) {
+      toast.error("请先在设置页配置 API Key");
+      setVoiceStatus("未配置 API Key，请前往设置页配置。");
       return;
     }
 
@@ -586,8 +595,15 @@ function App() {
           ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
           : "语音主流程已完成，结果可复制使用。",
       );
+      if (result.used_text_fallback) {
+        toast.warning("文本整理失败，已保留原始识别文本");
+      } else {
+        toast.success("语音处理完成");
+      }
     } catch (error) {
-      setVoiceStatus(`语音主流程失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`语音主流程失败：${errorMessage}`);
+      toast.error(`语音处理失败：${errorMessage}`);
     } finally {
       setIsVoiceProcessing(false);
     }
@@ -601,8 +617,11 @@ function App() {
     try {
       await navigator.clipboard.writeText(voiceResult.final_text);
       setVoiceStatus("整理结果已复制到剪贴板。");
+      toast.success("已复制到剪贴板");
     } catch (error) {
-      setVoiceStatus(`复制失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`复制失败：${errorMessage}`);
+      toast.error(`复制失败：${errorMessage}`);
     }
   }
 
@@ -610,12 +629,22 @@ function App() {
     try {
       await navigator.clipboard.writeText(text);
       setHistoryStatus("历史记录已复制到剪贴板。");
+      toast.success("已复制到剪贴板");
     } catch (error) {
-      setHistoryStatus(`复制失败：${String(error)}`);
+      const errorMessage = String(error);
+      setHistoryStatus(`复制失败：${errorMessage}`);
+      toast.error(`复制失败：${errorMessage}`);
     }
   }
 
   async function handleStartRecording() {
+    // 检查 API Key 配置
+    if (!appConfig?.asr_api_key || !appConfig?.openai_api_key) {
+      toast.error("请先在设置页配置 API Key");
+      setVoiceStatus("未配置 API Key，请前往设置页配置。");
+      return;
+    }
+
     setIsRecording(true);
     setRecordingStartTime(Date.now());
     setRecordingDuration(0);
@@ -625,9 +654,19 @@ function App() {
     try {
       await invoke<string>("start_recording");
     } catch (error) {
+      const errorMessage = String(error);
       setIsRecording(false);
       setRecordingStartTime(null);
-      setVoiceStatus(`开始录音失败：${String(error)}`);
+      setVoiceStatus(`开始录音失败：${errorMessage}`);
+
+      // 根据错误类型显示不同的提示
+      if (errorMessage.includes("麦克风权限")) {
+        toast.error("麦克风权限缺失，请在系统设置中开启麦克风权限");
+      } else if (errorMessage.includes("未找到可用的音频输入设备")) {
+        toast.error("未找到麦克风设备，请检查麦克风连接");
+      } else {
+        toast.error(`录音失败：${errorMessage}`);
+      }
     }
   }
 
@@ -662,8 +701,15 @@ function App() {
           ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
           : "语音主流程已完成，结果可复制使用。",
       );
+      if (result.used_text_fallback) {
+        toast.warning("文本整理失败，已保留原始识别文本");
+      } else {
+        toast.success("语音处理完成");
+      }
     } catch (error) {
-      setVoiceStatus(`录音处理失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`录音处理失败：${errorMessage}`);
+      toast.error(`录音处理失败：${errorMessage}`);
     } finally {
       setIsVoiceProcessing(false);
     }
@@ -681,13 +727,26 @@ function App() {
         text: voiceResult.final_text,
       });
       setVoiceStatus(result.message);
+
+      if (result.success) {
+        if (result.method === "keyboard") {
+          toast.success("已自动输入到光标位置");
+        } else if (result.method === "clipboard") {
+          toast.success("已通过剪贴板输入");
+        }
+      } else {
+        toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
+      }
     } catch (error) {
-      setVoiceStatus(`输出文本失败：${String(error)}`);
+      const errorMessage = String(error);
+      setVoiceStatus(`输出文本失败：${errorMessage}`);
+      toast.error(`输出失败：${errorMessage}`);
     }
   }
 
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
+      <Toaster position="top-center" richColors />
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-4xl content-center gap-6">
         <section className="space-y-4">
           <div className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1 text-sm font-medium text-muted-foreground shadow-sm">

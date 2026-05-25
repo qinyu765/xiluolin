@@ -495,6 +495,15 @@ function App() {
     }
   }
 
+  async function handleCopyHistoryText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setHistoryStatus("历史记录已复制到剪贴板。");
+    } catch (error) {
+      setHistoryStatus(`复制失败：${String(error)}`);
+    }
+  }
+
   async function handleStartRecording() {
     setIsRecording(true);
     setRecordingStartTime(Date.now());
@@ -827,7 +836,7 @@ function App() {
                       className="grid gap-3 rounded-lg border bg-background p-4"
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold">
                             {record.persona_name}
                           </p>
@@ -837,9 +846,20 @@ function App() {
                             {record.output_chars} 字
                           </p>
                         </div>
-                        <span className="inline-flex h-7 w-fit items-center rounded-md border bg-muted/30 px-2.5 text-xs text-muted-foreground">
-                          {record.output_mode === "paste" ? "自动粘贴" : "复制"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-7 w-fit items-center rounded-md border bg-muted/30 px-2.5 text-xs text-muted-foreground">
+                            {record.output_mode === "paste" ? "自动粘贴" : "复制"}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => handleCopyHistoryText(record.final_text)}
+                          >
+                            <CopyIcon className="size-3.5" aria-hidden="true" />
+                          </Button>
+                        </div>
                       </div>
                       <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
                         {record.final_text}

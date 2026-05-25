@@ -33,9 +33,6 @@ export function PersonaPage({
       <Card>
         <CardHeader>
           <div>
-            <p className="mb-2 text-xs font-semibold tracking-normal text-primary uppercase">
-              T017 人格页
-            </p>
             <CardTitle className="text-2xl">人格管理</CardTitle>
             <CardDescription className="mt-2">
               管理内置人格和自定义人格，设置默认人格。内置人格不可编辑或删除。
@@ -59,7 +56,7 @@ export function PersonaPage({
                   .map((persona) => (
                     <section
                       key={persona.id}
-                      className="grid gap-3 rounded-lg border bg-muted/30 p-4"
+                      className="rounded-lg border bg-muted/30 p-4"
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0 flex-1">
@@ -88,26 +85,6 @@ export function PersonaPage({
                           </Button>
                         ) : null}
                       </div>
-                      <dl className="grid gap-3 border-t pt-3 text-sm sm:grid-cols-3">
-                        <div>
-                          <dt className="font-medium text-foreground">适用场景</dt>
-                          <dd className="mt-1 leading-6 text-muted-foreground">
-                            {persona.scene}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-foreground">输出语气</dt>
-                          <dd className="mt-1 leading-6 text-muted-foreground">
-                            {persona.tone}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-foreground">输出结构</dt>
-                          <dd className="mt-1 leading-6 text-muted-foreground">
-                            {persona.output_structure}
-                          </dd>
-                        </div>
-                      </dl>
                     </section>
                   ))
               ) : (
@@ -127,7 +104,7 @@ export function PersonaPage({
                   .map((persona) => (
                     <section
                       key={persona.id}
-                      className="grid gap-3 rounded-lg border bg-background p-4"
+                      className="rounded-lg border bg-background p-4"
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0 flex-1">
@@ -176,26 +153,6 @@ export function PersonaPage({
                           </Button>
                         </div>
                       </div>
-                      <dl className="grid gap-3 border-t pt-3 text-sm sm:grid-cols-3">
-                        <div>
-                          <dt className="font-medium text-foreground">适用场景</dt>
-                          <dd className="mt-1 leading-6 text-muted-foreground">
-                            {persona.scene}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-foreground">输出语气</dt>
-                          <dd className="mt-1 leading-6 text-muted-foreground">
-                            {persona.tone}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-foreground">输出结构</dt>
-                          <dd className="mt-1 leading-6 text-muted-foreground">
-                            {persona.output_structure}
-                          </dd>
-                        </div>
-                      </dl>
                     </section>
                   ))
               ) : (

@@ -42,13 +42,15 @@ export function PersonaDialog({
               {isEditing ? "编辑人格" : "新建人格"}
             </DialogTitle>
             <DialogDescription>
-              定义人格的名称、描述、适用场景和整理提示词。
+              定义人格的名称、描述和整理提示词。必填字段标记为 *。
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="persona-name">人格名称</Label>
+              <Label htmlFor="persona-name">
+                人格名称 <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="persona-name"
                 value={draft.name}
@@ -58,12 +60,15 @@ export function PersonaDialog({
                     name: event.target.value,
                   })
                 }
-                placeholder="例如：技术文档助手"
+                placeholder="简短的人格名称，如「技术文档助手」"
+                required
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="persona-description">人格描述</Label>
+              <Label htmlFor="persona-description">
+                人格描述 <span className="text-destructive">*</span>
+              </Label>
               <Textarea
                 id="persona-description"
                 value={draft.description}
@@ -73,13 +78,33 @@ export function PersonaDialog({
                     description: event.target.value,
                   })
                 }
-                placeholder="简要说明这个人格的用途"
+                placeholder="一句话说明这个人格的用途"
                 className="min-h-20 resize-none"
+                required
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="persona-scene">适用场景</Label>
+              <Label htmlFor="persona-prompt">
+                整理提示词 <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="persona-prompt"
+                value={draft.prompt}
+                onChange={(event) =>
+                  onDraftChange({
+                    ...draft,
+                    prompt: event.target.value,
+                  })
+                }
+                placeholder="指导 AI 整理文本的系统提示词"
+                className="min-h-32 resize-none"
+                required
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="persona-scene">适用场景（可选）</Label>
               <Input
                 id="persona-scene"
                 value={draft.scene}
@@ -94,7 +119,7 @@ export function PersonaDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="persona-tone">输出语气</Label>
+              <Label htmlFor="persona-tone">输出语气（可选）</Label>
               <Input
                 id="persona-tone"
                 value={draft.tone}
@@ -109,7 +134,7 @@ export function PersonaDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="persona-structure">输出结构</Label>
+              <Label htmlFor="persona-structure">输出结构（可选）</Label>
               <Input
                 id="persona-structure"
                 value={draft.output_structure}
@@ -120,22 +145,6 @@ export function PersonaDialog({
                   })
                 }
                 placeholder="例如：标题、要点、代码示例"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="persona-prompt">整理提示词</Label>
-              <Textarea
-                id="persona-prompt"
-                value={draft.prompt}
-                onChange={(event) =>
-                  onDraftChange({
-                    ...draft,
-                    prompt: event.target.value,
-                  })
-                }
-                placeholder="输入用于指导 AI 整理文本的系统提示词"
-                className="min-h-32 resize-none"
               />
             </div>
           </div>

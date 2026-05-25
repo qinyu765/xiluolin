@@ -67,3 +67,7 @@ AGENTS_ZH.md
 
 # 前端设计技能运行时生成文件
 DESIGN.md
+
+# AI 辅助工具本地配置
+.agents/settings.local.json
+.claude/settings.local.json

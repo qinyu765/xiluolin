@@ -91,6 +91,17 @@ pub async fn start_recording(
         return Err(RecordingError::AlreadyRecording.into());
     }
 
+    // 清理上一个 writer（如果存在）
+    if let Ok(mut writer_state) = state.writer.lock() {
+        if let Some(writer_arc) = writer_state.take() {
+            if let Ok(mut writer_guard) = writer_arc.try_lock() {
+                if let Some(writer) = writer_guard.take() {
+                    let _ = writer.finalize();
+                }
+            }
+        }
+    }
+
     // 创建临时录音文件路径
     let app_data_dir = app_handle
         .path()
@@ -266,21 +277,6 @@ pub async fn stop_recording(
             .clone()
             .ok_or_else(|| RecordingError::StateLockFailed("输出路径未找到".to_string()))?;
 
-        // 关闭 WAV writer 以确保文件头正确写入
-        if let Some(writer_arc) = state
-            .writer
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
-            .take()
-        {
-            if let Ok(mut writer_guard) = writer_arc.lock() {
-                if let Some(writer) = writer_guard.take() {
-                    // 显式调用 finalize 来正确关闭 WAV 文件
-                    let _ = writer.finalize();
-                }
-            }
-        }
-
         // 重置状态
         *is_recording = false;
         *state
@@ -296,7 +292,19 @@ pub async fn stop_recording(
     }; // MutexGuard 在这里被释放
 
     // 等待一小段时间确保所有音频数据已写入
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // 尝试关闭 writer（非阻塞）
+    if let Ok(mut writer_state) = state.writer.lock() {
+        if let Some(writer_arc) = writer_state.take() {
+            // 尝试获取 writer 锁，如果失败就放弃（避免死锁）
+            if let Ok(mut writer_guard) = writer_arc.try_lock() {
+                if let Some(writer) = writer_guard.take() {
+                    let _ = writer.finalize();
+                }
+            }
+        }
+    }
 
     Ok(RecordingResult {
         file_path: output_path.to_string_lossy().to_string(),

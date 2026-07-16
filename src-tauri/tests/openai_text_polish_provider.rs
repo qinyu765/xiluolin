@@ -140,6 +140,33 @@ fn posts_persona_hotwords_and_raw_text_to_chat_completions_endpoint() {
 }
 
 #[test]
+fn request_requires_persona_style_rewrite_instead_of_plain_cleanup() {
+    let (base_url, handle) = spawn_mock_openai_server(
+        "200 OK",
+        r#"{"choices":[{"message":{"role":"assistant","content":"今天我以能量补给赋能为前置抓手。"}}]}"#,
+    );
+    let request = TextPolishRequest {
+        raw_text: "今天中午我吃了饭，买了杯咖啡，下午和同事聊了聊需求。".to_string(),
+        persona_description: "黑话大师：将语音转化为更互联网黑话的形式。".to_string(),
+        hotword_context: String::new(),
+    };
+
+    let result = polish_text_with_openai(
+        &request,
+        &openai_config(format!("{base_url}/v1"), "test-key"),
+    )
+    .expect("mock polish should pass");
+    let raw_request = handle.join().expect("mock server should finish");
+    let request_text = String::from_utf8_lossy(&raw_request);
+
+    assert_eq!(result.final_text, "今天我以能量补给赋能为前置抓手。");
+    assert!(request_text.contains("黑话大师"));
+    assert!(request_text.contains("风格化改写"));
+    assert!(request_text.contains("不要原样返回"));
+    assert!(request_text.contains("只做标点或语病清理"));
+}
+
+#[test]
 fn request_failure_returns_raw_text_as_fallback() {
     let (base_url, _handle) = spawn_mock_openai_server(
         "500 Internal Server Error",

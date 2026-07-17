@@ -51,6 +51,13 @@ fn managed_recording_path(root: &Path, path: &Path) -> Result<Option<PathBuf>, S
     Ok(Some(canonical))
 }
 
+pub fn read_managed_recording(app: &tauri::AppHandle, path: &str) -> Result<Vec<u8>, String> {
+    let root = recordings_dir(app)?;
+    let path = managed_recording_path(&root, Path::new(path))?
+        .ok_or_else(|| "保留录音文件不存在".to_string())?;
+    std::fs::read(path).map_err(|error| error.to_string())
+}
+
 pub fn remove_managed_recording(app: &tauri::AppHandle, path: &str) -> Result<(), String> {
     let root = recordings_dir(app)?;
     if let Some(path) = managed_recording_path(&root, Path::new(path))? {

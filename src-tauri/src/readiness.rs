@@ -78,15 +78,11 @@ fn microphone_check() -> ReadinessCheck {
 
 fn asr_check(config: &AppConfig) -> ReadinessCheck {
     let provider = config.asr_provider.trim();
-    let model = if provider == "openai" {
-        config.openai_asr_model.trim()
-    } else {
-        config.asr_model.trim()
-    };
+    let (api_key, base_url, model) = config.selected_asr_config();
     let ready = matches!(provider, "zhipu" | "openai")
-        && !config.asr_api_key.trim().is_empty()
-        && !config.asr_base_url.trim().is_empty()
-        && !model.is_empty();
+        && !api_key.trim().is_empty()
+        && !base_url.trim().is_empty()
+        && !model.trim().is_empty();
 
     ReadinessCheck {
         ready,
@@ -101,19 +97,7 @@ fn asr_check(config: &AppConfig) -> ReadinessCheck {
 
 fn text_processing_check(config: &AppConfig) -> ReadinessCheck {
     let provider = config.text_provider.trim();
-    let (api_key, base_url, model) = if provider == "zhipu" {
-        (
-            config.zhipu_api_key.trim(),
-            config.zhipu_base_url.trim(),
-            config.zhipu_model.trim(),
-        )
-    } else {
-        (
-            config.openai_api_key.trim(),
-            config.openai_base_url.trim(),
-            config.openai_model.trim(),
-        )
-    };
+    let (api_key, base_url, model) = config.selected_text_config();
     let ready = matches!(provider, "zhipu" | "openai")
         && !api_key.is_empty()
         && !base_url.is_empty()
@@ -193,9 +177,8 @@ mod tests {
     fn openai_configuration_uses_the_selected_provider_fields() {
         let mut config = default_app_config();
         config.asr_provider = "openai".to_string();
-        config.asr_api_key = "asr-key".to_string();
+        config.openai_api_key = "openai-key".to_string();
         config.text_provider = "openai".to_string();
-        config.openai_api_key = "text-key".to_string();
 
         assert!(asr_check(&config).ready);
         assert!(text_processing_check(&config).ready);

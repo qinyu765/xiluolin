@@ -330,10 +330,21 @@ function App() {
       asr_api_key: appConfig.asr_api_key.trim(),
       asr_base_url: appConfig.asr_base_url.trim(),
       asr_model: appConfig.asr_model.trim(),
+      openai_api_key: appConfig.openai_api_key.trim(),
+      openai_base_url: appConfig.openai_base_url.trim(),
+      openai_asr_model: appConfig.openai_asr_model.trim(),
     };
+    const selectedBaseUrl =
+      nextConfig.asr_provider === "openai"
+        ? nextConfig.openai_base_url
+        : nextConfig.asr_base_url;
+    const selectedModel =
+      nextConfig.asr_provider === "openai"
+        ? nextConfig.openai_asr_model
+        : nextConfig.asr_model;
 
-    if (!nextConfig.asr_base_url || !nextConfig.asr_model) {
-      setAsrStatus("Base URL 和模型名不能为空。");
+    if (!selectedBaseUrl || !selectedModel) {
+      setAsrStatus("当前 ASR Provider 的 Base URL 和模型名不能为空。");
       return;
     }
 
@@ -346,10 +357,14 @@ function App() {
       });
       setAppConfig(savedConfig);
       window.dispatchEvent(new Event("xiluolin-config-saved"));
+      const selectedApiKey =
+        savedConfig.asr_provider === "openai"
+          ? savedConfig.openai_api_key
+          : savedConfig.asr_api_key;
       setAsrStatus(
-        savedConfig.asr_api_key
-          ? "智谱 ASR 配置已保存。"
-          : "智谱 ASR 配置已保存，真实转写前仍需填写 API Key。",
+        selectedApiKey
+          ? `${savedConfig.asr_provider === "openai" ? "OpenAI" : "智谱"} ASR 配置已保存。`
+          : "ASR 配置已保存，真实转写前仍需填写 API Key。",
       );
     } catch (error) {
       setAsrStatus(`保存智谱 ASR 配置失败：${String(error)}`);
@@ -418,6 +433,56 @@ function App() {
     setHistoryStats(loadedHistoryStats);
     setHistoryStatus(nextStatus);
     window.dispatchEvent(new Event("xiluolin-history-changed"));
+  }
+
+  async function handlePlayHistoryRecording(id: string) {
+    try {
+      const bytes = await invoke<number[]>("read_retained_recording", {
+        historyId: id,
+      });
+      const url = URL.createObjectURL(
+        new Blob([new Uint8Array(bytes)], { type: "audio/wav" }),
+      );
+      const audio = new Audio(url);
+      audio.addEventListener("ended", () => URL.revokeObjectURL(url), {
+        once: true,
+      });
+      try {
+        await audio.play();
+      } catch (playbackError) {
+        URL.revokeObjectURL(url);
+        throw playbackError;
+      }
+      toast.success("正在播放保留录音");
+    } catch (error) {
+      toast.error(`播放录音失败：${String(error)}`);
+    }
+  }
+
+  async function handleReprocessHistoryAudio(id: string) {
+    setHistoryStatus("正在使用当前模型重新转写...");
+    try {
+      await invoke<HistoryRecord>("reprocess_history_audio", { historyId: id });
+      await reloadHistoryData("录音已使用当前模型重新转写。后续复制会使用新结果。");
+      toast.success("重新转写完成");
+    } catch (error) {
+      const message = String(error);
+      setHistoryStatus(`重新转写失败：${message}`);
+      toast.error(`重新转写失败：${message}`);
+    }
+  }
+
+  async function handleRefineHistoryText(id: string) {
+    setHistoryStatus("正在使用当前人格重新整理...");
+    try {
+      await invoke<HistoryRecord>("refine_history_text", { historyId: id });
+      await reloadHistoryData("历史文本已使用当前人格重新整理。原始识别文本保持不变。");
+      toast.success("重新整理完成");
+    } catch (error) {
+      const message = String(error);
+      setHistoryStatus(`重新整理失败：${message}`);
+      toast.error(`重新整理失败：${message}`);
+    }
   }
 
   async function handleDeleteHistoryRecord(id: string) {
@@ -897,6 +962,9 @@ function App() {
                 onOutputText={handleOutputText}
                 onCopyHistoryText={handleCopyHistoryText}
                 onDeleteHistoryRecord={handleDeleteHistoryRecord}
+                onPlayHistoryRecording={handlePlayHistoryRecording}
+                onReprocessHistoryAudio={handleReprocessHistoryAudio}
+                onRefineHistoryText={handleRefineHistoryText}
               />
             )}
 

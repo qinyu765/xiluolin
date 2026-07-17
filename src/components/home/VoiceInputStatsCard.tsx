@@ -6,7 +6,10 @@ import {
   HistoryIcon,
   Mic2Icon,
   PencilIcon,
+  PlayIcon,
+  RefreshCwIcon,
   Trash2Icon,
+  WandSparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +30,9 @@ type VoiceInputStatsCardProps = {
   appConfig: AppConfig | null;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
+  onPlayHistoryRecording: (id: string) => void;
+  onReprocessHistoryAudio: (id: string) => void;
+  onRefineHistoryText: (id: string) => void;
   formatDuration: (ms: number) => string;
   formatCreatedAt: (createdAt: string) => string;
   groupHistoryByDate: (records: HistoryRecord[]) => {
@@ -43,6 +49,9 @@ export function VoiceInputStatsCard({
   appConfig,
   onCopyHistoryText,
   onDeleteHistoryRecord,
+  onPlayHistoryRecording,
+  onReprocessHistoryAudio,
+  onRefineHistoryText,
   formatDuration,
   formatCreatedAt,
   groupHistoryByDate,
@@ -145,6 +154,9 @@ export function VoiceInputStatsCard({
                           record={record}
                           onCopy={onCopyHistoryText}
                           onDelete={onDeleteHistoryRecord}
+                          onPlay={onPlayHistoryRecording}
+                          onReprocess={onReprocessHistoryAudio}
+                          onRefine={onRefineHistoryText}
                           formatCreatedAt={formatCreatedAt}
                           formatDuration={formatDuration}
                         />
@@ -161,6 +173,9 @@ export function VoiceInputStatsCard({
                           record={record}
                           onCopy={onCopyHistoryText}
                           onDelete={onDeleteHistoryRecord}
+                          onPlay={onPlayHistoryRecording}
+                          onReprocess={onReprocessHistoryAudio}
+                          onRefine={onRefineHistoryText}
                           formatCreatedAt={formatCreatedAt}
                           formatDuration={formatDuration}
                         />
@@ -177,6 +192,9 @@ export function VoiceInputStatsCard({
                           record={record}
                           onCopy={onCopyHistoryText}
                           onDelete={onDeleteHistoryRecord}
+                          onPlay={onPlayHistoryRecording}
+                          onReprocess={onReprocessHistoryAudio}
+                          onRefine={onRefineHistoryText}
                           formatCreatedAt={formatCreatedAt}
                           formatDuration={formatDuration}
                         />
@@ -201,6 +219,9 @@ type HistoryRecordItemProps = {
   record: HistoryRecord;
   onCopy: (text: string) => void;
   onDelete: (id: string) => void;
+  onPlay: (id: string) => void;
+  onReprocess: (id: string) => void;
+  onRefine: (id: string) => void;
   formatCreatedAt: (createdAt: string) => string;
   formatDuration: (ms: number) => string;
 };
@@ -209,6 +230,9 @@ function HistoryRecordItem({
   record,
   onCopy,
   onDelete,
+  onPlay,
+  onReprocess,
+  onRefine,
   formatCreatedAt,
   formatDuration,
 }: HistoryRecordItemProps) {
@@ -231,6 +255,43 @@ function HistoryRecordItem({
           </p>
         </div>
         <div className="flex items-center gap-1">
+          {record.audio_path && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => onPlay(record.id)}
+                title="试听保留录音"
+                aria-label="试听保留录音"
+              >
+                <PlayIcon className="size-3.5" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => onReprocess(record.id)}
+                title="使用当前模型重新转写"
+                aria-label="使用当前模型重新转写"
+              >
+                <RefreshCwIcon className="size-3.5" aria-hidden="true" />
+              </Button>
+            </>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => onRefine(record.id)}
+            title="使用当前人格重新整理"
+            aria-label="使用当前人格重新整理"
+          >
+            <WandSparklesIcon className="size-3.5" aria-hidden="true" />
+          </Button>
           <Button
             type="button"
             variant="ghost"

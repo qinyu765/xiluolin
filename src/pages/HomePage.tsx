@@ -33,6 +33,9 @@ type HomePageProps = {
   onOutputText: () => void;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
+  onPlayHistoryRecording: (id: string) => void;
+  onReprocessHistoryAudio: (id: string) => void;
+  onRefineHistoryText: (id: string) => void;
 };
 
 export function HomePage({
@@ -57,6 +60,9 @@ export function HomePage({
   onOutputText,
   onCopyHistoryText,
   onDeleteHistoryRecord,
+  onPlayHistoryRecording,
+  onReprocessHistoryAudio,
+  onRefineHistoryText,
 }: HomePageProps) {
   return (
     <div className="space-y-6">
@@ -99,6 +105,9 @@ export function HomePage({
         appConfig={appConfig}
         onCopyHistoryText={onCopyHistoryText}
         onDeleteHistoryRecord={onDeleteHistoryRecord}
+        onPlayHistoryRecording={onPlayHistoryRecording}
+        onReprocessHistoryAudio={onReprocessHistoryAudio}
+        onRefineHistoryText={onRefineHistoryText}
         formatDuration={formatDuration}
         formatCreatedAt={formatCreatedAt}
         groupHistoryByDate={groupHistoryByDate}

@@ -442,3 +442,64 @@ fn history_metadata_and_delivery_method_roundtrip() {
     assert_eq!(record.output_mode, "paste");
     assert_eq!(record.audio_path.as_deref(), Some("/managed/recording.wav"));
 }
+
+#[test]
+fn history_can_be_reprocessed_without_losing_audio_link() {
+    let database = open_test_database(&temp_db_path("history-reprocessing"));
+    let created = database
+        .create_history_record(HistoryRecordDraft {
+            raw_text: "旧原文".to_string(),
+            final_text: "旧结果".to_string(),
+            persona_id: "prompt-engineer".to_string(),
+            persona_name: "Prompt 工程师".to_string(),
+            duration_ms: 1600,
+            output_mode: "paste".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "old-asr".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "old-text".to_string(),
+            used_fallback: false,
+            delivery_method: "paste".to_string(),
+            audio_path: Some("/managed/original.wav".to_string()),
+        })
+        .unwrap();
+
+    let retranscribed = database
+        .update_history_after_transcription(
+            &created.id,
+            "新原文",
+            "新结果",
+            "task-collaborator",
+            "任务协作者",
+            "openai",
+            "whisper-1",
+            "zhipu",
+            "glm-4.7-flash",
+            true,
+        )
+        .unwrap();
+    assert_eq!(retranscribed.raw_text, "新原文");
+    assert_eq!(retranscribed.asr_provider, "openai");
+    assert_eq!(
+        retranscribed.audio_path.as_deref(),
+        Some("/managed/original.wav")
+    );
+    assert_eq!(retranscribed.delivery_method, "paste");
+
+    let refined = database
+        .update_history_after_refinement(
+            &created.id,
+            "再次整理",
+            "prompt-engineer",
+            "Prompt 工程师",
+            "openai",
+            "gpt-4o-mini",
+            false,
+        )
+        .unwrap();
+    assert_eq!(refined.raw_text, "新原文");
+    assert_eq!(refined.final_text, "再次整理");
+    assert_eq!(refined.asr_provider, "openai");
+    assert_eq!(refined.audio_path.as_deref(), Some("/managed/original.wav"));
+}

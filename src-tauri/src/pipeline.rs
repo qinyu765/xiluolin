@@ -250,25 +250,14 @@ pub fn process_uploaded_audio(
         .map_err(|error| error.to_string())?;
     database.initialize().map_err(|error| error.to_string())?;
 
-    let asr_model = if config.asr_provider == "openai" {
-        config.openai_asr_model.clone()
-    } else {
-        config.asr_model.clone()
-    };
-
-    let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
-        (
-            config.zhipu_api_key.clone(),
-            config.zhipu_base_url.clone(),
-            config.zhipu_model.clone(),
-        )
-    } else {
-        (
-            config.openai_api_key.clone(),
-            config.openai_base_url.clone(),
-            config.openai_model.clone(),
-        )
-    };
+    let (asr_api_key, asr_base_url, asr_model) = config.selected_asr_config();
+    let (text_api_key, text_base_url, text_model) = config.selected_text_config();
+    let asr_api_key = asr_api_key.to_string();
+    let asr_base_url = asr_base_url.to_string();
+    let asr_model = asr_model.to_string();
+    let text_api_key = text_api_key.to_string();
+    let text_base_url = text_base_url.to_string();
+    let text_model = text_model.to_string();
 
     let history_context = HistoryContext {
         source: "upload".to_string(),
@@ -283,8 +272,8 @@ pub fn process_uploaded_audio(
         request,
         AsrConfig {
             provider: config.asr_provider.clone(),
-            api_key: config.asr_api_key,
-            base_url: config.asr_base_url,
+            api_key: asr_api_key,
+            base_url: asr_base_url,
             model: asr_model,
         },
         TextPolishConfig {
@@ -385,25 +374,14 @@ pub fn process_recording_file(
                     .map_err(|error| error.to_string())?;
                 database.initialize().map_err(|error| error.to_string())?;
 
-                let asr_model = if config.asr_provider == "openai" {
-                    config.openai_asr_model.clone()
-                } else {
-                    config.asr_model.clone()
-                };
-
-                let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
-                    (
-                        config.zhipu_api_key.clone(),
-                        config.zhipu_base_url.clone(),
-                        config.zhipu_model.clone(),
-                    )
-                } else {
-                    (
-                        config.openai_api_key.clone(),
-                        config.openai_base_url.clone(),
-                        config.openai_model.clone(),
-                    )
-                };
+                let (asr_api_key, asr_base_url, asr_model) = config.selected_asr_config();
+                let (text_api_key, text_base_url, text_model) = config.selected_text_config();
+                let asr_api_key = asr_api_key.to_string();
+                let asr_base_url = asr_base_url.to_string();
+                let asr_model = asr_model.to_string();
+                let text_api_key = text_api_key.to_string();
+                let text_base_url = text_base_url.to_string();
+                let text_model = text_model.to_string();
 
                 let history_context = HistoryContext {
                     source: "recording".to_string(),
@@ -427,8 +405,8 @@ pub fn process_recording_file(
                     },
                     AsrConfig {
                         provider: config.asr_provider.clone(),
-                        api_key: config.asr_api_key,
-                        base_url: config.asr_base_url,
+                        api_key: asr_api_key,
+                        base_url: asr_base_url,
                         model: asr_model,
                     },
                     TextPolishConfig {

@@ -4,6 +4,7 @@ pub mod capture_session;
 pub mod credentials;
 pub mod data;
 pub mod focus_capture;
+pub mod history_reprocessing;
 pub mod hotkey;
 pub mod indicator;
 pub mod output;
@@ -86,6 +87,9 @@ pub fn run() {
             data::list_history_records,
             data::history_statistics,
             data::delete_history_record,
+            history_reprocessing::read_retained_recording,
+            history_reprocessing::reprocess_history_audio,
+            history_reprocessing::refine_history_text,
             data::read_app_config,
             data::update_app_config,
             recording::start_recording,

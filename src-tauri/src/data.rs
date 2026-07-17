@@ -44,6 +44,32 @@ pub struct AppConfig {
     pub retain_recordings: bool,
 }
 
+impl AppConfig {
+    pub fn selected_asr_config(&self) -> (&str, &str, &str) {
+        if self.asr_provider == "openai" {
+            (
+                &self.openai_api_key,
+                &self.openai_base_url,
+                &self.openai_asr_model,
+            )
+        } else {
+            (&self.asr_api_key, &self.asr_base_url, &self.asr_model)
+        }
+    }
+
+    pub fn selected_text_config(&self) -> (&str, &str, &str) {
+        if self.text_provider == "zhipu" {
+            (&self.zhipu_api_key, &self.zhipu_base_url, &self.zhipu_model)
+        } else {
+            (
+                &self.openai_api_key,
+                &self.openai_base_url,
+                &self.openai_model,
+            )
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Persona {
     pub id: String,
@@ -544,6 +570,78 @@ impl LocalDatabase {
         Ok(())
     }
 
+    pub fn update_history_after_transcription(
+        &self,
+        id: &str,
+        raw_text: &str,
+        final_text: &str,
+        persona_id: &str,
+        persona_name: &str,
+        asr_provider: &str,
+        asr_model: &str,
+        text_provider: &str,
+        text_model: &str,
+        used_fallback: bool,
+    ) -> rusqlite::Result<HistoryRecord> {
+        let output_chars = final_text.chars().count() as i64;
+        self.connection.execute(
+            r#"
+            UPDATE history_records
+            SET raw_text = ?2, final_text = ?3, persona_id = ?4, persona_name = ?5,
+                output_chars = ?6, asr_provider = ?7, asr_model = ?8,
+                text_provider = ?9, text_model = ?10, used_fallback = ?11
+            WHERE id = ?1
+            "#,
+            params![
+                id,
+                raw_text,
+                final_text,
+                persona_id,
+                persona_name,
+                output_chars,
+                asr_provider,
+                asr_model,
+                text_provider,
+                text_model,
+                bool_to_int(used_fallback)
+            ],
+        )?;
+        self.get_history_record(id)
+    }
+
+    pub fn update_history_after_refinement(
+        &self,
+        id: &str,
+        final_text: &str,
+        persona_id: &str,
+        persona_name: &str,
+        text_provider: &str,
+        text_model: &str,
+        used_fallback: bool,
+    ) -> rusqlite::Result<HistoryRecord> {
+        let output_chars = final_text.chars().count() as i64;
+        self.connection.execute(
+            r#"
+            UPDATE history_records
+            SET final_text = ?2, persona_id = ?3, persona_name = ?4,
+                output_chars = ?5, text_provider = ?6, text_model = ?7,
+                used_fallback = ?8
+            WHERE id = ?1
+            "#,
+            params![
+                id,
+                final_text,
+                persona_id,
+                persona_name,
+                output_chars,
+                text_provider,
+                text_model,
+                bool_to_int(used_fallback)
+            ],
+        )?;
+        self.get_history_record(id)
+    }
+
     pub fn update_history_delivery_method(
         &self,
         id: &str,
@@ -623,7 +721,7 @@ impl LocalDatabase {
         )
     }
 
-    fn get_history_record(&self, id: &str) -> rusqlite::Result<HistoryRecord> {
+    pub fn get_history_record(&self, id: &str) -> rusqlite::Result<HistoryRecord> {
         self.connection.query_row(
             r#"
             SELECT id, raw_text, final_text, persona_id, persona_name,

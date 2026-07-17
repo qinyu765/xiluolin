@@ -32,7 +32,7 @@
 - `src-tauri/src/indicator.rs`
 - `src-tauri/tests/`
 - `README.md`
-- `docs/dev/local-asr-implementation-plan.md`
+- `docs/dev/archive/plans/local-asr-implementation-plan.md`
 
 此外删除 `src/components/dialogs/AppSettingsDialog.tsx`，并格式化 `src-tauri/src/` 下现有 Rust 文件。
 

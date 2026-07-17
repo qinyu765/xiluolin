@@ -45,9 +45,11 @@ XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
 
 更完整的产品边界和技术设计见：
 
+- [文档导航](docs/README.md)
 - [需求分析](docs/requirements-analysis.md)
 - [方案设计](docs/solution-design.md)
 - [使用与验证指南](docs/usage-guide.md)
+- [故障排查](docs/troubleshooting.md)
 - [项目路线图](docs/roadmap.md)
 
 ## 技术栈
@@ -128,7 +130,7 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行质
 
 ## 项目治理
 
-- `main` 是稳定开发基线，所有变更通过分支和 Pull Request 合入。
+- `main` 是稳定开发基线；外部贡献通过短生命周期分支和 Pull Request 合入，仓库维护者的 Agent 工作流以 `AGENTS.md` 为准。
 - 路线图用于表达方向，不承诺固定交付日期。
 - 维护者会根据用户价值、可靠性、隐私风险、维护成本和架构一致性评估提案。
 - 历史开发记录保留在 `docs/dev/`，其中的比赛、demo 或 MVP 表述仅代表当时背景，不再定义当前项目方向。

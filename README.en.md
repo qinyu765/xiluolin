@@ -47,9 +47,11 @@ Current priorities:
 
 The detailed product and engineering documents are currently maintained in Chinese:
 
+- [Documentation index](docs/README.md)
 - [Product requirements](docs/requirements-analysis.md)
 - [Technical design](docs/solution-design.md)
 - [Usage and verification guide](docs/usage-guide.md)
+- [Troubleshooting guide](docs/troubleshooting.md)
 - [Project roadmap](docs/roadmap.md)
 - [Contribution guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

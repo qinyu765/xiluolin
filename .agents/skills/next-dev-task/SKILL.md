@@ -1,116 +1,44 @@
 ---
 name: next-dev-task
-description: Use when continuing this repository's development work, choosing the next task, closing a task, preparing a commit, or preparing a pull request.
+description: Use only when the user explicitly asks to choose, continue, organize, or close the next XiLuoLin development task.
 ---
 
 # Next Dev Task
 
 ## Purpose
 
-This skill keeps development task execution auditable for the Qiniu Hackathon voice input assistant.
+帮助用户从当前仓库状态和现行文档中确定下一项工作，并以可验证的小范围改动完成它。本 skill 不是所有开发任务的默认入口。
 
-`docs/dev/task-tracker.md` is the single source of truth for task state. Read it before choosing work, and update it before claiming a task is ready for review.
+## Workflow
 
-## Required Workflow
+1. 读取 `AGENTS.md`，检查当前分支、工作区和最近提交。
+2. 根据用户请求选择必要的现行文档；文档入口见 `docs/README.md`。
+3. 若用户指定了任务，直接围绕该任务工作；未指定时，从当前代码、路线图、Issue 或用户给出的优先级中提出下一项建议。
+4. 明确目标、范围和验证方式，避免同时启动无关工作。
+5. 实现最小完整改动，并运行与改动范围匹配的检查。
+6. 只有用户明确要求时，才更新历史 task tracker、创建任务复盘、使用分支或创建 PR。
+7. 按 `AGENTS.md` 的 Git 规则发布并汇报结果。
 
-1. Read `AGENTS.md`, `docs/requirements-analysis.md`, `docs/solution-design.md`, and `docs/dev/task-tracker.md`.
-2. Confirm the current branch. Work directly on `main`; before editing, run a fast-forward-only pull from `origin/main`.
-3. Select the next task:
-   - If one task is `Doing`, continue it.
-   - Otherwise choose the first `Todo` task by tracker order.
-   - Do not start a second `Doing` task.
-4. Restate the task goal, success criteria, working branch, and verification command or manual check.
-5. Implement only the selected task. Keep changes surgical and aligned with the voice input assistant scope.
-6. Run the relevant verification:
-   - Automated tests or build when available.
-   - Manual verification when no automated check exists.
-   - If verification cannot run, document the exact blocker.
-7. Create or update one task document under `docs/dev/YYYY-MM-DD-<task-id>-<title>.md`.
-8. Before the task commit, update `docs/dev/task-tracker.md`:
-   - `Doing` when starting.
-   - `Review` when implementation and verification are ready for review.
-   - `Done` only after the change is pushed to `main`, a PR is merged, or the user explicitly confirms completion.
-   - `Blocked` with a concrete blocker when work cannot continue.
-   - Use `不适用（main 直提）` in the PR column for direct-to-`main` tasks; use `待创建` only when a PR is planned but does not exist yet.
-9. After verification, publish the task without pausing for approval unless the user explicitly requests review-only or dry-run behavior. Before publishing, summarize:
-   - Changed files.
-   - Verification result.
-   - Commit message using `type: 中文描述`.
-   - PR description containing feature description, implementation approach, and verification method.
-10. Publish through the current short-lived branch:
-    - Create a focused commit containing the implementation, task document, and task tracker state change.
-    - Push the branch and create or update a PR targeting `main`.
-    - Do not create a follow-up commit solely to add the PR number or URL to `docs/dev/task-tracker.md`; report the URL in the final response.
-    - Stop before commit or push only when the user explicitly asks not to publish, requests a dry run, or the working tree contains unrelated changes whose ownership is unclear.
+## Selection Guidelines
 
-## Execution Pitfalls To Check
+- 优先处理会阻断核心语音输入链路、数据安全或正常构建的问题。
+- 优先修复已有行为，再添加新功能；避免基于旧任务表机械选择已经过时的事项。
+- 需求、架构和实现不一致时，以当前代码和现行文档为依据，并明确指出差异。
+- 较大功能、数据迁移或依赖替换应先拆分为可独立验证的步骤。
 
-Run these checks when the task touches dependencies, external APIs, build tooling, commit, push, or PR creation:
+## Verification
 
-- On Windows in this repository, the sandbox can produce false permission or dependency-read failures. Run these commands with escalation directly instead of first trying them inside the sandbox:
-  - `pnpm build`
-  - `pnpm exec tsc --noEmit`
-  - `pnpm tauri dev`
-  - `git add`
-  - `git commit`
-  - `git push`
-  - `git remote set-url`
-  - `Stop-Process` when stopping this project's `xiluolin`, `cargo`, or Tauri development processes.
-- Use direct escalation for the commands above because `pnpm` may need reliable `node_modules` access, `pnpm tauri dev` opens a desktop GUI, Git write commands may need `.git` lock/config writes, `git push` needs network access, and stopping development processes may require access outside the sandbox.
-- For commands not listed above, run normally first. If the failure is clearly caused by permission, network, GUI, or sandbox file access, rerun the same command with escalation and keep the command scope unchanged.
-- For a new Rust dependency, expect the first `cargo` command to need network access. If crates.io access fails because of sandbox or TLS/network restrictions, rerun the same command with escalation instead of changing code.
-- For frontend verification on Windows, `node_modules` can be unreadable inside the sandbox and cause false failures such as missing `picomatch/index.js` or `tsc` not found. First confirm with `Test-Path` or `Get-ChildItem`; then run `pnpm build` and `pnpm exec tsc --noEmit` with escalation if the source files are unchanged and the error is dependency-read related.
-- For HTTP client libraries, verify the installed crate API from local registry source before assuming examples from memory. In this project `ureq` 3.x multipart lives under `ureq::unversioned::multipart`.
-- For provider tasks, use mock HTTP tests for request shape and local validation. Real API smoke tests are recommended before merge when credentials and sample files are available, but may be deferred if the task document records the deferral and no secrets are committed.
-- Before creating a PR, read `git remote -v` and use the actual GitHub owner/repo. Do not infer owner or repo from the local folder path.
-- After committing, check `git status --short --branch`; push the current short-lived branch and confirm it tracks the expected remote branch.
-- For PR creation, prefer using GitHub MCP tool (`mcp__github__create_pull_request`) over `gh` CLI, as `gh` may not be installed. Extract owner and repo from `git remote -v` output.
-- After PR creation, do not make a second commit only to update the tracker PR column. Put the PR URL in the final response and, when useful, the PR description.
+- 前端改动：按范围运行 `pnpm typecheck`、`pnpm build` 或相关测试。
+- Rust 改动：按范围运行格式、编译和测试检查。
+- 文档改动：检查链接、引用和 `git diff --check`。
+- 外部 API：优先使用 mock 或本地验证，不提交真实凭据和用户数据。
+- 无法执行检查时，记录具体命令、失败原因和未验证风险。
 
-## Task Document Template
+## Completion
 
-Use this structure for every completed task document:
+完成时说明：
 
-```markdown
-# <Task ID> <Task Title>
-
-## 任务目标
-
-## 实际改动
-
-## 为什么这么做
-
-## 涉及文件
-
-## 测试与验证
-
-## 执行复盘
-
-## 未完成事项
-
-## 后续建议
-```
-
-## Git And PR Rules
-
-- Use `main` as the stable baseline and start each task from an up-to-date short-lived branch.
-- Pull `origin/main` with `--ff-only` before creating the task branch.
-- Keep commits small, coherent, verified, and independently revertible.
-- Push the task branch and open a PR targeting `main` after verification; do not pause for approval unless the user explicitly requests review-only or dry-run behavior.
-- Commit messages must use `type: 中文描述`.
-- Do not commit `.env`, real API keys, temporary recordings, build artifacts, or local caches.
-- Keep PR descriptions non-empty and matched to actual changes.
-
-## Completion Checklist
-
-Before saying a task is ready for review, verify all items:
-
-- Task tracker state was updated.
-- Task tracker state, verification method, and task document were committed together with the implementation.
-- For direct-to-`main` work, the pushed commit hash was reported; when a PR is used, its URL was reported without requiring a PR-link-only commit.
-- Task development document exists.
-- Verification result is documented.
-- Known execution pitfalls and deferred real-service checks are documented.
-- No unrelated files were changed.
-- README or dependency documentation was updated when dependencies changed.
-- Commit and PR text are ready for the user to review.
+- 实际完成的目标和主要改动。
+- 已运行的验证及结果。
+- 未完成事项或已知风险。
+- Commit 和 push 状态；只有用户要求时才补充 PR 信息或任务复盘。

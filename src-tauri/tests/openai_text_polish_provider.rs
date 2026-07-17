@@ -6,9 +6,7 @@ use std::{
 
 use xiluolin_lib::{
     data::default_app_config,
-    text_polish::{
-        polish_text_with_openai, TextPolishConfig, TextPolishError, TextPolishRequest,
-    },
+    text_polish::{polish_text_with_openai, TextPolishConfig, TextPolishError, TextPolishRequest},
 };
 
 fn read_request(stream: &mut TcpStream) -> Vec<u8> {
@@ -53,7 +51,9 @@ fn spawn_mock_openai_server(
     );
 
     let handle = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("mock server should accept request");
+        let (mut stream, _) = listener
+            .accept()
+            .expect("mock server should accept request");
         let request = read_request(&mut stream);
         let response = format!(
             "HTTP/1.1 {response_status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -92,7 +92,10 @@ fn default_config_contains_text_provider_and_zhipu_config() {
 
     assert_eq!(config.text_provider, "zhipu");
     assert_eq!(config.zhipu_api_key, "");
-    assert_eq!(config.zhipu_base_url, "https://open.bigmodel.cn/api/paas/v4");
+    assert_eq!(
+        config.zhipu_base_url,
+        "https://open.bigmodel.cn/api/paas/v4"
+    );
     assert_eq!(config.zhipu_model, "glm-4.7-flash");
     assert_eq!(config.openai_api_key, "");
     assert_eq!(config.openai_base_url, "https://api.openai.com/v1");
@@ -181,10 +184,8 @@ fn request_failure_returns_raw_text_as_fallback() {
 
     assert_eq!(result.final_text, polish_request().raw_text);
     assert!(result.used_fallback);
-    assert!(
-        result
-            .error_message
-            .expect("fallback should keep error message")
-            .contains("OpenAI 文本整理请求失败")
-    );
+    assert!(result
+        .error_message
+        .expect("fallback should keep error message")
+        .contains("OpenAI 文本整理请求失败"));
 }

@@ -48,8 +48,7 @@ fn initialize_is_idempotent_and_keeps_existing_data() {
     let database = open_test_database(&temp_db_path("idempotent-initialize"));
     let created = database
         .create_hotword(HotwordDraft {
-            source_text: "next 点 js".to_string(),
-            target_text: "Next.js".to_string(),
+            text: "Next.js".to_string(),
             category: "技术词".to_string(),
             enabled: true,
         })
@@ -63,7 +62,7 @@ fn initialize_is_idempotent_and_keeps_existing_data() {
 
     assert_eq!(hotwords.len(), 1);
     assert_eq!(hotwords[0].id, created.id);
-    assert_eq!(hotwords[0].target_text, "Next.js");
+    assert_eq!(hotwords[0].text, "Next.js");
 }
 
 #[test]
@@ -72,8 +71,7 @@ fn hotword_roundtrip_keeps_enabled_state() {
 
     let created = database
         .create_hotword(HotwordDraft {
-            source_text: "七牛".to_string(),
-            target_text: "七牛云".to_string(),
+            text: "七牛云".to_string(),
             category: "产品名".to_string(),
             enabled: false,
         })
@@ -85,8 +83,7 @@ fn hotword_roundtrip_keeps_enabled_state() {
 
     assert_eq!(hotwords.len(), 1);
     assert_eq!(hotwords[0].id, created.id);
-    assert_eq!(hotwords[0].source_text, "七牛");
-    assert_eq!(hotwords[0].target_text, "七牛云");
+    assert_eq!(hotwords[0].text, "七牛云");
     assert_eq!(hotwords[0].category, "产品名");
     assert!(!hotwords[0].enabled);
 }
@@ -97,16 +94,14 @@ fn hotword_can_be_updated_deleted_and_formatted_as_context() {
 
     let first = database
         .create_hotword(HotwordDraft {
-            source_text: "next 点 js".to_string(),
-            target_text: "Next.js".to_string(),
+            text: "Next.js".to_string(),
             category: "技术词".to_string(),
             enabled: true,
         })
         .expect("first hotword should be created");
     let second = database
         .create_hotword(HotwordDraft {
-            source_text: "七牛".to_string(),
-            target_text: "七牛云".to_string(),
+            text: "七牛云".to_string(),
             category: "产品名".to_string(),
             enabled: false,
         })
@@ -116,8 +111,7 @@ fn hotword_can_be_updated_deleted_and_formatted_as_context() {
         .update_hotword(
             &second.id,
             HotwordDraft {
-                source_text: "七牛".to_string(),
-                target_text: "七牛云存储".to_string(),
+                text: "七牛云存储".to_string(),
                 category: "云服务".to_string(),
                 enabled: true,
             },
@@ -136,10 +130,10 @@ fn hotword_can_be_updated_deleted_and_formatted_as_context() {
 
     assert_eq!(hotwords.len(), 1);
     assert_eq!(hotwords[0].id, updated.id);
-    assert_eq!(hotwords[0].target_text, "七牛云存储");
+    assert_eq!(hotwords[0].text, "七牛云存储");
     assert_eq!(hotwords[0].category, "云服务");
     assert!(hotwords[0].enabled);
-    assert_eq!(context, "- 七牛 -> 七牛云存储（云服务）");
+    assert_eq!(context, "- 七牛云存储（云服务）");
 }
 
 #[test]
@@ -148,8 +142,7 @@ fn disabled_hotwords_are_excluded_from_context() {
 
     database
         .create_hotword(HotwordDraft {
-            source_text: "codex".to_string(),
-            target_text: "Codex".to_string(),
+            text: "Codex".to_string(),
             category: "工具名".to_string(),
             enabled: false,
         })
@@ -274,16 +267,23 @@ fn default_config_contains_provider_and_output_defaults() {
         config,
         AppConfig {
             default_persona_id: "prompt-engineer".to_string(),
+            asr_provider: "zhipu".to_string(),
             asr_api_key: "".to_string(),
-            asr_base_url: "https://open.bigmodel.cn/api/paas/v4/".to_string(),
+            asr_base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
             asr_model: "glm-asr-2512".to_string(),
+            openai_asr_model: "whisper-1".to_string(),
             openai_api_key: "".to_string(),
-            openai_base_url: "https://api.openai.com/v1/".to_string(),
-            openai_model: "gpt-4.1-mini".to_string(),
-            recording_mode: "toggle".to_string(),
-            shortcut: "CommandOrControl+Shift+Space".to_string(),
-            output_mode: "copy".to_string(),
+            openai_base_url: "https://api.openai.com/v1".to_string(),
+            openai_model: "gpt-4o-mini".to_string(),
+            text_provider: "zhipu".to_string(),
+            zhipu_api_key: "".to_string(),
+            zhipu_base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
+            zhipu_model: "glm-4.7-flash".to_string(),
+            longpress_shortcut: "CommandOrControl+Shift+R".to_string(),
+            toggle_shortcut: "Alt+Space".to_string(),
             auto_save_history: true,
+            mute_system_audio: false,
+            selected_microphone: "".to_string(),
         }
     );
 }

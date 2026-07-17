@@ -1,6 +1,5 @@
 import React from "react";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import * as LucideIcons from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getPersonaIcon } from "@/lib/persona-icons";
 import type { Persona } from "@/types";
 
 type PersonaPageProps = {
@@ -30,7 +30,7 @@ export function PersonaPage({
   onSetDefaultPersona,
 }: PersonaPageProps) {
   const renderPersonaIcon = (iconName: string) => {
-    const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons];
+    const IconComponent = getPersonaIcon(iconName);
     if (IconComponent) {
       return <IconComponent className="size-5 shrink-0" aria-hidden="true" />;
     }

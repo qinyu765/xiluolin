@@ -36,7 +36,10 @@ impl fmt::Display for AsrError {
             Self::MissingApiKey => write!(formatter, "智谱 ASR API Key 不能为空"),
             Self::MissingAudioFile(path) => write!(formatter, "音频文件不存在：{}", path.display()),
             Self::UnsupportedAudioFormat(extension) => {
-                write!(formatter, "仅支持 wav 或 mp3 音频文件，当前格式：{extension}")
+                write!(
+                    formatter,
+                    "仅支持 wav 或 mp3 音频文件，当前格式：{extension}"
+                )
             }
             Self::AudioTooLarge {
                 max_bytes,
@@ -88,7 +91,10 @@ fn transcribe_with_openai(
     config: &AsrConfig,
 ) -> Result<AsrTranscription, AsrError> {
     let start_time = std::time::Instant::now();
-    let url = format!("{}/audio/transcriptions", config.base_url.trim_end_matches('/'));
+    let url = format!(
+        "{}/audio/transcriptions",
+        config.base_url.trim_end_matches('/')
+    );
 
     eprintln!("[⏱️ ASR OpenAI] Request URL: {}", url);
     eprintln!("[⏱️ ASR OpenAI] Model: {}", config.model.trim());
@@ -99,7 +105,10 @@ fn transcribe_with_openai(
         .text("model", config.model.trim())
         .file("file", audio_path)
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
-    eprintln!("[⏱️ ASR OpenAI] 构建 multipart form - 耗时 {:?}", step1_start.elapsed());
+    eprintln!(
+        "[⏱️ ASR OpenAI] 构建 multipart form - 耗时 {:?}",
+        step1_start.elapsed()
+    );
 
     // 创建禁用自动状态码错误的 agent
     let step2_start = std::time::Instant::now();
@@ -107,22 +116,34 @@ fn transcribe_with_openai(
         .http_status_as_error(false)
         .build()
         .new_agent();
-    eprintln!("[⏱️ ASR OpenAI] 创建 HTTP agent - 耗时 {:?}", step2_start.elapsed());
+    eprintln!(
+        "[⏱️ ASR OpenAI] 创建 HTTP agent - 耗时 {:?}",
+        step2_start.elapsed()
+    );
 
     let step3_start = std::time::Instant::now();
     let response = agent
         .post(&url)
-        .header("Authorization", &format!("Bearer {}", config.api_key.trim()))
+        .header(
+            "Authorization",
+            &format!("Bearer {}", config.api_key.trim()),
+        )
         .send(form)
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
-    eprintln!("[⏱️ ASR OpenAI] 发送 HTTP 请求并等待响应 - 耗时 {:?}", step3_start.elapsed());
+    eprintln!(
+        "[⏱️ ASR OpenAI] 发送 HTTP 请求并等待响应 - 耗时 {:?}",
+        step3_start.elapsed()
+    );
 
     // 检查状态码
     let step4_start = std::time::Instant::now();
     let status_code = response.status().as_u16();
     if status_code >= 400 && status_code < 600 {
         let body = response.into_body().read_to_string().unwrap_or_default();
-        eprintln!("[⏱️ ASR OpenAI] Error: status={}, body={}", status_code, body);
+        eprintln!(
+            "[⏱️ ASR OpenAI] Error: status={}, body={}",
+            status_code, body
+        );
         return Err(AsrError::RequestFailed(format!(
             "http status: {}, body: {}",
             status_code, body
@@ -133,7 +154,10 @@ fn transcribe_with_openai(
         .into_body()
         .read_json()
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
-    eprintln!("[⏱️ ASR OpenAI] 解析响应 - 耗时 {:?}", step4_start.elapsed());
+    eprintln!(
+        "[⏱️ ASR OpenAI] 解析响应 - 耗时 {:?}",
+        step4_start.elapsed()
+    );
 
     eprintln!("[⏱️ ASR OpenAI] 总耗时: {:?}", start_time.elapsed());
 
@@ -152,14 +176,19 @@ fn transcribe_with_zhipu(
     eprintln!("ASR Request URL: {}", url);
     eprintln!("ASR Model: {}", config.model.trim());
     eprintln!("ASR API Key length: {}", config.api_key.trim().len());
-    eprintln!("ASR API Key first 10 chars: {}", &config.api_key.trim().chars().take(10).collect::<String>());
+    eprintln!(
+        "ASR API Key first 10 chars: {}",
+        &config.api_key.trim().chars().take(10).collect::<String>()
+    );
     eprintln!("Audio Path: {}", audio_path.display());
 
     // 检查音频文件的声道信息
     if let Ok(reader) = hound::WavReader::open(audio_path) {
         let spec = reader.spec();
-        eprintln!("Audio Spec: channels={}, sample_rate={}, bits_per_sample={}",
-            spec.channels, spec.sample_rate, spec.bits_per_sample);
+        eprintln!(
+            "Audio Spec: channels={}, sample_rate={}, bits_per_sample={}",
+            spec.channels, spec.sample_rate, spec.bits_per_sample
+        );
     } else {
         eprintln!("无法读取音频文件的 WAV 规格信息");
     }
@@ -179,7 +208,10 @@ fn transcribe_with_zhipu(
 
     let response = agent
         .post(&url)
-        .header("Authorization", &format!("Bearer {}", config.api_key.trim()))
+        .header(
+            "Authorization",
+            &format!("Bearer {}", config.api_key.trim()),
+        )
         .send(form)
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
 
@@ -233,10 +265,7 @@ fn validate_audio_file(audio_path: &Path, config: &AsrConfig) -> Result<(), AsrE
 }
 
 fn transcriptions_url(base_url: &str) -> String {
-    format!(
-        "{}/audio/transcriptions",
-        base_url.trim_end_matches('/')
-    )
+    format!("{}/audio/transcriptions", base_url.trim_end_matches('/'))
 }
 
 #[tauri::command]

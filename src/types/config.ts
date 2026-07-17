@@ -17,7 +17,6 @@ export type AppConfig = {
   auto_save_history: boolean;
   mute_system_audio: boolean;
   selected_microphone: string;
-  recording_mode: string;
 };
 
 export type AudioDevice = {

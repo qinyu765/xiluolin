@@ -130,7 +130,7 @@ pub fallback_asr_provider: String,      // 默认 "zhipu"
 
 ### 6. UI 实现
 
-**文件：`src/components/dialogs/AppSettingsDialog.tsx`**
+**文件：`src/pages/SettingsPage.tsx`**
 
 在"模型配置"标签页添加"本地 ASR"卡片：
 - 启用本地 ASR 开关
@@ -141,7 +141,7 @@ pub fallback_asr_provider: String,      // 默认 "zhipu"
 
 **文件：`src/pages/SettingsPage.tsx`**
 
-实现前端逻辑：
+在现有设置页的模型配置区域添加本地 ASR 卡片，并实现前端逻辑：
 - 检查模型状态（`get_model_info`）
 - 监听下载进度事件（`model-download-progress`）
 - 下载模型处理（`download_whisper_model`）

@@ -35,8 +35,9 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
         println!("指示器 URL: {}", url_string);
 
         WebviewUrl::External(
-            url_string.parse()
-                .map_err(|e| format!("解析 URL 失败: {}", e))?
+            url_string
+                .parse()
+                .map_err(|e| format!("解析 URL 失败: {}", e))?,
         )
     } else {
         // 生产模式：使用打包的资源
@@ -44,21 +45,21 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
     };
 
     // 创建新的指示器窗口
-    let window = WebviewWindowBuilder::new(
-        app,
-        INDICATOR_LABEL,
-        indicator_url,
-    )
-    .title("录音中")
-    .inner_size(180.0, 50.0)
-    .resizable(false)
-    .decorations(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .transparent(true)
-    .visible(false)
-    .build()
-    .map_err(|e| format!("创建指示器窗口失败: {}", e))?;
+    let window_builder = WebviewWindowBuilder::new(app, INDICATOR_LABEL, indicator_url)
+        .title("录音中")
+        .inner_size(180.0, 50.0)
+        .resizable(false)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true);
+
+    #[cfg(not(target_os = "macos"))]
+    let window_builder = window_builder.transparent(true);
+
+    let window = window_builder
+        .visible(false)
+        .build()
+        .map_err(|e| format!("创建指示器窗口失败: {}", e))?;
 
     // 获取屏幕尺寸并定位到中下位置
     if let Ok(monitor) = window.current_monitor() {

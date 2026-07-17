@@ -260,7 +260,7 @@ impl LocalDatabase {
                 draft.name,
                 draft.description,
                 draft.icon,
-                0  // is_default = false
+                0 // is_default = false
             ],
         )?;
 
@@ -277,12 +277,7 @@ impl LocalDatabase {
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?1
             "#,
-            params![
-                id,
-                draft.name,
-                draft.description,
-                draft.icon
-            ],
+            params![id, draft.name, draft.description, draft.icon],
         )?;
 
         if updated == 0 {
@@ -293,10 +288,9 @@ impl LocalDatabase {
     }
 
     pub fn delete_persona(&self, id: &str) -> rusqlite::Result<()> {
-        let deleted = self.connection.execute(
-            "DELETE FROM personas WHERE id = ?1",
-            [id],
-        )?;
+        let deleted = self
+            .connection
+            .execute("DELETE FROM personas WHERE id = ?1", [id])?;
 
         if deleted == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
@@ -324,12 +318,7 @@ impl LocalDatabase {
             INSERT INTO hotwords (id, text, category, enabled)
             VALUES (?1, ?2, ?3, ?4)
             "#,
-            params![
-                id,
-                draft.text,
-                draft.category,
-                bool_to_int(draft.enabled)
-            ],
+            params![id, draft.text, draft.category, bool_to_int(draft.enabled)],
         )?;
 
         self.get_hotword(&id)
@@ -358,12 +347,7 @@ impl LocalDatabase {
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?1
             "#,
-            params![
-                id,
-                draft.text,
-                draft.category,
-                bool_to_int(draft.enabled)
-            ],
+            params![id, draft.text, draft.category, bool_to_int(draft.enabled)],
         )?;
         if updated == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
@@ -487,10 +471,8 @@ impl LocalDatabase {
     }
 
     pub fn delete_history_record(&self, id: &str) -> rusqlite::Result<()> {
-        self.connection.execute(
-            "DELETE FROM history_records WHERE id = ?1",
-            params![id],
-        )?;
+        self.connection
+            .execute("DELETE FROM history_records WHERE id = ?1", params![id])?;
         Ok(())
     }
 

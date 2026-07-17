@@ -42,13 +42,21 @@ impl fmt::Display for RecordingError {
         match self {
             Self::AlreadyRecording => write!(formatter, "录音已在进行中，请先停止当前录音"),
             Self::NoRecordingInProgress => write!(formatter, "当前没有正在进行的录音"),
-            Self::MicrophonePermissionDenied => write!(formatter, "麦克风权限缺失，请在系统设置中开启麦克风权限"),
-            Self::NoInputDeviceAvailable => write!(formatter, "未找到可用的音频输入设备，请检查麦克风连接"),
-            Self::DeviceConfigFailed(message) => write!(formatter, "获取音频设备配置失败：{message}"),
+            Self::MicrophonePermissionDenied => {
+                write!(formatter, "麦克风权限缺失，请在系统设置中开启麦克风权限")
+            }
+            Self::NoInputDeviceAvailable => {
+                write!(formatter, "未找到可用的音频输入设备，请检查麦克风连接")
+            }
+            Self::DeviceConfigFailed(message) => {
+                write!(formatter, "获取音频设备配置失败：{message}")
+            }
             Self::FileCreationFailed(message) => write!(formatter, "创建录音文件失败：{message}"),
             Self::StreamBuildFailed(message) => write!(formatter, "构建录音流失败：{message}"),
             Self::StreamStartFailed(message) => write!(formatter, "启动录音流失败：{message}"),
-            Self::UnsupportedSampleFormat(format) => write!(formatter, "不支持的音频采样格式：{format}"),
+            Self::UnsupportedSampleFormat(format) => {
+                write!(formatter, "不支持的音频采样格式：{format}")
+            }
             Self::StateLockFailed(message) => write!(formatter, "录音状态锁定失败：{message}"),
         }
     }
@@ -125,24 +133,22 @@ pub async fn start_recording(
         .ok_or_else(|| RecordingError::NoInputDeviceAvailable)?;
 
     // 获取设备支持的配置
-    let config = device
-        .default_input_config()
-        .map_err(|e| {
-            // 检查是否是权限问题
-            let error_msg = e.to_string().to_lowercase();
-            if error_msg.contains("permission") || error_msg.contains("access") {
-                RecordingError::MicrophonePermissionDenied
-            } else {
-                RecordingError::DeviceConfigFailed(e.to_string())
-            }
-        })?;
+    let config = device.default_input_config().map_err(|e| {
+        // 检查是否是权限问题
+        let error_msg = e.to_string().to_lowercase();
+        if error_msg.contains("permission") || error_msg.contains("access") {
+            RecordingError::MicrophonePermissionDenied
+        } else {
+            RecordingError::DeviceConfigFailed(e.to_string())
+        }
+    })?;
 
     let sample_rate = config.sample_rate().0;
     let channels = config.channels();
 
     // 创建 WAV 文件写入器 - 强制使用单声道以兼容智谱 ASR
     let spec = WavSpec {
-        channels: 1,  // 强制单声道
+        channels: 1, // 强制单声道
         sample_rate,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
@@ -221,7 +227,11 @@ pub async fn start_recording(
             None,
         ),
         _ => {
-            return Err(RecordingError::UnsupportedSampleFormat(format!("{:?}", config.sample_format())).into())
+            return Err(RecordingError::UnsupportedSampleFormat(format!(
+                "{:?}",
+                config.sample_format()
+            ))
+            .into())
         }
     }
     .map_err(|e| RecordingError::StreamBuildFailed(e.to_string()))?;
@@ -257,9 +267,7 @@ pub async fn start_recording(
 }
 
 #[tauri::command]
-pub async fn stop_recording(
-    state: State<'_, RecordingState>,
-) -> Result<RecordingResult, String> {
+pub async fn stop_recording(state: State<'_, RecordingState>) -> Result<RecordingResult, String> {
     // 检查录音状态并获取必要信息
     let (duration_ms, output_path) = {
         let mut is_recording = state
@@ -329,9 +337,7 @@ pub async fn stop_recording(
 pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
     let host = cpal::default_host();
 
-    let default_device_name = host
-        .default_input_device()
-        .and_then(|d| d.name().ok());
+    let default_device_name = host.default_input_device().and_then(|d| d.name().ok());
 
     let devices = host
         .input_devices()
@@ -341,10 +347,7 @@ pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
     for device in devices {
         if let Ok(name) = device.name() {
             let is_default = default_device_name.as_ref() == Some(&name);
-            result.push(AudioDevice {
-                name,
-                is_default,
-            });
+            result.push(AudioDevice { name, is_default });
         }
     }
 

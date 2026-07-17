@@ -9,8 +9,8 @@ pub mod recording;
 pub mod text_polish;
 
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tauri::Manager;
+use tokio::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -28,8 +28,10 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 match data::read_app_config(app_handle.clone()) {
                     Ok(config) => {
-                        println!("读取到配置: longpress={}, toggle={}",
-                            config.longpress_shortcut, config.toggle_shortcut);
+                        println!(
+                            "读取到配置: longpress={}, toggle={}",
+                            config.longpress_shortcut, config.toggle_shortcut
+                        );
 
                         let longpress = if config.longpress_shortcut.is_empty() {
                             None
@@ -42,11 +44,7 @@ pub fn run() {
                             Some(config.toggle_shortcut.clone())
                         };
 
-                        match hotkey::register_both_hotkeys(
-                            app_handle,
-                            longpress,
-                            toggle,
-                        ).await {
+                        match hotkey::register_both_hotkeys(app_handle, longpress, toggle).await {
                             Ok(_) => println!("快捷键注册成功"),
                             Err(e) => eprintln!("快捷键注册失败: {}", e),
                         }

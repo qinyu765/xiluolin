@@ -68,7 +68,9 @@ fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHa
     );
 
     let handle = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("mock server should accept request");
+        let (mut stream, _) = listener
+            .accept()
+            .expect("mock server should accept request");
         let request = read_request(&mut stream);
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -86,6 +88,7 @@ fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHa
 
 fn asr_config(base_url: String, api_key: &str) -> AsrConfig {
     AsrConfig {
+        provider: "zhipu".to_string(),
         api_key: api_key.to_string(),
         base_url,
         model: "glm-asr-2512".to_string(),
@@ -96,7 +99,7 @@ fn asr_config(base_url: String, api_key: &str) -> AsrConfig {
 fn default_config_uses_zhipu_asr_endpoint_and_model() {
     let config = default_app_config();
 
-    assert_eq!(config.asr_base_url, "https://open.bigmodel.cn/api/paas/v4/");
+    assert_eq!(config.asr_base_url, "https://open.bigmodel.cn/api/paas/v4");
     assert_eq!(config.asr_model, "glm-asr-2512");
 }
 
@@ -121,10 +124,7 @@ fn rejects_unsupported_audio_extension() {
     )
     .expect_err("unsupported extension should fail");
 
-    assert_eq!(
-        error,
-        AsrError::UnsupportedAudioFormat("txt".to_string())
-    );
+    assert_eq!(error, AsrError::UnsupportedAudioFormat("txt".to_string()));
 }
 
 #[test]

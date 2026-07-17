@@ -38,7 +38,9 @@ impl fmt::Display for TextPolishError {
             Self::MissingApiKey => write!(formatter, "OpenAI API Key 不能为空"),
             Self::MissingRawText => write!(formatter, "原始识别文本不能为空"),
             Self::RequestFailed(message) => write!(formatter, "OpenAI 文本整理请求失败：{message}"),
-            Self::InvalidResponse(message) => write!(formatter, "OpenAI 文本整理响应解析失败：{message}"),
+            Self::InvalidResponse(message) => {
+                write!(formatter, "OpenAI 文本整理响应解析失败：{message}")
+            }
         }
     }
 }
@@ -125,22 +127,34 @@ fn send_polish_request(
         ],
         temperature: 0.3,
     };
-    eprintln!("[⏱️ 文本润色] 构建请求体 - 耗时 {:?}", step2_start.elapsed());
+    eprintln!(
+        "[⏱️ 文本润色] 构建请求体 - 耗时 {:?}",
+        step2_start.elapsed()
+    );
 
     let step3_start = std::time::Instant::now();
     let response = ureq::post(&chat_completions_url(&config.base_url))
-        .header("Authorization", &format!("Bearer {}", config.api_key.trim()))
+        .header(
+            "Authorization",
+            &format!("Bearer {}", config.api_key.trim()),
+        )
         .header("Content-Type", "application/json")
         .send_json(&body)
         .map_err(|error| TextPolishError::RequestFailed(error.to_string()))?;
-    eprintln!("[⏱️ 文本润色] 发送 HTTP 请求并等待响应 - 耗时 {:?}", step3_start.elapsed());
+    eprintln!(
+        "[⏱️ 文本润色] 发送 HTTP 请求并等待响应 - 耗时 {:?}",
+        step3_start.elapsed()
+    );
 
     let step4_start = std::time::Instant::now();
     let response: OpenAiChatResponse = response
         .into_body()
         .read_json()
         .map_err(|error| TextPolishError::InvalidResponse(error.to_string()))?;
-    eprintln!("[⏱️ 文本润色] 解析响应 JSON - 耗时 {:?}", step4_start.elapsed());
+    eprintln!(
+        "[⏱️ 文本润色] 解析响应 JSON - 耗时 {:?}",
+        step4_start.elapsed()
+    );
 
     let step5_start = std::time::Instant::now();
     let final_text = response
@@ -154,7 +168,10 @@ fn send_polish_request(
             "响应缺少文本内容".to_string(),
         ));
     }
-    eprintln!("[⏱️ 文本润色] 提取文本内容 - 耗时 {:?}", step5_start.elapsed());
+    eprintln!(
+        "[⏱️ 文本润色] 提取文本内容 - 耗时 {:?}",
+        step5_start.elapsed()
+    );
 
     eprintln!("[⏱️ 文本润色] 总耗时: {:?}", start_time.elapsed());
 
@@ -193,12 +210,14 @@ fn build_instructions(request: &TextPolishRequest) -> String {
         instructions.push_str("\n\n处理语音识别文本时，优先识别和使用这些热词。");
     }
 
-    instructions.push_str("\n\n通用要求：\n\
+    instructions.push_str(
+        "\n\n通用要求：\n\
         1. 自动补标点和断句，使语句通顺\n\
         2. 去除口头禅（如：嗯、啊、那个、就是说、然后呢）和无意义的重复表达\n\
         3. 修正明显的语法错误和不通顺的表达\n\
         4. 当人格风格要求与通用清理要求冲突时，优先满足人格风格要求\n\
-        5. 只输出改写后的最终文本，不要添加任何解释或说明");
+        5. 只输出改写后的最终文本，不要添加任何解释或说明",
+    );
     instructions
 }
 

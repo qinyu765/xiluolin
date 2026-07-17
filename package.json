@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "build:frontend": "node scripts/build.mjs",
+    "build": "pnpm typecheck && pnpm build:frontend",
+    "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo check --manifest-path src-tauri/Cargo.toml && cargo test --manifest-path src-tauri/Cargo.toml",
+    "check": "pnpm build && pnpm check:rust",
     "preview": "vite preview",
     "tauri": "tauri"
   },

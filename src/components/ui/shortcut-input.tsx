@@ -127,7 +127,6 @@ export function ShortcutInput({
     setIsRecording(false);
     setPressCount(0);
     setLastKey("");
-    setHasNonModifierKey(false);
   };
 
   const handleFocus = () => {

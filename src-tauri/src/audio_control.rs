@@ -3,11 +3,7 @@
 
 #[cfg(target_os = "windows")]
 pub mod windows_audio {
-    use windows::{
-        core::*,
-        Win32::Media::Audio::*,
-        Win32::System::Com::*,
-    };
+    use windows::{core::*, Win32::Media::Audio::*, Win32::System::Com::*};
 
     /// 静音所有其他应用的音频会话
     pub fn mute_all_sessions() -> Result<()> {
@@ -17,11 +13,8 @@ pub mod windows_audio {
 
             let result = (|| -> Result<()> {
                 // 获取设备枚举器
-                let enumerator: IMMDeviceEnumerator = CoCreateInstance(
-                    &MMDeviceEnumerator,
-                    None,
-                    CLSCTX_ALL,
-                )?;
+                let enumerator: IMMDeviceEnumerator =
+                    CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
 
                 // 获取默认音频输出设备
                 let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?;
@@ -60,11 +53,8 @@ pub mod windows_audio {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
 
             let result = (|| -> Result<()> {
-                let enumerator: IMMDeviceEnumerator = CoCreateInstance(
-                    &MMDeviceEnumerator,
-                    None,
-                    CLSCTX_ALL,
-                )?;
+                let enumerator: IMMDeviceEnumerator =
+                    CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
 
                 let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?;
                 let session_manager: IAudioSessionManager2 = device.Activate(CLSCTX_ALL, None)?;

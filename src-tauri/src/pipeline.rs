@@ -99,7 +99,10 @@ pub fn process_voice_input(
     // 1. 准备音频文件
     let step1_start = std::time::Instant::now();
     let audio_path = prepare_uploaded_audio_file(request.audio_bytes, &request.audio_extension)?;
-    eprintln!("[⏱️ 性能] 步骤1: 准备音频文件 - 耗时 {:?}", step1_start.elapsed());
+    eprintln!(
+        "[⏱️ 性能] 步骤1: 准备音频文件 - 耗时 {:?}",
+        step1_start.elapsed()
+    );
 
     // 2. ASR 识别
     let step2_start = std::time::Instant::now();
@@ -107,7 +110,10 @@ pub fn process_voice_input(
         .map_err(|error| VoiceInputError::RequestFailed(error.to_string()));
     let _ = std::fs::remove_file(&audio_path);
     let transcription = transcription?;
-    eprintln!("[⏱️ 性能] 步骤2: ASR 识别 - 耗时 {:?}", step2_start.elapsed());
+    eprintln!(
+        "[⏱️ 性能] 步骤2: ASR 识别 - 耗时 {:?}",
+        step2_start.elapsed()
+    );
 
     // 3. 获取人格和热词
     let step3_start = std::time::Instant::now();
@@ -115,7 +121,10 @@ pub fn process_voice_input(
     let hotword_context = database
         .enabled_hotword_context()
         .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
-    eprintln!("[⏱️ 性能] 步骤3: 获取人格和热词 - 耗时 {:?}", step3_start.elapsed());
+    eprintln!(
+        "[⏱️ 性能] 步骤3: 获取人格和热词 - 耗时 {:?}",
+        step3_start.elapsed()
+    );
 
     // 4. 文本润色
     let step4_start = std::time::Instant::now();
@@ -128,7 +137,10 @@ pub fn process_voice_input(
         &text_config,
     )
     .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
-    eprintln!("[⏱️ 性能] 步骤4: 文本润色 - 耗时 {:?}", step4_start.elapsed());
+    eprintln!(
+        "[⏱️ 性能] 步骤4: 文本润色 - 耗时 {:?}",
+        step4_start.elapsed()
+    );
 
     // 5. 异步保存历史记录（不阻塞主流程）
     let history_record = if auto_save_history {
@@ -150,7 +162,10 @@ pub fn process_voice_input(
                     if let Err(e) = db.create_history_record(draft) {
                         eprintln!("[⚠️ 异步] 保存历史记录失败: {}", e);
                     } else {
-                        eprintln!("[⏱️ 异步] 保存历史记录完成 - 耗时 {:?}", step5_start.elapsed());
+                        eprintln!(
+                            "[⏱️ 异步] 保存历史记录完成 - 耗时 {:?}",
+                            step5_start.elapsed()
+                        );
                     }
                 }
                 Err(e) => eprintln!("[⚠️ 异步] 打开数据库失败: {}", e),
@@ -161,7 +176,10 @@ pub fn process_voice_input(
         None
     };
 
-    eprintln!("[⏱️ 性能] process_voice_input 总耗时: {:?}", start_time.elapsed());
+    eprintln!(
+        "[⏱️ 性能] process_voice_input 总耗时: {:?}",
+        start_time.elapsed()
+    );
 
     Ok(VoiceInputResult {
         raw_text: transcription.text,
@@ -205,9 +223,17 @@ pub fn process_uploaded_audio(
     };
 
     let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
-        (config.zhipu_api_key.clone(), config.zhipu_base_url.clone(), config.zhipu_model.clone())
+        (
+            config.zhipu_api_key.clone(),
+            config.zhipu_base_url.clone(),
+            config.zhipu_model.clone(),
+        )
     } else {
-        (config.openai_api_key.clone(), config.openai_base_url.clone(), config.openai_model.clone())
+        (
+            config.openai_api_key.clone(),
+            config.openai_base_url.clone(),
+            config.openai_model.clone(),
+        )
     };
 
     process_voice_input(
@@ -256,7 +282,10 @@ pub fn process_recording_file(
     eprintln!("ASR Provider: {}", config.asr_provider);
     eprintln!("ASR API Key 长度: {}", config.asr_api_key.len());
     if !config.asr_api_key.is_empty() {
-        eprintln!("ASR API Key: {}...", &config.asr_api_key.chars().take(8).collect::<String>());
+        eprintln!(
+            "ASR API Key: {}...",
+            &config.asr_api_key.chars().take(8).collect::<String>()
+        );
     }
     eprintln!("ASR Base URL: {}", config.asr_base_url);
     eprintln!("ASR Model: {}", config.asr_model);
@@ -278,9 +307,17 @@ pub fn process_recording_file(
     };
 
     let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
-        (config.zhipu_api_key.clone(), config.zhipu_base_url.clone(), config.zhipu_model.clone())
+        (
+            config.zhipu_api_key.clone(),
+            config.zhipu_base_url.clone(),
+            config.zhipu_model.clone(),
+        )
     } else {
-        (config.openai_api_key.clone(), config.openai_base_url.clone(), config.openai_model.clone())
+        (
+            config.openai_api_key.clone(),
+            config.openai_base_url.clone(),
+            config.openai_model.clone(),
+        )
     };
 
     process_voice_input(

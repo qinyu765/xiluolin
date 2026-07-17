@@ -1,26 +1,7 @@
 import * as React from "react";
-import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const AVAILABLE_ICONS = [
-  "Bot",
-  "ClipboardList",
-  "Lightbulb",
-  "Mail",
-  "Languages",
-  "Sparkles",
-  "Zap",
-  "Target",
-  "Palette",
-  "BookOpen",
-  "Code",
-  "Briefcase",
-  "Heart",
-  "Star",
-  "Flame",
-] as const;
-
-type IconName = (typeof AVAILABLE_ICONS)[number];
+import { getPersonaIcon, PERSONA_ICON_NAMES } from "@/lib/persona-icons";
 
 interface IconPickerProps {
   value: string;
@@ -30,9 +11,8 @@ interface IconPickerProps {
 export function IconPicker({ value, onChange }: IconPickerProps) {
   return (
     <div className="grid grid-cols-5 gap-2">
-      {AVAILABLE_ICONS.map((iconName) => {
-        const IconComponent =
-          LucideIcons[iconName as keyof typeof LucideIcons];
+      {PERSONA_ICON_NAMES.map((iconName) => {
+        const IconComponent = getPersonaIcon(iconName);
         const isSelected = value === iconName;
 
         return (

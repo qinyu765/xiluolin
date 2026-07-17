@@ -1,6 +1,6 @@
-use enigo::{Enigo, Key, Keyboard, Settings};
 use arboard::Clipboard;
-use serde::{Serialize, Deserialize};
+use enigo::{Enigo, Key, Keyboard, Settings};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -30,7 +30,10 @@ pub async fn output_text(text: String) -> Result<OutputResult, String> {
     println!("[⏱️ 输出] 尝试方法 1: 剪贴板粘贴");
     match clipboard_paste(&text).await {
         Ok(_) => {
-            println!("[⏱️ 输出] ✅ 剪贴板粘贴成功 - 耗时 {:?}", step1_start.elapsed());
+            println!(
+                "[⏱️ 输出] ✅ 剪贴板粘贴成功 - 耗时 {:?}",
+                step1_start.elapsed()
+            );
             println!("[⏱️ 输出] 总耗时: {:?}", start_time.elapsed());
             println!("[⏱️ 输出] ========== 输出请求完成 ==========");
             return Ok(OutputResult {
@@ -40,7 +43,11 @@ pub async fn output_text(text: String) -> Result<OutputResult, String> {
             });
         }
         Err(e) => {
-            println!("[⏱️ 输出] ❌ 剪贴板粘贴失败 - 耗时 {:?}: {}", step1_start.elapsed(), e);
+            println!(
+                "[⏱️ 输出] ❌ 剪贴板粘贴失败 - 耗时 {:?}: {}",
+                step1_start.elapsed(),
+                e
+            );
         }
     }
 
@@ -48,7 +55,10 @@ pub async fn output_text(text: String) -> Result<OutputResult, String> {
     let step2_start = std::time::Instant::now();
     println!("[⏱️ 输出] 尝试方法 2: 仅复制到剪贴板");
     clipboard_copy(&text).await?;
-    println!("[⏱️ 输出] ⚠️ 已复制到剪贴板，需要手动粘贴 - 耗时 {:?}", step2_start.elapsed());
+    println!(
+        "[⏱️ 输出] ⚠️ 已复制到剪贴板，需要手动粘贴 - 耗时 {:?}",
+        step2_start.elapsed()
+    );
     println!("[⏱️ 输出] 总耗时: {:?}", start_time.elapsed());
     println!("[⏱️ 输出] ========== 输出请求完成 ==========");
     Ok(OutputResult {
@@ -72,21 +82,23 @@ async fn clipboard_paste(text: &str) -> Result<(), String> {
         std::thread::sleep(std::time::Duration::from_millis(20));
 
         println!("[clipboard_paste] 初始化 enigo...");
-        let mut enigo = Enigo::new(&Settings::default())
-            .map_err(|e| {
-                let err_msg = format!("初始化键盘模拟失败: {}", e);
-                println!("[clipboard_paste] ❌ {}", err_msg);
-                err_msg
-            })?;
+        let mut enigo = Enigo::new(&Settings::default()).map_err(|e| {
+            let err_msg = format!("初始化键盘模拟失败: {}", e);
+            println!("[clipboard_paste] ❌ {}", err_msg);
+            err_msg
+        })?;
 
         #[cfg(target_os = "macos")]
         {
             println!("[clipboard_paste] 执行 Cmd+V (macOS)...");
-            enigo.key(Key::Meta, enigo::Direction::Press)
+            enigo
+                .key(Key::Meta, enigo::Direction::Press)
                 .map_err(|e| format!("按下Meta键失败: {}", e))?;
-            enigo.key(Key::Unicode('v'), enigo::Direction::Click)
+            enigo
+                .key(Key::Unicode('v'), enigo::Direction::Click)
                 .map_err(|e| format!("按下V键失败: {}", e))?;
-            enigo.key(Key::Meta, enigo::Direction::Release)
+            enigo
+                .key(Key::Meta, enigo::Direction::Release)
                 .map_err(|e| format!("释放Meta键失败: {}", e))?;
         }
 
@@ -94,7 +106,8 @@ async fn clipboard_paste(text: &str) -> Result<(), String> {
         {
             println!("[clipboard_paste] 准备执行 Ctrl+V (Windows/Linux)...");
             println!("[clipboard_paste] 步骤1: 按下 Ctrl 键");
-            enigo.key(Key::Control, enigo::Direction::Press)
+            enigo
+                .key(Key::Control, enigo::Direction::Press)
                 .map_err(|e| {
                     let err_msg = format!("按下Ctrl键失败: {}", e);
                     println!("[clipboard_paste] ❌ {}", err_msg);
@@ -102,7 +115,8 @@ async fn clipboard_paste(text: &str) -> Result<(), String> {
                 })?;
 
             println!("[clipboard_paste] 步骤2: 点击 V 键");
-            enigo.key(Key::Unicode('v'), enigo::Direction::Click)
+            enigo
+                .key(Key::Unicode('v'), enigo::Direction::Click)
                 .map_err(|e| {
                     let err_msg = format!("按下V键失败: {}", e);
                     println!("[clipboard_paste] ❌ {}", err_msg);
@@ -110,7 +124,8 @@ async fn clipboard_paste(text: &str) -> Result<(), String> {
                 })?;
 
             println!("[clipboard_paste] 步骤3: 释放 Ctrl 键");
-            enigo.key(Key::Control, enigo::Direction::Release)
+            enigo
+                .key(Key::Control, enigo::Direction::Release)
                 .map_err(|e| {
                     let err_msg = format!("释放Ctrl键失败: {}", e);
                     println!("[clipboard_paste] ❌ {}", err_msg);
@@ -133,21 +148,21 @@ async fn clipboard_paste(text: &str) -> Result<(), String> {
 // 仅复制到剪贴板
 async fn clipboard_copy(text: &str) -> Result<(), String> {
     let text = text.to_string();
-    println!("[clipboard_copy] 复制文本到剪贴板，长度: {} 字符", text.len());
+    println!(
+        "[clipboard_copy] 复制文本到剪贴板，长度: {} 字符",
+        text.len()
+    );
     tokio::task::spawn_blocking(move || {
-        let mut clipboard = Clipboard::new()
-            .map_err(|e| {
-                let err_msg = format!("无法访问剪贴板: {}", e);
-                println!("[clipboard_copy] ❌ {}", err_msg);
-                err_msg
-            })?;
-        clipboard
-            .set_text(text)
-            .map_err(|e| {
-                let err_msg = format!("写入剪贴板失败: {}", e);
-                println!("[clipboard_copy] ❌ {}", err_msg);
-                err_msg
-            })?;
+        let mut clipboard = Clipboard::new().map_err(|e| {
+            let err_msg = format!("无法访问剪贴板: {}", e);
+            println!("[clipboard_copy] ❌ {}", err_msg);
+            err_msg
+        })?;
+        clipboard.set_text(text).map_err(|e| {
+            let err_msg = format!("写入剪贴板失败: {}", e);
+            println!("[clipboard_copy] ❌ {}", err_msg);
+            err_msg
+        })?;
         println!("[clipboard_copy] ✅ 文本已复制到剪贴板");
         Ok::<(), String>(())
     })

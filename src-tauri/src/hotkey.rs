@@ -1,6 +1,6 @@
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent};
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
 // 快捷键状态管理
@@ -9,7 +9,7 @@ pub struct HotkeyState {
     pub toggle_registered: bool,
     pub longpress_shortcut: Option<String>,
     pub toggle_shortcut: Option<String>,
-    pub is_recording_via_hotkey: bool,  // 跟踪通过快捷键触发的录音状态
+    pub is_recording_via_hotkey: bool, // 跟踪通过快捷键触发的录音状态
 }
 
 #[derive(Clone, Debug)]
@@ -32,11 +32,7 @@ impl Default for HotkeyState {
 
 // 注册全局快捷键
 #[tauri::command]
-pub async fn register_hotkey(
-    app: AppHandle,
-    shortcut: String,
-    mode: String,
-) -> Result<(), String> {
+pub async fn register_hotkey(app: AppHandle, shortcut: String, mode: String) -> Result<(), String> {
     let state = app.state::<Arc<Mutex<HotkeyState>>>();
     let mut state = state.lock().await;
 
@@ -52,7 +48,8 @@ pub async fn register_hotkey(
         RecordingMode::LongPress => {
             if state.longpress_registered {
                 if let Some(old_shortcut) = &state.longpress_shortcut {
-                    let old_shortcut_obj: Shortcut = old_shortcut.parse()
+                    let old_shortcut_obj: Shortcut = old_shortcut
+                        .parse()
                         .map_err(|e| format!("解析旧快捷键失败: {}", e))?;
                     let _ = app.global_shortcut().unregister(old_shortcut_obj);
                 }
@@ -61,7 +58,8 @@ pub async fn register_hotkey(
         RecordingMode::Toggle => {
             if state.toggle_registered {
                 if let Some(old_shortcut) = &state.toggle_shortcut {
-                    let old_shortcut_obj: Shortcut = old_shortcut.parse()
+                    let old_shortcut_obj: Shortcut = old_shortcut
+                        .parse()
                         .map_err(|e| format!("解析旧快捷键失败: {}", e))?;
                     let _ = app.global_shortcut().unregister(old_shortcut_obj);
                 }
@@ -70,7 +68,8 @@ pub async fn register_hotkey(
     }
 
     // 注册新快捷键
-    let shortcut_obj: Shortcut = shortcut.parse()
+    let shortcut_obj: Shortcut = shortcut
+        .parse()
         .map_err(|e| format!("快捷键格式错误: {}", e))?;
 
     let app_clone = app.clone();
@@ -105,8 +104,10 @@ pub async fn register_both_hotkeys(
     longpress_shortcut: Option<String>,
     toggle_shortcut: Option<String>,
 ) -> Result<(), String> {
-    println!("register_both_hotkeys 被调用: longpress={:?}, toggle={:?}",
-        longpress_shortcut, toggle_shortcut);
+    println!(
+        "register_both_hotkeys 被调用: longpress={:?}, toggle={:?}",
+        longpress_shortcut, toggle_shortcut
+    );
 
     let state = app.state::<Arc<Mutex<HotkeyState>>>();
     let mut state = state.lock().await;
@@ -140,7 +141,8 @@ pub async fn register_both_hotkeys(
     if let Some(shortcut) = longpress_shortcut {
         if !shortcut.is_empty() {
             println!("尝试注册长按模式快捷键: {}", shortcut);
-            let shortcut_obj: Shortcut = shortcut.parse()
+            let shortcut_obj: Shortcut = shortcut
+                .parse()
                 .map_err(|e| format!("长按模式快捷键格式错误: {}", e))?;
 
             let app_clone = app.clone();
@@ -160,7 +162,8 @@ pub async fn register_both_hotkeys(
     if let Some(shortcut) = toggle_shortcut {
         if !shortcut.is_empty() {
             println!("尝试注册切换模式快捷键: {}", shortcut);
-            let shortcut_obj: Shortcut = shortcut.parse()
+            let shortcut_obj: Shortcut = shortcut
+                .parse()
                 .map_err(|e| format!("切换模式快捷键格式错误: {}", e))?;
 
             let app_clone = app.clone();
@@ -189,7 +192,8 @@ pub async fn unregister_hotkey(app: AppHandle) -> Result<(), String> {
     // 注销长按模式快捷键
     if state.longpress_registered {
         if let Some(shortcut) = &state.longpress_shortcut {
-            let shortcut_obj: Shortcut = shortcut.parse()
+            let shortcut_obj: Shortcut = shortcut
+                .parse()
                 .map_err(|e| format!("解析快捷键失败: {}", e))?;
             let _ = app.global_shortcut().unregister(shortcut_obj);
         }
@@ -198,7 +202,8 @@ pub async fn unregister_hotkey(app: AppHandle) -> Result<(), String> {
     // 注销切换模式快捷键
     if state.toggle_registered {
         if let Some(shortcut) = &state.toggle_shortcut {
-            let shortcut_obj: Shortcut = shortcut.parse()
+            let shortcut_obj: Shortcut = shortcut
+                .parse()
                 .map_err(|e| format!("解析快捷键失败: {}", e))?;
             let _ = app.global_shortcut().unregister(shortcut_obj);
         }
@@ -214,11 +219,7 @@ pub async fn unregister_hotkey(app: AppHandle) -> Result<(), String> {
 }
 
 // 处理快捷键事件
-fn handle_hotkey_event(
-    app: &AppHandle,
-    event: ShortcutEvent,
-    mode: &RecordingMode,
-) {
+fn handle_hotkey_event(app: &AppHandle, event: ShortcutEvent, mode: &RecordingMode) {
     println!("快捷键事件触发: mode={:?}, state={:?}", mode, event.state);
     let app = app.clone();
     let mode = mode.clone();
@@ -236,10 +237,7 @@ fn handle_hotkey_event(
 }
 
 // 长按模式处理
-async fn handle_long_press_mode(
-    app: &AppHandle,
-    event: ShortcutEvent,
-) {
+async fn handle_long_press_mode(app: &AppHandle, event: ShortcutEvent) {
     use crate::recording::{start_recording, stop_recording, RecordingState};
 
     let hotkey_state = app.state::<Arc<Mutex<HotkeyState>>>();
@@ -271,8 +269,10 @@ async fn handle_long_press_mode(
             let recording_state = app.state::<RecordingState>();
             match stop_recording(recording_state).await {
                 Ok(result) => {
-                    println!("长按模式: 录音停止成功，文件路径: {}, 时长: {}ms",
-                        result.file_path, result.duration_ms);
+                    println!(
+                        "长按模式: 录音停止成功，文件路径: {}, 时长: {}ms",
+                        result.file_path, result.duration_ms
+                    );
                     // 隐藏录音指示器
                     let _ = crate::indicator::hide_indicator(app);
                     // 更新快捷键状态
@@ -296,10 +296,7 @@ async fn handle_long_press_mode(
 }
 
 // 切换模式处理
-async fn handle_toggle_mode(
-    app: &AppHandle,
-    event: ShortcutEvent,
-) {
+async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
     use crate::recording::{start_recording, stop_recording, RecordingState};
 
     // 只响应按下事件
@@ -321,8 +318,10 @@ async fn handle_toggle_mode(
         println!("切换模式: 当前正在录音，准备停止");
         match stop_recording(recording_state).await {
             Ok(result) => {
-                println!("切换模式: 录音停止成功，文件路径: {}, 时长: {}ms",
-                    result.file_path, result.duration_ms);
+                println!(
+                    "切换模式: 录音停止成功，文件路径: {}, 时长: {}ms",
+                    result.file_path, result.duration_ms
+                );
                 // 隐藏录音指示器
                 let _ = crate::indicator::hide_indicator(app);
                 // 更新快捷键状态
@@ -360,5 +359,3 @@ async fn handle_toggle_mode(
         }
     }
 }
-
-

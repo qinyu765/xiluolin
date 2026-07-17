@@ -22,7 +22,6 @@ pub struct OutputResult {
 pub async fn output_text(text: String) -> Result<OutputResult, String> {
     let start_time = std::time::Instant::now();
     println!("[⏱️ 输出] ========== 开始新的输出请求 ==========");
-    println!("[⏱️ 输出] 文本内容: {}", text);
     println!("[⏱️ 输出] 文本长度: {} 字符", text.len());
 
     // 1. 优先尝试剪贴板粘贴（更可靠，不会出现字符重复）
@@ -71,7 +70,6 @@ pub async fn output_text(text: String) -> Result<OutputResult, String> {
 // 剪贴板粘贴
 async fn clipboard_paste(text: &str) -> Result<(), String> {
     println!("[clipboard_paste] ========== 开始剪贴板粘贴流程 ==========");
-    println!("[clipboard_paste] 文本内容: {}", text);
 
     // 先复制到剪贴板
     clipboard_copy(text).await?;

@@ -18,8 +18,6 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
             .map_err(|e| format!("获取当前目录失败: {}", e))?
             .join("indicator.html");
 
-        println!("指示器 HTML 路径: {:?}", path);
-
         if !path.exists() {
             return Err(format!("指示器文件不存在: {:?}", path));
         }
@@ -31,8 +29,6 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
         } else {
             format!("file:///{}", path_str)
         };
-
-        println!("指示器 URL: {}", url_string);
 
         WebviewUrl::External(
             url_string

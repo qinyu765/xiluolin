@@ -686,26 +686,49 @@ pub fn delete_history_record(app: tauri::AppHandle, id: String) -> Result<(), St
 
 #[tauri::command]
 pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
+    use crate::credentials::{
+        load_credentials, sanitized_config, AppCredentials, SystemCredentialStore,
+    };
     use tauri_plugin_store::StoreExt;
 
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
-    let Some(value) = store.get(APP_CONFIG_KEY) else {
-        return Ok(default_app_config());
+    let mut config = match store.get(APP_CONFIG_KEY) {
+        Some(value) => serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
+        None => default_app_config(),
     };
 
-    serde_json::from_value(value.clone()).map_err(|error| error.to_string())
+    let legacy_credentials = AppCredentials::from_config(&config);
+    let credentials = load_credentials(&legacy_credentials, &SystemCredentialStore)?;
+    let sanitized = sanitized_config(&config);
+
+    if sanitized != config {
+        let value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
+        store.set(APP_CONFIG_KEY.to_string(), value);
+        store.save().map_err(|error| error.to_string())?;
+    }
+
+    config = sanitized;
+    credentials.apply_to(&mut config);
+    Ok(config)
 }
 
 #[tauri::command]
 pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
+    use crate::credentials::{
+        sanitized_config, save_credentials, AppCredentials, SystemCredentialStore,
+    };
     use tauri_plugin_store::StoreExt;
+
+    let credentials = AppCredentials::from_config(&config);
+    save_credentials(&credentials, &SystemCredentialStore)?;
 
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
-    let value = serde_json::to_value(&config).map_err(|error| error.to_string())?;
+    let persisted_config = sanitized_config(&config);
+    let value = serde_json::to_value(&persisted_config).map_err(|error| error.to_string())?;
     store.set(APP_CONFIG_KEY.to_string(), value);
     store.save().map_err(|error| error.to_string())?;
 

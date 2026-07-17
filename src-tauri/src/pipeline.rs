@@ -256,6 +256,47 @@ pub fn process_uploaded_audio(
     .map_err(|error| error.to_string())
 }
 
+struct RecordingCleanupGuard {
+    path: std::path::PathBuf,
+}
+
+impl Drop for RecordingCleanupGuard {
+    fn drop(&mut self) {
+        if std::fs::remove_file(&self.path).is_err() {
+            eprintln!("[隐私] 应用录音临时文件清理失败");
+        }
+    }
+}
+
+pub fn consume_app_recording<T>(
+    recordings_dir: &std::path::Path,
+    file_path: &std::path::Path,
+    process: impl FnOnce(Vec<u8>, String) -> Result<T, String>,
+) -> Result<T, String> {
+    let recordings_dir =
+        std::fs::canonicalize(recordings_dir).map_err(|_| "无法访问应用录音目录".to_string())?;
+    let recording_path =
+        std::fs::canonicalize(file_path).map_err(|_| "无法访问录音文件".to_string())?;
+
+    if !recording_path.starts_with(&recordings_dir) || !recording_path.is_file() {
+        return Err("录音文件不在应用录音目录中".to_string());
+    }
+
+    let extension = recording_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .filter(|extension| extension.eq_ignore_ascii_case("wav"))
+        .ok_or_else(|| "应用录音文件必须是 WAV 格式".to_string())?
+        .to_ascii_lowercase();
+    let _cleanup = RecordingCleanupGuard {
+        path: recording_path.clone(),
+    };
+    let audio_bytes =
+        std::fs::read(&recording_path).map_err(|_| "读取应用录音文件失败".to_string())?;
+
+    process(audio_bytes, extension)
+}
+
 #[tauri::command]
 pub fn process_recording_file(
     app: tauri::AppHandle,
@@ -265,81 +306,66 @@ pub fn process_recording_file(
     use crate::data::{read_app_config, LocalDatabase};
     use tauri::Manager;
 
-    // 读取录音文件
-    let audio_bytes = std::fs::read(&file_path).map_err(|error| error.to_string())?;
-
-    // 获取文件扩展名
-    let audio_extension = std::path::Path::new(&file_path)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("wav")
-        .to_string();
-
-    let config = read_app_config(app.clone())?;
-
-    // 调试：打印配置信息（隐藏敏感数据）
-    eprintln!("=== 配置调试信息 ===");
-    eprintln!("ASR Provider: {}", config.asr_provider);
-    eprintln!("ASR API Key 长度: {}", config.asr_api_key.len());
-    if !config.asr_api_key.is_empty() {
-        eprintln!(
-            "ASR API Key: {}...",
-            &config.asr_api_key.chars().take(8).collect::<String>()
-        );
-    }
-    eprintln!("ASR Base URL: {}", config.asr_base_url);
-    eprintln!("ASR Model: {}", config.asr_model);
-    eprintln!("===================");
-
     let app_data_dir = app
         .path()
         .app_data_dir()
         .map_err(|error| error.to_string())?;
-    std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
-    let database = LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
-        .map_err(|error| error.to_string())?;
-    database.initialize().map_err(|error| error.to_string())?;
+    let recordings_dir = app_data_dir.join("recordings");
 
-    let asr_model = if config.asr_provider == "openai" {
-        config.openai_asr_model.clone()
-    } else {
-        config.asr_model.clone()
-    };
+    consume_app_recording(
+        &recordings_dir,
+        std::path::Path::new(&file_path),
+        |audio_bytes, audio_extension| {
+            let config = read_app_config(app.clone())?;
+            eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr_provider);
 
-    let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
-        (
-            config.zhipu_api_key.clone(),
-            config.zhipu_base_url.clone(),
-            config.zhipu_model.clone(),
-        )
-    } else {
-        (
-            config.openai_api_key.clone(),
-            config.openai_base_url.clone(),
-            config.openai_model.clone(),
-        )
-    };
+            std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
+            let database = LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
+                .map_err(|error| error.to_string())?;
+            database.initialize().map_err(|error| error.to_string())?;
 
-    process_voice_input(
-        VoiceInputRequest {
-            audio_bytes,
-            audio_extension,
-            duration_ms,
+            let asr_model = if config.asr_provider == "openai" {
+                config.openai_asr_model.clone()
+            } else {
+                config.asr_model.clone()
+            };
+
+            let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
+                (
+                    config.zhipu_api_key.clone(),
+                    config.zhipu_base_url.clone(),
+                    config.zhipu_model.clone(),
+                )
+            } else {
+                (
+                    config.openai_api_key.clone(),
+                    config.openai_base_url.clone(),
+                    config.openai_model.clone(),
+                )
+            };
+
+            process_voice_input(
+                VoiceInputRequest {
+                    audio_bytes,
+                    audio_extension,
+                    duration_ms,
+                },
+                AsrConfig {
+                    provider: config.asr_provider.clone(),
+                    api_key: config.asr_api_key,
+                    base_url: config.asr_base_url,
+                    model: asr_model,
+                },
+                TextPolishConfig {
+                    provider: config.text_provider,
+                    api_key: text_api_key,
+                    base_url: text_base_url,
+                    model: text_model,
+                },
+                &database,
+                config.auto_save_history,
+            )
+            .map_err(|error| error.to_string())
         },
-        AsrConfig {
-            provider: config.asr_provider.clone(),
-            api_key: config.asr_api_key,
-            base_url: config.asr_base_url,
-            model: asr_model,
-        },
-        TextPolishConfig {
-            provider: config.text_provider,
-            api_key: text_api_key,
-            base_url: text_base_url,
-            model: text_model,
-        },
-        &database,
-        config.auto_save_history,
     )
-    .map_err(|error| error.to_string())
 }

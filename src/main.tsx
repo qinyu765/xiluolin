@@ -152,8 +152,7 @@ function App() {
           isProcessing = true;
 
           const flowStartTime = performance.now();
-          console.log("✅ 收到 recording-completed 事件:", event.payload);
-          console.log("  - 文件路径:", event.payload.file_path);
+          console.log("✅ 收到 recording-completed 事件");
           console.log("  - 录音时长:", event.payload.duration_ms, "ms");
 
           setIsRecording(false);
@@ -171,8 +170,6 @@ function App() {
             });
             const step1Duration = performance.now() - step1Start;
             console.log(`[⏱️ 前端] 步骤1: process_recording_file 完成 - 耗时 ${step1Duration.toFixed(2)}ms`);
-            console.log("  - 原始文本:", result.raw_text);
-            console.log("  - 最终文本:", result.final_text);
 
             setVoiceResult(result);
 

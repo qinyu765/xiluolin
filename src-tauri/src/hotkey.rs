@@ -269,10 +269,7 @@ async fn handle_long_press_mode(app: &AppHandle, event: ShortcutEvent) {
             let recording_state = app.state::<RecordingState>();
             match stop_recording(recording_state).await {
                 Ok(result) => {
-                    println!(
-                        "长按模式: 录音停止成功，文件路径: {}, 时长: {}ms",
-                        result.file_path, result.duration_ms
-                    );
+                    println!("长按模式: 录音停止成功，时长: {}ms", result.duration_ms);
                     // 隐藏录音指示器
                     let _ = crate::indicator::hide_indicator(app);
                     // 更新快捷键状态
@@ -318,10 +315,7 @@ async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
         println!("切换模式: 当前正在录音，准备停止");
         match stop_recording(recording_state).await {
             Ok(result) => {
-                println!(
-                    "切换模式: 录音停止成功，文件路径: {}, 时长: {}ms",
-                    result.file_path, result.duration_ms
-                );
+                println!("切换模式: 录音停止成功，时长: {}ms", result.duration_ms);
                 // 隐藏录音指示器
                 let _ = crate::indicator::hide_indicator(app);
                 // 更新快捷键状态

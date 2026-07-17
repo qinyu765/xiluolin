@@ -36,7 +36,8 @@ flowchart LR
   Pipeline --> ASR["ASR Provider"]
   Pipeline --> LLM["快速文本模型 Provider"]
   Storage --> SQLite["SQLite"]
-  Storage --> Store["Tauri Store"]
+  Storage --> Store["Tauri Store（非敏感配置）"]
+  Storage --> Credentials["系统凭据库（API Key）"]
 ```
 
 ### 2.1 前端职责
@@ -77,7 +78,7 @@ Tauri 后端负责系统能力和核心编排：
 - 调用快速文本模型 Provider 生成最终文本。
 - 复制文本到剪贴板。
 - 自动粘贴到当前输入位置。
-- 读写 SQLite 和 Tauri Store。
+- 读写 SQLite、Tauri Store 和系统凭据库。
 - 统一处理流程状态和错误信息。
 
 ### 2.3 本地编排策略
@@ -166,7 +167,9 @@ sequenceDiagram
 
 - 开始录音。
 - 停止录音。
-- 返回录音文件路径或二进制数据。
+- 返回应用录音目录中的临时文件路径或二进制数据。
+- 处理前校验录音文件必须位于应用录音目录，拒绝目录穿越和外部路径。
+- 处理结束后删除应用生成的临时 WAV；用户选择的外部音频不由该清理流程删除。
 - 返回录音时长。
 - 通知前端录音中、处理中、失败等状态。
 
@@ -343,14 +346,16 @@ MVP 支持：
 - 输出方式。
 - 是否自动保存历史。
 
-API Key 不写入项目文件，不提交到 Git。
+API Key 不写入项目文件，不提交到 Git，也不明文保存在 Tauri Store。
 
 ## 5. 数据设计
 
-MVP 使用 SQLite + Tauri Store。
+MVP 使用 SQLite + Tauri Store + 系统凭据库。
 
 - SQLite：保存结构化业务数据。
-- Tauri Store：保存智谱 API Key、智谱 Base URL、OpenAI API Key、OpenAI 模型名、默认人格 ID、快捷键等轻量配置。
+- Tauri Store：保存 Provider、Base URL、模型名、默认人格 ID、快捷键等非敏感轻量配置。
+- 系统凭据库：保存 ASR、OpenAI 和智谱文本 Provider 的 API Key；Windows 使用 Credential Manager，macOS 使用 Keychain。
+- 兼容迁移：读取旧版明文配置时，先写入系统凭据库；全部写入成功后再清空 Tauri Store 中的密钥字段，迁移失败时保留旧配置并返回错误。
 
 ### 5.1 personas
 
@@ -455,8 +460,11 @@ MVP 默认不上传历史记录、人格、热词和统计数据。
 
 - 音频会发送给用户配置的 ASR Provider。
 - 原始识别文本会发送给用户配置的快速文本模型 Provider。
-- API Key 保存在本地配置中。
+- API Key 保存在操作系统凭据库中，不明文写入 `settings.json`。
+- 旧版明文 API Key 仅在系统凭据写入成功后清理，避免迁移失败造成数据丢失。
 - 历史记录和统计数据保存在本地 SQLite。
+- 应用录音临时文件只允许在应用录音目录内处理，并在成功或失败后清理。
+- 日志不输出 API Key 片段、用户文本或完整录音路径。
 - 仓库中不保存真实 API Key。
 
 ## 9. UI 信息架构
@@ -474,7 +482,7 @@ MVP 默认不上传历史记录、人格、热词和统计数据。
 - 每条历史记录展示人格、创建时间、录音时长、生成字数和整理结果摘要。
 - 每条历史记录支持复制和删除。
 
-录音快速开始卡片已保留为组件，但当前首页可见结构暂时隐藏该入口。Rust 侧已经注册全局快捷键并会发出 `recording-completed` / `recording-error` 事件，同时会显示或隐藏 `indicator.html` 录音指示器窗口。当前前端尚未监听这些事件并串联 `process_recording_file`。T028 需要重点验证快捷键录音触发、录音指示器、短音频处理和主界面结果展示的最终联调方案。
+录音快速开始卡片已保留为组件，但当前首页可见结构暂时隐藏该入口。Rust 侧已经注册全局快捷键并会发出 `recording-completed` / `recording-error` 事件，同时会显示或隐藏 `indicator.html` 录音指示器窗口。前端已经监听这些事件并串联 `process_recording_file`、自动输出、历史刷新和错误提示；真实服务 smoke test、录音指示器打包路径和首页可见输入入口仍需继续验证。
 
 ### 9.2 人格页
 
@@ -502,7 +510,7 @@ MVP 默认不上传历史记录、人格、热词和统计数据。
 - 通用：长按模式快捷键、切换模式快捷键、麦克风设备、录音时静音其他应用、输出方式、自动保存历史。
 - 模型配置：智谱 GLM-ASR-2512 API Key、Base URL、模型名；OpenAI Responses API Key、Base URL、模型名。
 
-设置保存后通过 toast 提示结果。API Key 输入框使用密码模式，本地保存，不写入仓库。
+设置保存后通过 toast 提示结果。API Key 输入框使用密码模式，后端将密钥写入系统凭据库，前端配置结构保持兼容。
 
 ## 10. MVP 开发拆分建议
 

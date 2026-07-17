@@ -172,15 +172,7 @@ fn transcribe_with_zhipu(
 ) -> Result<AsrTranscription, AsrError> {
     let url = transcriptions_url(&config.base_url);
 
-    // 打印调试信息
-    eprintln!("ASR Request URL: {}", url);
-    eprintln!("ASR Model: {}", config.model.trim());
-    eprintln!("ASR API Key length: {}", config.api_key.trim().len());
-    eprintln!(
-        "ASR API Key first 10 chars: {}",
-        &config.api_key.trim().chars().take(10).collect::<String>()
-    );
-    eprintln!("Audio Path: {}", audio_path.display());
+    eprintln!("ASR 请求已开始，模型：{}", config.model.trim());
 
     // 检查音频文件的声道信息
     if let Ok(reader) = hound::WavReader::open(audio_path) {

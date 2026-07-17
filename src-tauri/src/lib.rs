@@ -1,5 +1,6 @@
 pub mod asr;
 pub mod audio_control;
+pub mod credentials;
 pub mod data;
 pub mod hotkey;
 pub mod indicator;

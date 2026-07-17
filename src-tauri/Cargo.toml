@@ -1,8 +1,10 @@
 [package]
 name = "xiluolin"
 version = "0.1.0"
-description = "AI voice input assistant for office work, writing, and programming."
+description = "Open-source AI voice input assistant for office work, writing, and programming."
 authors = ["XiLuoLin Contributors"]
+license = "MIT"
+repository = "https://github.com/qinyu765/xiluolin"
 edition = "2021"
 
 [lib]

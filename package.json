@@ -41,5 +41,15 @@
     "typescript": "~5.9.3",
     "vite": "^7.2.4"
   },
-  "packageManager": "pnpm@10.26.2"
+  "packageManager": "pnpm@10.26.2",
+  "description": "开源 AI 语音输入助手，将语音转化为可直接使用的办公、写作和编程文本。",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qinyu765/xiluolin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/qinyu765/xiluolin/issues"
+  },
+  "homepage": "https://github.com/qinyu765/xiluolin#readme"
 }

@@ -1,5 +1,7 @@
 # T008 实现主流程
 
+> **归档说明：** 本文记录特定开发阶段的背景与决策，其中的 MVP、demo、比赛或旧分支流程表述仅用于保留历史，不代表 XiLuoLin 当前的开源项目定位与协作方式。当前信息请以根目录 `README.md`、`CONTRIBUTING.md` 和 `docs/roadmap.md` 为准。
+
 ## 任务目标
 
 在 `dev` 分支上实现短音频输入主流程，支持用户上传 wav 或 mp3 短音频后，串联智谱 ASR、OpenAI Responses API 文本整理、结果展示、复制和历史保存。

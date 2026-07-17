@@ -7,6 +7,8 @@ pub mod focus_capture;
 pub mod history_reprocessing;
 pub mod hotkey;
 pub mod indicator;
+pub mod local_asr;
+pub mod local_asr_model;
 pub mod output;
 pub mod pipeline;
 pub mod readiness;
@@ -96,6 +98,10 @@ pub fn run() {
             recording::stop_recording,
             recording::list_audio_devices,
             readiness::read_input_readiness,
+            local_asr_model::local_asr_model_info,
+            local_asr_model::download_local_asr_model,
+            local_asr_model::delete_local_asr_model,
+            local_asr_model::verify_local_asr_model,
             recording_storage::recording_storage_info,
             recording_storage::open_recordings_directory,
             recording_storage::clear_retained_recordings,

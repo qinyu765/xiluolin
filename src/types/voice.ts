@@ -3,6 +3,9 @@ import type { HistoryRecord } from "./history";
 export type VoiceInputResult = {
   raw_text: string;
   final_text: string;
+  actual_asr_provider: string;
+  actual_asr_model: string;
+  used_asr_fallback: boolean;
   used_text_fallback: boolean;
   history_record: HistoryRecord | null;
 };

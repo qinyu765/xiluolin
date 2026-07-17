@@ -12,6 +12,7 @@ export type HistoryRecord = {
   asr_model: string;
   text_provider: string;
   text_model: string;
+  used_asr_fallback: boolean;
   used_fallback: boolean;
   delivery_method: string;
   audio_path: string | null;

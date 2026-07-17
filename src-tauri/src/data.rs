@@ -42,11 +42,21 @@ pub struct AppConfig {
     pub selected_microphone: String,
     #[serde(default)]
     pub retain_recordings: bool,
+    #[serde(default = "default_local_asr_model")]
+    pub local_asr_model: String,
+    #[serde(default)]
+    pub allow_cloud_fallback: bool,
+    #[serde(default = "default_fallback_asr_provider")]
+    pub fallback_asr_provider: String,
 }
 
 impl AppConfig {
     pub fn selected_asr_config(&self) -> (&str, &str, &str) {
-        if self.asr_provider == "openai" {
+        self.cloud_asr_config(&self.asr_provider)
+    }
+
+    pub fn cloud_asr_config(&self, provider: &str) -> (&str, &str, &str) {
+        if provider == "openai" {
             (
                 &self.openai_api_key,
                 &self.openai_base_url,
@@ -120,6 +130,7 @@ pub struct HistoryRecord {
     pub asr_model: String,
     pub text_provider: String,
     pub text_model: String,
+    pub used_asr_fallback: bool,
     pub used_fallback: bool,
     pub delivery_method: String,
     pub audio_path: Option<String>,
@@ -139,6 +150,7 @@ pub struct HistoryRecordDraft {
     pub asr_model: String,
     pub text_provider: String,
     pub text_model: String,
+    pub used_asr_fallback: bool,
     pub used_fallback: bool,
     pub delivery_method: String,
     pub audio_path: Option<String>,
@@ -174,6 +186,14 @@ fn default_zhipu_model() -> String {
     "glm-4.7-flash".to_string()
 }
 
+fn default_local_asr_model() -> String {
+    crate::local_asr_model::LOCAL_ASR_MODEL_NAME.to_string()
+}
+
+fn default_fallback_asr_provider() -> String {
+    "zhipu".to_string()
+}
+
 pub fn default_app_config() -> AppConfig {
     AppConfig {
         default_persona_id: DEFAULT_PERSONA_ID.to_string(),
@@ -195,6 +215,9 @@ pub fn default_app_config() -> AppConfig {
         mute_system_audio: false,
         selected_microphone: "".to_string(),
         retain_recordings: false,
+        local_asr_model: default_local_asr_model(),
+        allow_cloud_fallback: false,
+        fallback_asr_provider: default_fallback_asr_provider(),
     }
 }
 
@@ -253,6 +276,7 @@ impl LocalDatabase {
                 asr_model TEXT NOT NULL DEFAULT '',
                 text_provider TEXT NOT NULL DEFAULT '',
                 text_model TEXT NOT NULL DEFAULT '',
+                used_asr_fallback INTEGER NOT NULL DEFAULT 0,
                 used_fallback INTEGER NOT NULL DEFAULT 0,
                 delivery_method TEXT NOT NULL DEFAULT 'pending',
                 audio_path TEXT,
@@ -278,6 +302,7 @@ impl LocalDatabase {
             ("asr_model", "TEXT NOT NULL DEFAULT ''"),
             ("text_provider", "TEXT NOT NULL DEFAULT ''"),
             ("text_model", "TEXT NOT NULL DEFAULT ''"),
+            ("used_asr_fallback", "INTEGER NOT NULL DEFAULT 0"),
             ("used_fallback", "INTEGER NOT NULL DEFAULT 0"),
             ("delivery_method", "TEXT NOT NULL DEFAULT 'pending'"),
             ("audio_path", "TEXT"),
@@ -476,9 +501,9 @@ impl LocalDatabase {
                 id, raw_text, final_text, persona_id, persona_name,
                 duration_ms, output_chars, output_mode, source,
                 asr_provider, asr_model, text_provider, text_model,
-                used_fallback, delivery_method, audio_path
+                used_asr_fallback, used_fallback, delivery_method, audio_path
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
             "#,
             params![
                 id,
@@ -494,6 +519,7 @@ impl LocalDatabase {
                 draft.asr_model,
                 draft.text_provider,
                 draft.text_model,
+                bool_to_int(draft.used_asr_fallback),
                 bool_to_int(draft.used_fallback),
                 draft.delivery_method,
                 draft.audio_path
@@ -510,7 +536,7 @@ impl LocalDatabase {
             SELECT id, raw_text, final_text, persona_id, persona_name,
                    duration_ms, output_chars, output_mode, source,
                    asr_provider, asr_model, text_provider, text_model,
-                   used_fallback, delivery_method, audio_path, created_at
+                   used_asr_fallback, used_fallback, delivery_method, audio_path, created_at
             FROM history_records
             ORDER BY datetime(created_at) DESC, rowid DESC
             LIMIT ?1
@@ -581,6 +607,7 @@ impl LocalDatabase {
         asr_model: &str,
         text_provider: &str,
         text_model: &str,
+        used_asr_fallback: bool,
         used_fallback: bool,
     ) -> rusqlite::Result<HistoryRecord> {
         let output_chars = final_text.chars().count() as i64;
@@ -589,7 +616,8 @@ impl LocalDatabase {
             UPDATE history_records
             SET raw_text = ?2, final_text = ?3, persona_id = ?4, persona_name = ?5,
                 output_chars = ?6, asr_provider = ?7, asr_model = ?8,
-                text_provider = ?9, text_model = ?10, used_fallback = ?11
+                text_provider = ?9, text_model = ?10,
+                used_asr_fallback = ?11, used_fallback = ?12
             WHERE id = ?1
             "#,
             params![
@@ -603,6 +631,7 @@ impl LocalDatabase {
                 asr_model,
                 text_provider,
                 text_model,
+                bool_to_int(used_asr_fallback),
                 bool_to_int(used_fallback)
             ],
         )?;
@@ -727,7 +756,7 @@ impl LocalDatabase {
             SELECT id, raw_text, final_text, persona_id, persona_name,
                    duration_ms, output_chars, output_mode, source,
                    asr_provider, asr_model, text_provider, text_model,
-                   used_fallback, delivery_method, audio_path, created_at
+                   used_asr_fallback, used_fallback, delivery_method, audio_path, created_at
             FROM history_records
             WHERE id = ?1
             "#,
@@ -1072,10 +1101,11 @@ fn history_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryR
         asr_model: row.get(10)?,
         text_provider: row.get(11)?,
         text_model: row.get(12)?,
-        used_fallback: int_to_bool(row.get(13)?),
-        delivery_method: row.get(14)?,
-        audio_path: row.get(15)?,
-        created_at: row.get(16)?,
+        used_asr_fallback: int_to_bool(row.get(13)?),
+        used_fallback: int_to_bool(row.get(14)?),
+        delivery_method: row.get(15)?,
+        audio_path: row.get(16)?,
+        created_at: row.get(17)?,
     })
 }
 

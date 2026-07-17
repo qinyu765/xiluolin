@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShortcutInput } from "@/components/ui/shortcut-input";
 import { InputReadinessCard } from "@/components/settings/InputReadinessCard";
 import { RecordingStorageCard } from "@/components/settings/RecordingStorageCard";
+import { LocalAsrSettings } from "@/components/settings/LocalAsrSettings";
 import type { AppConfig, AudioDevice } from "@/types";
 
 type SettingsPageProps = {
@@ -285,6 +286,7 @@ export function SettingsPage({
                     <SelectContent>
                       <SelectItem value="zhipu">智谱 AI (GLM-ASR-2512)</SelectItem>
                       <SelectItem value="openai">OpenAI (Whisper)</SelectItem>
+                      <SelectItem value="local">本地 Whisper（离线）</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
@@ -292,7 +294,11 @@ export function SettingsPage({
                   </p>
                 </div>
 
-                {appConfig?.asr_provider === "openai" ? (
+                {appConfig?.asr_provider === "local" ? (
+                  appConfig ? (
+                    <LocalAsrSettings config={appConfig} onChange={onConfigChange} />
+                  ) : null
+                ) : appConfig?.asr_provider === "openai" ? (
                   <>
                     <div className="grid gap-2">
                       <Label htmlFor="openai-asr-api-key">

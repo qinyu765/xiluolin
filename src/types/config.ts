@@ -18,6 +18,9 @@ export type AppConfig = {
   mute_system_audio: boolean;
   selected_microphone: string;
   retain_recordings: boolean;
+  local_asr_model: string;
+  allow_cloud_fallback: boolean;
+  fallback_asr_provider: string;
 };
 
 export type AudioDevice = {
@@ -46,4 +49,17 @@ export type RecordingStorageInfo = {
   file_count: number;
   total_bytes: number;
   directory: string;
+};
+
+export type LocalAsrModelInfo = {
+  name: string;
+  path: string;
+  exists: boolean;
+  size_bytes: number;
+};
+
+export type LocalAsrDownloadProgress = {
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  percent: number | null;
 };

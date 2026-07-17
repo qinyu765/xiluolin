@@ -34,6 +34,7 @@ enigo = "0.2"
 arboard = "3.4"
 thiserror = "2.0"
 keyring = "4.1.5"
+whisper-rs = "0.16.0"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [

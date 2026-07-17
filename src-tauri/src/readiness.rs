@@ -30,7 +30,10 @@ pub struct InputReadiness {
 pub async fn read_input_readiness(app: tauri::AppHandle) -> Result<InputReadiness, String> {
     let config = read_app_config(app.clone())?;
     let microphone = microphone_check();
-    let asr = asr_check(&config);
+    let local_model_exists = crate::local_asr_model::model_path(&app)
+        .map(|path| path.exists())
+        .unwrap_or(false);
+    let asr = asr_check(&config, local_model_exists);
     let text_processing = text_processing_check(&config);
 
     let hotkey_state = app.state::<std::sync::Arc<tokio::sync::Mutex<HotkeyState>>>();
@@ -76,8 +79,20 @@ fn microphone_check() -> ReadinessCheck {
     }
 }
 
-fn asr_check(config: &AppConfig) -> ReadinessCheck {
+fn asr_check(config: &AppConfig, local_model_exists: bool) -> ReadinessCheck {
     let provider = config.asr_provider.trim();
+    if provider == "local" {
+        return ReadinessCheck {
+            ready: local_model_exists,
+            blocking: true,
+            detail: if local_model_exists {
+                format!("本地 ASR 模型 {} 已就绪", config.local_asr_model)
+            } else {
+                "本地 ASR 模型尚未下载".to_string()
+            },
+        };
+    }
+
     let (api_key, base_url, model) = config.selected_asr_config();
     let ready = matches!(provider, "zhipu" | "openai")
         && !api_key.trim().is_empty()
@@ -159,7 +174,7 @@ mod tests {
     #[test]
     fn default_config_is_not_ready_without_credentials() {
         let config = default_app_config();
-        assert!(!asr_check(&config).ready);
+        assert!(!asr_check(&config, false).ready);
         assert!(!text_processing_check(&config).ready);
     }
 
@@ -169,7 +184,7 @@ mod tests {
         config.asr_api_key = "asr-key".to_string();
         config.zhipu_api_key = "text-key".to_string();
 
-        assert!(asr_check(&config).ready);
+        assert!(asr_check(&config, false).ready);
         assert!(text_processing_check(&config).ready);
     }
 
@@ -180,8 +195,17 @@ mod tests {
         config.openai_api_key = "openai-key".to_string();
         config.text_provider = "openai".to_string();
 
-        assert!(asr_check(&config).ready);
+        assert!(asr_check(&config, false).ready);
         assert!(text_processing_check(&config).ready);
+    }
+
+    #[test]
+    fn local_provider_requires_downloaded_model() {
+        let mut config = default_app_config();
+        config.asr_provider = "local".to_string();
+
+        assert!(!asr_check(&config, false).ready);
+        assert!(asr_check(&config, true).ready);
     }
 
     #[test]
@@ -192,7 +216,7 @@ mod tests {
         config.text_provider = "unknown".to_string();
         config.openai_api_key = "text-key".to_string();
 
-        assert!(!asr_check(&config).ready);
+        assert!(!asr_check(&config, false).ready);
         assert!(!text_processing_check(&config).ready);
     }
 }

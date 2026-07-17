@@ -335,13 +335,17 @@ function App() {
       openai_asr_model: appConfig.openai_asr_model.trim(),
     };
     const selectedBaseUrl =
-      nextConfig.asr_provider === "openai"
-        ? nextConfig.openai_base_url
-        : nextConfig.asr_base_url;
+      nextConfig.asr_provider === "local"
+        ? "local"
+        : nextConfig.asr_provider === "openai"
+          ? nextConfig.openai_base_url
+          : nextConfig.asr_base_url;
     const selectedModel =
-      nextConfig.asr_provider === "openai"
-        ? nextConfig.openai_asr_model
-        : nextConfig.asr_model;
+      nextConfig.asr_provider === "local"
+        ? nextConfig.local_asr_model
+        : nextConfig.asr_provider === "openai"
+          ? nextConfig.openai_asr_model
+          : nextConfig.asr_model;
 
     if (!selectedBaseUrl || !selectedModel) {
       setAsrStatus("当前 ASR Provider 的 Base URL 和模型名不能为空。");
@@ -358,12 +362,20 @@ function App() {
       setAppConfig(savedConfig);
       window.dispatchEvent(new Event("xiluolin-config-saved"));
       const selectedApiKey =
-        savedConfig.asr_provider === "openai"
-          ? savedConfig.openai_api_key
-          : savedConfig.asr_api_key;
+        savedConfig.asr_provider === "local"
+          ? "local"
+          : savedConfig.asr_provider === "openai"
+            ? savedConfig.openai_api_key
+            : savedConfig.asr_api_key;
+      const providerLabel =
+        savedConfig.asr_provider === "local"
+          ? "本地 Whisper"
+          : savedConfig.asr_provider === "openai"
+            ? "OpenAI"
+            : "智谱";
       setAsrStatus(
         selectedApiKey
-          ? `${savedConfig.asr_provider === "openai" ? "OpenAI" : "智谱"} ASR 配置已保存。`
+          ? `${providerLabel} ASR 配置已保存。`
           : "ASR 配置已保存，真实转写前仍需填写 API Key。",
       );
     } catch (error) {

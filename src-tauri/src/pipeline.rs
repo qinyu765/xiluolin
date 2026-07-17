@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    asr::{transcribe_audio_file, AsrConfig},
+    asr::{build_asr_config, transcribe_audio_file, AsrConfig},
     capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
     data::{HistoryRecord, HistoryRecordDraft, LocalDatabase, Persona},
     indicator,
@@ -24,8 +24,6 @@ pub struct VoiceInputRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryContext {
     pub source: String,
-    pub asr_provider: String,
-    pub asr_model: String,
     pub text_provider: String,
     pub text_model: String,
     pub audio_path: Option<String>,
@@ -35,6 +33,9 @@ pub struct HistoryContext {
 pub struct VoiceInputResult {
     pub raw_text: String,
     pub final_text: String,
+    pub actual_asr_provider: String,
+    pub actual_asr_model: String,
+    pub used_asr_fallback: bool,
     pub used_text_fallback: bool,
     pub history_record: Option<HistoryRecord>,
 }
@@ -193,10 +194,11 @@ pub fn process_voice_input_with_progress(
             duration_ms: request.duration_ms.max(0),
             output_mode: "pending".to_string(),
             source: history_context.source,
-            asr_provider: history_context.asr_provider,
-            asr_model: history_context.asr_model,
+            asr_provider: transcription.provider.clone(),
+            asr_model: transcription.model.clone(),
             text_provider: history_context.text_provider,
             text_model: history_context.text_model,
+            used_asr_fallback: transcription.used_fallback,
             used_fallback: polish_result.used_fallback,
             delivery_method: "pending".to_string(),
             audio_path: history_context.audio_path,
@@ -218,6 +220,9 @@ pub fn process_voice_input_with_progress(
     Ok(VoiceInputResult {
         raw_text: transcription.text,
         final_text: polish_result.final_text,
+        actual_asr_provider: transcription.provider,
+        actual_asr_model: transcription.model,
+        used_asr_fallback: transcription.used_fallback,
         used_text_fallback: polish_result.used_fallback,
         history_record,
     })
@@ -250,19 +255,14 @@ pub fn process_uploaded_audio(
         .map_err(|error| error.to_string())?;
     database.initialize().map_err(|error| error.to_string())?;
 
-    let (asr_api_key, asr_base_url, asr_model) = config.selected_asr_config();
+    let asr_config = build_asr_config(&app, &config)?;
     let (text_api_key, text_base_url, text_model) = config.selected_text_config();
-    let asr_api_key = asr_api_key.to_string();
-    let asr_base_url = asr_base_url.to_string();
-    let asr_model = asr_model.to_string();
     let text_api_key = text_api_key.to_string();
     let text_base_url = text_base_url.to_string();
     let text_model = text_model.to_string();
 
     let history_context = HistoryContext {
         source: "upload".to_string(),
-        asr_provider: config.asr_provider.clone(),
-        asr_model: asr_model.clone(),
         text_provider: config.text_provider.clone(),
         text_model: text_model.clone(),
         audio_path: None,
@@ -270,12 +270,7 @@ pub fn process_uploaded_audio(
 
     process_voice_input(
         request,
-        AsrConfig {
-            provider: config.asr_provider.clone(),
-            api_key: asr_api_key,
-            base_url: asr_base_url,
-            model: asr_model,
-        },
+        asr_config,
         TextPolishConfig {
             provider: config.text_provider,
             api_key: text_api_key,
@@ -374,19 +369,14 @@ pub fn process_recording_file(
                     .map_err(|error| error.to_string())?;
                 database.initialize().map_err(|error| error.to_string())?;
 
-                let (asr_api_key, asr_base_url, asr_model) = config.selected_asr_config();
+                let asr_config = build_asr_config(&app, &config)?;
                 let (text_api_key, text_base_url, text_model) = config.selected_text_config();
-                let asr_api_key = asr_api_key.to_string();
-                let asr_base_url = asr_base_url.to_string();
-                let asr_model = asr_model.to_string();
                 let text_api_key = text_api_key.to_string();
                 let text_base_url = text_base_url.to_string();
                 let text_model = text_model.to_string();
 
                 let history_context = HistoryContext {
                     source: "recording".to_string(),
-                    asr_provider: config.asr_provider.clone(),
-                    asr_model: asr_model.clone(),
                     text_provider: config.text_provider.clone(),
                     text_model: text_model.clone(),
                     audio_path: if config.retain_recordings && config.auto_save_history {
@@ -403,12 +393,7 @@ pub fn process_recording_file(
                         audio_extension,
                         duration_ms,
                     },
-                    AsrConfig {
-                        provider: config.asr_provider.clone(),
-                        api_key: asr_api_key,
-                        base_url: asr_base_url,
-                        model: asr_model,
-                    },
+                    asr_config,
                     TextPolishConfig {
                         provider: config.text_provider,
                         api_key: text_api_key,

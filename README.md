@@ -5,7 +5,7 @@
 XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入助手。它将短语音转换为可直接使用的文本，并通过人格化整理、热词、历史记录和桌面输出减少打字、编辑与润色成本。
 
 - **语音输入能力**：支持全局快捷键和应用内录音流程；快捷键开始时建立 CaptureSession，处理完成后向录音开始时的目标窗口投递文本
-- **智能识别**：已接入智谱 GLM-ASR-2512 Provider，用于将短音频转为文本
+- **智能识别**：支持智谱 GLM-ASR-2512、OpenAI Whisper 和本地 Whisper；本地模式使用官方 whisper.cpp `ggml-base-q5_1.bin`，可离线转写
 - **人格化整理**：已接入 OpenAI Responses API，根据选定人格（Prompt 工程师、任务协作者、灵感整理师、正式消息助手）整理文本风格和结构
 - **热词词典**：支持自定义专有名词、技术词、项目名，减少误识别
 - **Capture 历史**：保存原始文本、整理结果、人格、输入来源、实际 Provider/模型、降级和投递方式；保留录音可试听、重新转写，原始文本可用当前人格重新整理
@@ -72,7 +72,7 @@ XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
 - 前端：React 19、TypeScript、Vite
 - UI：Tailwind CSS、shadcn/ui、Radix UI
 - 本地存储：SQLite、Tauri Store、系统凭据库
-- 音频：cpal、hound
+- 音频：cpal、hound、whisper-rs / whisper.cpp
 - 外部服务：可配置 ASR 与文本处理 Provider
 
 ## 环境要求
@@ -80,6 +80,7 @@ XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
 - Node.js 20+
 - pnpm 10+
 - Rust stable 工具链
+- CMake（从源码构建 whisper.cpp 时需要）
 - Windows：Microsoft Visual Studio C++ Build Tools、WebView2 Runtime
 - macOS / Windows：麦克风权限；自动输入可能还需要辅助功能或输入监控权限
 
@@ -109,7 +110,7 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行质
 ## 配置与使用
 
 1. 启动应用并进入“设置”。
-2. 配置智谱 GLM-ASR-2512 或其他受支持 ASR 服务。
+2. 选择智谱、OpenAI 或本地 Whisper ASR；本地模式需要先下载模型。
 3. 配置 OpenAI Responses API 或兼容的文本处理服务。
 4. 选择麦克风、快捷键和输出方式。
 5. 选择一个内置人格，或创建自定义人格。
@@ -119,14 +120,23 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行质
 真实服务演示仍需在本机配置 API Key 和麦克风权限后执行 smoke test；首页可见录音 / 上传入口当前隐藏，全局快捷键是主要输入入口。快捷键触发时状态窗会依次显示录音、识别、整理、输入和完成状态，且不会主动获取键盘焦点。
 详细步骤、验证路径和错误场景见 [使用与验证指南](docs/usage-guide.md)。
 
+## 本地 ASR
+
+1. 在设置页的“语音识别服务”中选择“本地 Whisper（离线）”。
+2. 下载并验证 `ggml-base-q5_1.bin` 模型，模型约 57 MB，保存在应用数据目录的 `models` 文件夹。
+3. 默认关闭云端降级；如需在本地失败时回退，可显式开启并选择智谱或 OpenAI。
+4. 本地首版支持 WAV。应用麦克风录音会生成兼容 WAV；MP3 上传请暂时使用云端 ASR。
+5. 历史记录会显示实际使用的 Provider 和模型；发生云端降级时会明确标记。
+
 ## 隐私与安全
 
-- 音频只发送给用户主动配置的 ASR Provider。
-- 原始识别文本只发送给用户主动配置的文本处理 Provider。
+- 云端 ASR 会把音频发送给用户主动配置的 Provider；本地 ASR 默认不上传音频。
+- 原始识别文本只发送给用户主动配置的文本处理 Provider；本地文本模型不在当前版本范围内。
 - API Key 保存在 Windows Credential Manager、macOS Keychain 或系统原生凭据库中。
 - 历史记录、人格、热词和统计数据默认保存在本地 SQLite，不上传到项目服务器。
-- 应用生成的临时录音会在处理成功或失败后清理；用户选择的外部音频不会被清理逻辑删除。
-- 日志不应记录 API Key、用户完整文本或完整录音路径。
+- 应用录音默认在处理后清理；只有用户开启保留、自动历史开启且历史写入成功时才保留。
+- 本地 ASR 的云端降级默认关闭，只有用户显式开启后才会在本地失败时上传音频。
+- 日志不应记录 API Key、用户完整文本或完整录音路径；whisper.cpp 内部日志已重定向为空处理。
 
 使用第三方 Provider 前，请自行阅读其隐私政策、数据保留规则和服务条款。安全问题请按照 [SECURITY.md](SECURITY.md) 报告。
 
@@ -198,7 +208,8 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行质
   - `ureq`：Rust 侧调用智谱 GLM-ASR-2512 `audio/transcriptions` 接口和 OpenAI Responses API，发送短音频 multipart 请求与文本整理 JSON 请求。
   - `reqwest`：为音频和模型服务调用保留 HTTP multipart / JSON 能力。
   - `cpal`：采集麦克风音频输入。
-  - `hound`：写入 WAV 录音文件。
+  - `hound`：写入并读取 WAV 录音文件。
+  - `whisper-rs` 0.16：whisper.cpp 的 Rust 绑定，用于本地离线 ASR；模型来自 `ggerganov/whisper.cpp` 官方 Hugging Face 仓库。
   - `chrono`：生成时间戳和处理本地记录时间。
   - `tokio`：支撑 Tauri 异步命令和后台任务。
   - `enigo`：模拟键盘输入，实现自动粘贴或直接输入能力。

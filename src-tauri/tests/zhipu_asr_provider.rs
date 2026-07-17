@@ -92,6 +92,12 @@ fn asr_config(base_url: String, api_key: &str) -> AsrConfig {
         api_key: api_key.to_string(),
         base_url,
         model: "glm-asr-2512".to_string(),
+        local_model_path: None,
+        allow_cloud_fallback: false,
+        fallback_provider: String::new(),
+        fallback_api_key: String::new(),
+        fallback_base_url: String::new(),
+        fallback_model: String::new(),
     }
 }
 

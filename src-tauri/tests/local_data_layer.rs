@@ -172,6 +172,7 @@ fn history_records_are_returned_newest_first() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
             audio_path: None,
@@ -191,6 +192,7 @@ fn history_records_are_returned_newest_first() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
             audio_path: None,
@@ -224,6 +226,7 @@ fn history_statistics_are_calculated_from_saved_records() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
             audio_path: None,
@@ -243,6 +246,7 @@ fn history_statistics_are_calculated_from_saved_records() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
             audio_path: None,
@@ -262,6 +266,7 @@ fn history_statistics_are_calculated_from_saved_records() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
             audio_path: None,
@@ -325,6 +330,9 @@ fn default_config_contains_provider_and_output_defaults() {
             mute_system_audio: false,
             selected_microphone: "".to_string(),
             retain_recordings: false,
+            local_asr_model: "ggml-base-q5_1.bin".to_string(),
+            allow_cloud_fallback: false,
+            fallback_asr_provider: "zhipu".to_string(),
         }
     );
 }
@@ -423,6 +431,7 @@ fn history_metadata_and_delivery_method_roundtrip() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            used_asr_fallback: false,
             used_fallback: true,
             delivery_method: "pending".to_string(),
             audio_path: Some("/managed/recording.wav".to_string()),
@@ -459,6 +468,7 @@ fn history_can_be_reprocessed_without_losing_audio_link() {
             asr_model: "old-asr".to_string(),
             text_provider: "openai".to_string(),
             text_model: "old-text".to_string(),
+            used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "paste".to_string(),
             audio_path: Some("/managed/original.wav".to_string()),
@@ -476,6 +486,7 @@ fn history_can_be_reprocessed_without_losing_audio_link() {
             "whisper-1",
             "zhipu",
             "glm-4.7-flash",
+            false,
             true,
         )
         .unwrap();

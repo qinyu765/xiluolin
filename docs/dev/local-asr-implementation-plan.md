@@ -1,5 +1,7 @@
 # 本地轻量 ASR 方案实施计划
 
+> 状态：T035 已按 M3 实施。当前实现使用 `whisper-rs` 0.16.0、`ggml-base-q5_1.bin`，本地模式默认关闭云端降级。本文后续内容保留为设计背景，实际行为以 README、solution-design 和 T035 文档为准。
+
 ## 背景
 
 当前项目使用远端 ASR API（智谱 GLM-ASR-2512 和 OpenAI Whisper），存在网络依赖和稳定性问题。需要添加本地 Whisper 模型支持，实现远端 + 本地双模式，提供离线能力和更好的隐私保护。
@@ -22,12 +24,12 @@
 **选择理由**：
 - 基于 whisper.cpp，性能优化成熟（SIMD、量化支持）
 - Rust 原生绑定，与 Tauri 技术栈一致
-- 支持 GGML 量化模型，体积小（base 模型量化后 ~75MB）
+- 支持 GGML 量化模型，体积小（base 模型量化后约 57MB）
 - CPU 推理友好，无需 GPU 依赖
 
-### 模型选择：Whisper Base (INT8 量化)
+### 模型选择：Whisper Base Q5_1 量化
 
-- 原始大小：~140MB，量化后：~75MB
+- 原始大小：~140MB，量化后：约 57MB
 - 准确率：适合短语音（<30s）场景
 - 推理速度：CPU 上 1-3 秒（取决于音频长度）
 
@@ -37,7 +39,7 @@
 
 1. **最小侵入性**：复用现有 `AsrConfig` 和 `transcribe_audio_file` 接口
 2. **渐进式加载**：模型按需下载和加载，避免影响启动速度
-3. **优雅降级**：本地失败自动回退到远端 API
+3. **显式降级**：本地失败仅在用户开启后回退到远端 API，默认不上传音频
 4. **跨平台兼容**：考虑 Windows/macOS/Linux 编译和二进制体积
 
 ### 降级流程
@@ -57,7 +59,7 @@ Provider = Local?
     ↓
 成功？
     ↓ 否
-启用降级？
+用户是否显式启用云端降级？
     ↓ 是
 调用远端 API（智谱/OpenAI）
     ↓
@@ -72,7 +74,7 @@ Provider = Local?
 
 添加依赖：
 ```toml
-whisper-rs = "0.12"      # Whisper 推理引擎
+whisper-rs = "0.16.0"      # Whisper 推理引擎
 once_cell = "1.19"       # 全局单例缓存
 futures-util = "0.3"     # 异步流处理（用于下载进度）
 ```

@@ -251,6 +251,7 @@ function HistoryRecordItem({
           <p className="mt-1 text-xs text-muted-foreground">
             {record.asr_provider || "未知 ASR"}/{record.asr_model || "未知模型"}
             {record.audio_path ? " · 已保留录音" : ""}
+            {record.used_asr_fallback ? " · 使用云端 ASR 降级" : ""}
             {record.used_fallback ? " · 使用文本降级" : ""}
           </p>
         </div>

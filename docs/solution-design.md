@@ -426,6 +426,14 @@ API Key 不写入项目文件，不提交到 Git，也不明文保存在 Tauri S
 
 统计数据优先由历史记录实时计算，不单独维护复杂统计表。
 
+### 5.4 本地 ASR 模型与降级
+
+本地 Provider 使用 `whisper-rs` 0.16 和 whisper.cpp `ggml-base-q5_1.bin`。模型按需下载到应用数据目录，下载过程写入临时文件，完成大小校验后原子替换；支持状态、下载进度、加载验证和删除。
+
+应用录音 WAV 在本地推理前转换为单声道 f32，并以线性插值重采样到 16 kHz。模型上下文按路径缓存，每次转写创建独立推理状态。whisper.cpp 日志通过官方 hook 重定向，避免输出用户识别内容。
+
+`asr_provider = local` 时默认只调用本地模型。`allow_cloud_fallback` 默认 `false`；开启后，本地失败才使用 `fallback_asr_provider` 对应的云端配置。ASR 结果返回实际 Provider、模型和是否降级，历史记录保存这些快照。
+
 ## 6. Prompt 设计
 
 OpenAI 文本整理请求由三部分组成：
@@ -587,7 +595,7 @@ Prompt 工程师人格示例目标：
 
 后续迭代可在不推翻当前架构的前提下扩展：
 
-- 本地离线 ASR Provider。
+- 本地离线 ASR Provider（已实现 Whisper Base Q5_1，云端降级默认关闭）。
 - 更多云端 ASR Provider。
 - 本地 LLM 或私有化文本模型。
 - 人格导入导出。

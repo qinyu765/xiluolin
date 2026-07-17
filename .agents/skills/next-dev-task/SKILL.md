@@ -14,7 +14,7 @@ This skill keeps development task execution auditable for the Qiniu Hackathon vo
 ## Required Workflow
 
 1. Read `AGENTS.md`, `docs/requirements-analysis.md`, `docs/solution-design.md`, and `docs/dev/task-tracker.md`.
-2. Confirm the current branch. Work on `dev`; do not create routine feature branches.
+2. Confirm the current branch. Work directly on `main`; before editing, run a fast-forward-only pull from `origin/main`.
 3. Select the next task:
    - If one task is `Doing`, continue it.
    - Otherwise choose the first `Todo` task by tracker order.
@@ -29,18 +29,19 @@ This skill keeps development task execution auditable for the Qiniu Hackathon vo
 8. Before the task commit, update `docs/dev/task-tracker.md`:
    - `Doing` when starting.
    - `Review` when implementation and verification are ready for review.
-   - `Done` only after the PR is merged or the user explicitly confirms completion.
+   - `Done` only after the change is pushed to `main`, a PR is merged, or the user explicitly confirms completion.
    - `Blocked` with a concrete blocker when work cannot continue.
-   - Keep the PR column as `待创建` when the PR does not exist yet.
+   - Use `不适用（main 直提）` in the PR column for direct-to-`main` tasks; use `待创建` only when a PR is planned but does not exist yet.
 9. Before any commit or PR, stop and ask for explicit user approval. Show:
    - Changed files.
    - Verification result.
    - Suggested commit message using `type: 中文描述`.
    - PR description containing feature description, implementation approach, and verification method.
 10. Only after approval:
-    - Create the commit on `dev`. This commit must include the implementation, task document, and task tracker state change.
-    - If this change is being prepared as a stable milestone, create or update the PR from `dev` into `main`.
-    - Do not create a follow-up commit solely to add the new PR number or URL to `docs/dev/task-tracker.md`. Report the PR URL in the final response; the tracker PR column can be filled during a later normal tracker maintenance change.
+    - Create the commit directly on `main`. The commit must include the implementation, task document, and task tracker state change.
+    - Push the verified commit to `origin/main`.
+    - Create a temporary branch and PR only when the user explicitly requests it or isolated review is required.
+    - When a PR is used, do not create a follow-up commit solely to add its number or URL to `docs/dev/task-tracker.md`; report the URL in the final response.
 
 ## Execution Pitfalls To Check
 
@@ -62,7 +63,7 @@ Run these checks when the task touches dependencies, external APIs, build toolin
 - For HTTP client libraries, verify the installed crate API from local registry source before assuming examples from memory. In this project `ureq` 3.x multipart lives under `ureq::unversioned::multipart`.
 - For provider tasks, use mock HTTP tests for request shape and local validation. Real API smoke tests are recommended before merge when credentials and sample files are available, but may be deferred if the task document records the deferral and no secrets are committed.
 - Before creating a PR, read `git remote -v` and use the actual GitHub owner/repo. Do not infer owner or repo from the local folder path.
-- After committing on `dev`, check `git status --short --branch`. If `dev` is ahead of `origin/dev`, push `dev` before creating the `dev -> main` PR.
+- After committing on `main`, check `git status --short --branch`. If `main` is ahead of `origin/main`, push `main` after the user has approved the commit and push.
 - For PR creation, prefer using GitHub MCP tool (`mcp__github__create_pull_request`) over `gh` CLI, as `gh` may not be installed. Extract owner and repo from `git remote -v` output.
 - After PR creation, do not make a second commit only to update the tracker PR column. Put the PR URL in the final response and, when useful, the PR description.
 
@@ -92,10 +93,10 @@ Use this structure for every completed task document:
 
 ## Git And PR Rules
 
-- Do not develop directly on `main`.
-- Use `dev` as the working branch for routine development.
-- Prefer one task per PR.
-- PRs should target `main`.
+- Use `main` as the working branch for routine development.
+- Pull `origin/main` with `--ff-only` before starting a task.
+- Keep direct-to-`main` commits small, coherent, verified, and independently revertible.
+- Use a PR only when explicitly requested or when isolated review is required; PRs must target `main`.
 - Commit messages must use `type: 中文描述`.
 - Do not commit `.env`, real API keys, temporary recordings, build artifacts, or local caches.
 - Keep PR descriptions non-empty and matched to actual changes.
@@ -107,7 +108,7 @@ Before saying a task is ready for review, verify all items:
 
 - Task tracker state was updated.
 - Task tracker state, verification method, and task document were committed together with the implementation.
-- PR URL was reported in the final response. Do not require a separate PR-link-only commit.
+- For direct-to-`main` work, the pushed commit hash was reported; when a PR is used, its URL was reported without requiring a PR-link-only commit.
 - Task development document exists.
 - Verification result is documented.
 - Known execution pitfalls and deferred real-service checks are documented.

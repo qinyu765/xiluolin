@@ -106,20 +106,17 @@ Project validity requirements:
 
 ## Branch And PR Workflow
 
-- The development baseline branch is `dev`.
-- Daily development happens directly on `dev`.
-- Do not create feature branches for routine work.
-- `main` is the stable presentation branch. Do not develop features directly on `main`.
-- After a stable milestone, open a PR from `dev` into `main`.
-- PRs should target `main`.
-- Each PR should do one thing and stay as small as practical.
-- Split large features into multiple independent PRs.
-- PR titles should summarize what was added or changed in one sentence.
-- PR descriptions must include:
+- The development baseline branch is `main`.
+- Routine development happens directly on `main`; the repository no longer requires a persistent `dev` branch or routine feature branches.
+- Before starting work, update the local `main` branch from `origin/main` with a fast-forward-only pull.
+- Keep each change small, coherent, verified, and independently revertible so `main` remains runnable and reproducible.
+- Before committing or pushing, show the changed files, verification result, and proposed commit message, then obtain explicit user approval.
+- After approval, commit and push directly to `origin/main`.
+- Use a temporary branch and a PR only when the user explicitly requests it, an external contributor needs review, or a high-risk change benefits from isolated review.
+- When a PR is used, it must target `main`, do one thing, and include:
   - Feature description.
   - Implementation approach.
   - Test or verification method.
-- After PR merge, the target branch must remain runnable and reproducible for judges.
 
 ## Commit Rules
 

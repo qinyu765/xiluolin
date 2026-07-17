@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShortcutInput } from "@/components/ui/shortcut-input";
 import { InputReadinessCard } from "@/components/settings/InputReadinessCard";
+import { RecordingStorageCard } from "@/components/settings/RecordingStorageCard";
 import type { AppConfig, AudioDevice } from "@/types";
 
 type SettingsPageProps = {
@@ -205,7 +206,34 @@ export function SettingsPage({
                     onCheckedChange={(checked) =>
                       onConfigChange(
                         appConfig
-                          ? { ...appConfig, auto_save_history: checked }
+                          ? {
+                              ...appConfig,
+                              auto_save_history: checked,
+                              retain_recordings: checked
+                                ? appConfig.retain_recordings
+                                : false,
+                            }
+                          : appConfig!,
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="app-retain-recordings">保留原始录音</Label>
+                    <p className="text-xs text-muted-foreground">
+                      默认关闭。仅在自动保存历史成功时保留应用录制的 WAV
+                    </p>
+                  </div>
+                  <Switch
+                    id="app-retain-recordings"
+                    checked={appConfig?.retain_recordings ?? false}
+                    disabled={!appConfig?.auto_save_history}
+                    onCheckedChange={(checked) =>
+                      onConfigChange(
+                        appConfig
+                          ? { ...appConfig, retain_recordings: checked }
                           : appConfig!,
                       )
                     }
@@ -225,6 +253,7 @@ export function SettingsPage({
               </form>
             </CardContent>
           </Card>
+          <RecordingStorageCard />
         </TabsContent>
 
         <TabsContent value="models" className="space-y-6">

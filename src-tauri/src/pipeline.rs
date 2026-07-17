@@ -21,6 +21,16 @@ pub struct VoiceInputRequest {
     pub duration_ms: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryContext {
+    pub source: String,
+    pub asr_provider: String,
+    pub asr_model: String,
+    pub text_provider: String,
+    pub text_model: String,
+    pub audio_path: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VoiceInputResult {
     pub raw_text: String,
@@ -100,6 +110,7 @@ pub fn process_voice_input(
     text_config: TextPolishConfig,
     database: &LocalDatabase,
     auto_save_history: bool,
+    history_context: HistoryContext,
 ) -> Result<VoiceInputResult, VoiceInputError> {
     process_voice_input_with_progress(
         request,
@@ -107,6 +118,7 @@ pub fn process_voice_input(
         text_config,
         database,
         auto_save_history,
+        history_context,
         |_| {},
     )
 }
@@ -117,6 +129,7 @@ pub fn process_voice_input_with_progress(
     text_config: TextPolishConfig,
     database: &LocalDatabase,
     auto_save_history: bool,
+    history_context: HistoryContext,
     mut progress: impl FnMut(VoiceInputStage),
 ) -> Result<VoiceInputResult, VoiceInputError> {
     let start_time = std::time::Instant::now();
@@ -170,7 +183,7 @@ pub fn process_voice_input_with_progress(
         step4_start.elapsed()
     );
 
-    // 5. 异步保存历史记录（不阻塞主流程）
+    // 5. 保存历史记录并返回关联 ID，供后续投递方式和录音留存更新。
     let history_record = if auto_save_history {
         let draft = HistoryRecordDraft {
             raw_text: transcription.text.clone(),
@@ -178,28 +191,21 @@ pub fn process_voice_input_with_progress(
             persona_id: persona.id,
             persona_name: persona.name.clone(),
             duration_ms: request.duration_ms.max(0),
-            output_mode: "auto".to_string(),
+            output_mode: "pending".to_string(),
+            source: history_context.source,
+            asr_provider: history_context.asr_provider,
+            asr_model: history_context.asr_model,
+            text_provider: history_context.text_provider,
+            text_model: history_context.text_model,
+            used_fallback: polish_result.used_fallback,
+            delivery_method: "pending".to_string(),
+            audio_path: history_context.audio_path,
         };
-
-        // 克隆 database 用于异步任务
-        let db_path = database.path().to_path_buf();
-        std::thread::spawn(move || {
-            let step5_start = std::time::Instant::now();
-            match LocalDatabase::open(db_path) {
-                Ok(db) => {
-                    if let Err(e) = db.create_history_record(draft) {
-                        eprintln!("[⚠️ 异步] 保存历史记录失败: {}", e);
-                    } else {
-                        eprintln!(
-                            "[⏱️ 异步] 保存历史记录完成 - 耗时 {:?}",
-                            step5_start.elapsed()
-                        );
-                    }
-                }
-                Err(e) => eprintln!("[⚠️ 异步] 打开数据库失败: {}", e),
-            }
-        });
-        None // 异步保存，不返回记录
+        Some(
+            database
+                .create_history_record(draft)
+                .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?,
+        )
     } else {
         None
     };
@@ -264,6 +270,15 @@ pub fn process_uploaded_audio(
         )
     };
 
+    let history_context = HistoryContext {
+        source: "upload".to_string(),
+        asr_provider: config.asr_provider.clone(),
+        asr_model: asr_model.clone(),
+        text_provider: config.text_provider.clone(),
+        text_model: text_model.clone(),
+        audio_path: None,
+    };
+
     process_voice_input(
         request,
         AsrConfig {
@@ -280,18 +295,27 @@ pub fn process_uploaded_audio(
         },
         &database,
         config.auto_save_history,
+        history_context,
     )
     .map_err(|error| error.to_string())
 }
 
 struct RecordingCleanupGuard {
-    path: std::path::PathBuf,
+    path: Option<std::path::PathBuf>,
+}
+
+impl RecordingCleanupGuard {
+    fn disarm(&mut self) {
+        self.path = None;
+    }
 }
 
 impl Drop for RecordingCleanupGuard {
     fn drop(&mut self) {
-        if std::fs::remove_file(&self.path).is_err() {
-            eprintln!("[隐私] 应用录音临时文件清理失败");
+        if let Some(path) = &self.path {
+            if std::fs::remove_file(path).is_err() {
+                eprintln!("[隐私] 应用录音临时文件清理失败");
+            }
         }
     }
 }
@@ -299,7 +323,7 @@ impl Drop for RecordingCleanupGuard {
 pub fn consume_app_recording<T>(
     recordings_dir: &std::path::Path,
     file_path: &std::path::Path,
-    process: impl FnOnce(Vec<u8>, String) -> Result<T, String>,
+    process: impl FnOnce(Vec<u8>, String, &std::path::Path) -> Result<(T, bool), String>,
 ) -> Result<T, String> {
     let recordings_dir =
         std::fs::canonicalize(recordings_dir).map_err(|_| "无法访问应用录音目录".to_string())?;
@@ -316,13 +340,17 @@ pub fn consume_app_recording<T>(
         .filter(|extension| extension.eq_ignore_ascii_case("wav"))
         .ok_or_else(|| "应用录音文件必须是 WAV 格式".to_string())?
         .to_ascii_lowercase();
-    let _cleanup = RecordingCleanupGuard {
-        path: recording_path.clone(),
+    let mut cleanup = RecordingCleanupGuard {
+        path: Some(recording_path.clone()),
     };
     let audio_bytes =
         std::fs::read(&recording_path).map_err(|_| "读取应用录音文件失败".to_string())?;
 
-    process(audio_bytes, extension)
+    let (result, retain_recording) = process(audio_bytes, extension, &recording_path)?;
+    if retain_recording {
+        cleanup.disarm();
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -348,7 +376,7 @@ pub fn process_recording_file(
         consume_app_recording(
             &recordings_dir,
             std::path::Path::new(&file_path),
-            |audio_bytes, audio_extension| {
+            |audio_bytes, audio_extension, recording_path| {
                 let config = read_app_config(app.clone())?;
                 eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr_provider);
 
@@ -377,7 +405,21 @@ pub fn process_recording_file(
                     )
                 };
 
-                process_voice_input_with_progress(
+                let history_context = HistoryContext {
+                    source: "recording".to_string(),
+                    asr_provider: config.asr_provider.clone(),
+                    asr_model: asr_model.clone(),
+                    text_provider: config.text_provider.clone(),
+                    text_model: text_model.clone(),
+                    audio_path: if config.retain_recordings && config.auto_save_history {
+                        Some(recording_path.to_string_lossy().to_string())
+                    } else {
+                        None
+                    },
+                };
+
+                let retain_requested = config.retain_recordings && config.auto_save_history;
+                let processed = process_voice_input_with_progress(
                     VoiceInputRequest {
                         audio_bytes,
                         audio_extension,
@@ -397,6 +439,7 @@ pub fn process_recording_file(
                     },
                     &database,
                     config.auto_save_history,
+                    history_context,
                     |stage| {
                         let (status, indicator_status) = match stage {
                             VoiceInputStage::Transcribing => {
@@ -410,10 +453,18 @@ pub fn process_recording_file(
                         }
                     },
                 )
-                .map_err(|error| error.to_string())
+                .map_err(|error| error.to_string())?;
+                let retain_recording = retain_requested && processed.history_record.is_some();
+                Ok((processed, retain_recording))
             },
         )
     })();
+
+    if let Ok(processed) = &result {
+        if let Some(history) = &processed.history_record {
+            let _ = sessions.attach_history(&session_id, history.id.clone());
+        }
+    }
 
     if let Err(error) = &result {
         let _ = sessions.finish(&session_id, CaptureStatus::Failed);

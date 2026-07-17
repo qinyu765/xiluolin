@@ -17,7 +17,7 @@ export type RecordingResult = RecordingStartResult & {
 };
 
 export type DeliveryResult = {
-  method: "clipboard" | "manual";
+  method: "paste" | "clipboard" | "manual";
   success: boolean;
   message: string;
   target_restored: boolean;

@@ -7,6 +7,14 @@ export type HistoryRecord = {
   duration_ms: number;
   output_chars: number;
   output_mode: string;
+  source: string;
+  asr_provider: string;
+  asr_model: string;
+  text_provider: string;
+  text_model: string;
+  used_fallback: boolean;
+  delivery_method: string;
+  audio_path: string | null;
   created_at: string;
 };
 

@@ -12,6 +12,7 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputMethod {
+    Paste,
     Clipboard,
     Manual,
 }
@@ -60,10 +61,18 @@ pub async fn deliver_text(
     app: tauri::AppHandle,
     sessions: State<'_, CaptureSessionState>,
     session_id: Option<String>,
+    history_id: Option<String>,
     text: String,
 ) -> Result<OutputResult, String> {
     let Some(session_id) = session_id else {
         clipboard_copy(&text).await?;
+        if let Some(history_id) = history_id {
+            if let Err(error) =
+                crate::data::update_history_delivery_for_app(&app, &history_id, "copy")
+            {
+                eprintln!("更新历史投递方式失败：{error}");
+            }
+        }
         return Ok(OutputResult {
             method: OutputMethod::Clipboard,
             success: true,
@@ -104,7 +113,7 @@ pub async fn deliver_text(
             &sessions,
             &session_id,
             Ok(OutputResult {
-                method: OutputMethod::Clipboard,
+                method: OutputMethod::Paste,
                 success: true,
                 message: "已输入到录音开始时的窗口".to_string(),
                 target_restored: outcome.target_restored,
@@ -136,6 +145,22 @@ fn finish_delivery(
 ) -> Result<OutputResult, String> {
     match result {
         Ok(result) => {
+            if let Ok(context) = sessions.delivery_context(session_id) {
+                if let Some(history_id) = context.history_id {
+                    let delivery_method = match result.method {
+                        OutputMethod::Paste => "paste",
+                        OutputMethod::Clipboard => "copy",
+                        OutputMethod::Manual => "manual",
+                    };
+                    if let Err(error) = crate::data::update_history_delivery_for_app(
+                        app,
+                        &history_id,
+                        delivery_method,
+                    ) {
+                        eprintln!("更新历史投递方式失败：{error}");
+                    }
+                }
+            }
             sessions.finish(session_id, CaptureStatus::Completed)?;
             if show_indicator {
                 let _ = indicator::finish_indicator(app, "completed");

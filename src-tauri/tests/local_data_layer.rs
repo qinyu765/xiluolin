@@ -167,6 +167,14 @@ fn history_records_are_returned_newest_first() {
             persona_name: "Prompt 工程师".to_string(),
             duration_ms: 1200,
             output_mode: "copy".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "glm-asr-2512".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "gpt-4o-mini".to_string(),
+            used_fallback: false,
+            delivery_method: "pending".to_string(),
+            audio_path: None,
         })
         .expect("first history record should be created");
 
@@ -178,6 +186,14 @@ fn history_records_are_returned_newest_first() {
             persona_name: "任务协作者".to_string(),
             duration_ms: 2400,
             output_mode: "paste".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "glm-asr-2512".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "gpt-4o-mini".to_string(),
+            used_fallback: false,
+            delivery_method: "pending".to_string(),
+            audio_path: None,
         })
         .expect("second history record should be created");
 
@@ -203,6 +219,14 @@ fn history_statistics_are_calculated_from_saved_records() {
             persona_name: "Prompt 工程师".to_string(),
             duration_ms: 30_000,
             output_mode: "copy".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "glm-asr-2512".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "gpt-4o-mini".to_string(),
+            used_fallback: false,
+            delivery_method: "pending".to_string(),
+            audio_path: None,
         })
         .expect("first history record should be created");
 
@@ -214,6 +238,14 @@ fn history_statistics_are_calculated_from_saved_records() {
             persona_name: "Prompt 工程师".to_string(),
             duration_ms: 10_000,
             output_mode: "copy".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "glm-asr-2512".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "gpt-4o-mini".to_string(),
+            used_fallback: false,
+            delivery_method: "pending".to_string(),
+            audio_path: None,
         })
         .expect("second history record should be created");
 
@@ -225,6 +257,14 @@ fn history_statistics_are_calculated_from_saved_records() {
             persona_name: "任务协作者".to_string(),
             duration_ms: 5_000,
             output_mode: "paste".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "glm-asr-2512".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "gpt-4o-mini".to_string(),
+            used_fallback: false,
+            delivery_method: "pending".to_string(),
+            audio_path: None,
         })
         .expect("third history record should be created");
 
@@ -284,6 +324,7 @@ fn default_config_contains_provider_and_output_defaults() {
             auto_save_history: true,
             mute_system_audio: false,
             selected_microphone: "".to_string(),
+            retain_recordings: false,
         }
     );
 }
@@ -321,4 +362,83 @@ fn default_persona_can_be_changed_and_persisted() {
 
     assert!(!prompt_engineer.is_default);
     assert!(task_collaborator.is_default);
+}
+
+#[test]
+fn legacy_history_schema_is_migrated_without_data_loss() {
+    let path = temp_db_path("legacy-history-migration");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute_batch(
+            r#"
+            CREATE TABLE history_records (
+                id TEXT PRIMARY KEY,
+                raw_text TEXT NOT NULL,
+                final_text TEXT NOT NULL,
+                persona_id TEXT NOT NULL,
+                persona_name TEXT NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                output_chars INTEGER NOT NULL,
+                output_mode TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO history_records (
+                id, raw_text, final_text, persona_id, persona_name,
+                duration_ms, output_chars, output_mode
+            ) VALUES (
+                'legacy', '旧原文', '旧结果', 'prompt-engineer',
+                'Prompt 工程师', 1000, 3, 'copy'
+            );
+            "#,
+        )
+        .unwrap();
+    drop(connection);
+
+    let database = open_test_database(&path);
+    let records = database.list_history_records(10).unwrap();
+
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].id, "legacy");
+    assert_eq!(records[0].source, "unknown");
+    assert_eq!(records[0].delivery_method, "pending");
+    assert!(records[0].audio_path.is_none());
+}
+
+#[test]
+fn history_metadata_and_delivery_method_roundtrip() {
+    let database = open_test_database(&temp_db_path("history-metadata"));
+    let created = database
+        .create_history_record(HistoryRecordDraft {
+            raw_text: "原始文本".to_string(),
+            final_text: "整理结果".to_string(),
+            persona_id: "prompt-engineer".to_string(),
+            persona_name: "Prompt 工程师".to_string(),
+            duration_ms: 1800,
+            output_mode: "pending".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "glm-asr-2512".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "gpt-4o-mini".to_string(),
+            used_fallback: true,
+            delivery_method: "pending".to_string(),
+            audio_path: Some("/managed/recording.wav".to_string()),
+        })
+        .unwrap();
+
+    database
+        .update_history_delivery_method(&created.id, "paste")
+        .unwrap();
+    let record = database.list_history_records(1).unwrap().remove(0);
+
+    assert_eq!(record.source, "recording");
+    assert_eq!(record.asr_provider, "zhipu");
+    assert_eq!(record.text_provider, "openai");
+    assert!(record.used_fallback);
+    assert_eq!(record.delivery_method, "paste");
+    assert_eq!(record.output_mode, "paste");
+    assert_eq!(record.audio_path.as_deref(), Some("/managed/recording.wav"));
 }

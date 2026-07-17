@@ -32,6 +32,7 @@ pub struct CaptureSessionStart {
 pub struct DeliveryContext {
     pub source: CaptureSource,
     pub focus: Option<FocusSnapshot>,
+    pub history_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +41,7 @@ struct CaptureSession {
     source: CaptureSource,
     status: CaptureStatus,
     focus: Option<FocusSnapshot>,
+    history_id: Option<String>,
 }
 
 pub struct CaptureSessionState {
@@ -81,6 +83,7 @@ impl CaptureSessionState {
             source,
             status: CaptureStatus::Recording,
             focus,
+            history_id: None,
         });
         Ok(CaptureSessionStart { session_id })
     }
@@ -108,6 +111,19 @@ impl CaptureSessionState {
         Ok(())
     }
 
+    pub fn attach_history(&self, session_id: &str, history_id: String) -> Result<(), String> {
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|error| format!("CaptureSession 状态锁定失败：{error}"))?;
+        let session = current
+            .as_mut()
+            .filter(|session| session.id == session_id)
+            .ok_or_else(|| "CaptureSession 不存在或已经结束".to_string())?;
+        session.history_id = Some(history_id);
+        Ok(())
+    }
+
     pub fn delivery_context(&self, session_id: &str) -> Result<DeliveryContext, String> {
         let current = self
             .current
@@ -120,6 +136,7 @@ impl CaptureSessionState {
         Ok(DeliveryContext {
             source: session.source,
             focus: session.focus.clone(),
+            history_id: session.history_id.clone(),
         })
     }
 
@@ -144,6 +161,13 @@ impl CaptureSessionState {
         }
         *current = None;
         Ok(())
+    }
+
+    pub fn has_active(&self) -> bool {
+        self.current
+            .lock()
+            .map(|current| current.is_some())
+            .unwrap_or(true)
     }
 
     pub fn cancel_current(&self) {
@@ -252,5 +276,6 @@ mod tests {
 
         assert_eq!(context.source, CaptureSource::Hotkey);
         assert!(context.focus.is_none());
+        assert!(context.history_id.is_none());
     }
 }

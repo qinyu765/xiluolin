@@ -17,6 +17,7 @@ export type AppConfig = {
   auto_save_history: boolean;
   mute_system_audio: boolean;
   selected_microphone: string;
+  retain_recordings: boolean;
 };
 
 export type AudioDevice = {
@@ -39,4 +40,10 @@ export type InputReadiness = {
   models_ready: boolean;
   can_process: boolean;
   can_dictate: boolean;
+};
+
+export type RecordingStorageInfo = {
+  file_count: number;
+  total_bytes: number;
+  directory: string;
 };

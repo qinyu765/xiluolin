@@ -10,6 +10,7 @@ pub mod output;
 pub mod pipeline;
 pub mod readiness;
 pub mod recording;
+pub mod recording_storage;
 pub mod text_polish;
 
 use std::sync::Arc;
@@ -91,6 +92,9 @@ pub fn run() {
             recording::stop_recording,
             recording::list_audio_devices,
             readiness::read_input_readiness,
+            recording_storage::recording_storage_info,
+            recording_storage::open_recordings_directory,
+            recording_storage::clear_retained_recordings,
             hotkey::register_hotkey,
             hotkey::register_both_hotkeys,
             hotkey::unregister_hotkey,

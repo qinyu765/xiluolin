@@ -17,29 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { AppConfig } from "@/types";
+import type { AppConfig, HistoryRecord, HistoryStatistics } from "@/types";
 import { formatShortcutDisplay } from "@/utils/shortcut";
-
-type HistoryRecord = {
-  id: string;
-  raw_text: string;
-  final_text: string;
-  persona_id: string;
-  persona_name: string;
-  duration_ms: number;
-  output_chars: number;
-  output_mode: string;
-  created_at: string;
-};
-
-type HistoryStatistics = {
-  total_count: number;
-  total_duration_ms: number;
-  total_output_chars: number;
-  estimated_saved_ms: number;
-  top_persona_name: string | null;
-  top_persona_count: number;
-};
 
 type VoiceInputStatsCardProps = {
   historyStats: HistoryStatistics | null;
@@ -243,7 +222,12 @@ function HistoryRecordItem({
           <p className="mt-1 text-xs text-muted-foreground">
             {formatCreatedAt(record.created_at)} ·{" "}
             {formatDuration(record.duration_ms)} ·{" "}
-            {record.output_chars} 字
+            {record.output_chars} 字 · {record.source === "upload" ? "上传" : "录音"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {record.asr_provider || "未知 ASR"}/{record.asr_model || "未知模型"}
+            {record.audio_path ? " · 已保留录音" : ""}
+            {record.used_fallback ? " · 使用文本降级" : ""}
           </p>
         </div>
         <div className="flex items-center gap-1">

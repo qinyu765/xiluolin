@@ -413,7 +413,15 @@ API Key 不写入项目文件，不提交到 Git，也不明文保存在 Tauri S
 | persona_name | text | 使用的人格名称快照 |
 | duration_ms | integer | 录音时长 |
 | output_chars | integer | 生成字数 |
-| output_mode | text | copy 或 paste |
+| output_mode | text | 兼容字段，记录最终投递方式 |
+| source | text | recording 或 upload |
+| asr_provider | text | 实际 ASR Provider 快照 |
+| asr_model | text | 实际 ASR 模型快照 |
+| text_provider | text | 实际文本 Provider 快照 |
+| text_model | text | 实际文本模型快照 |
+| used_fallback | boolean | 是否使用文本降级 |
+| delivery_method | text | pending、paste、copy 或 manual |
+| audio_path | nullable text | 用户显式保留时的应用录音路径 |
 | created_at | datetime | 创建时间 |
 
 统计数据优先由历史记录实时计算，不单独维护复杂统计表。
@@ -474,7 +482,8 @@ Prompt 工程师人格示例目标：
 - API Key 保存在操作系统凭据库中，不明文写入 `settings.json`。
 - 旧版明文 API Key 仅在系统凭据写入成功后清理，避免迁移失败造成数据丢失。
 - 历史记录和统计数据保存在本地 SQLite。
-- 应用录音临时文件只允许在应用录音目录内处理，并在成功或失败后清理。
+- 应用录音只允许在应用录音目录内处理；默认在成功或失败后清理。
+- 仅当 `retain_recordings`、自动历史和历史写入均成功时保留 WAV；删除历史或清理全部录音时同步解除关联。
 - 日志不输出 API Key 片段、用户文本或完整录音路径。
 - 仓库中不保存真实 API Key。
 
@@ -532,6 +541,8 @@ Prompt 工程师人格示例目标：
 - 当前平台的自动粘贴和目标窗口恢复能力。
 
 `models_ready` 供上传音频入口使用；`can_process` 额外要求麦克风；`can_dictate` 再额外要求快捷键。自动粘贴是非阻断能力，失败时继续使用剪贴板兜底。配置保存成功后前端发送本地事件刷新检查，也支持用户手动重新检查；不周期轮询系统凭据库。
+
+通用设置提供 `retain_recordings` 开关，默认关闭且依赖自动保存历史。录音存储卡片展示应用管理 WAV 的数量、占用空间和目录，并提供打开目录和清理全部操作；活跃 CaptureSession 期间禁止清理。
 
 ## 10. 持续开发拆分建议
 

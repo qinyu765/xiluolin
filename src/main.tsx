@@ -182,24 +182,17 @@ function App() {
             // 步骤2 和 步骤3 并行执行：重新加载历史记录 + 自动输出文本
             const step2Start = performance.now();
             let step2Duration = 0;
-            console.log("[⏱️ 前端] 步骤2+3: 并行执行历史记录加载和文本输出...");
+            console.log("[⏱️ 前端] 步骤2+3: 执行文本投递并刷新历史记录...");
             setVoiceStatus("语音处理完成，正在自动输出...");
 
             try {
-              const [
-                [loadedHistoryRecords, loadedHistoryStats],
-                outputResult
-              ] = await Promise.all([
-                // 并行任务1: 重新加载历史记录
-                Promise.all([
-                  invoke<HistoryRecord[]>("list_history_records", { limit: 10 }),
-                  invoke<HistoryStatistics>("history_statistics"),
-                ]),
-                // 并行任务2: 自动输出文本到光标位置
-                invoke<DeliveryResult>("deliver_text", {
-                  sessionId: event.payload.session_id,
-                  text: result.final_text,
-                })
+              const outputResult = await invoke<DeliveryResult>("deliver_text", {
+                sessionId: event.payload.session_id,
+                text: result.final_text,
+              });
+              const [loadedHistoryRecords, loadedHistoryStats] = await Promise.all([
+                invoke<HistoryRecord[]>("list_history_records", { limit: 10 }),
+                invoke<HistoryStatistics>("history_statistics"),
               ]);
 
               step2Duration = performance.now() - step2Start;
@@ -208,6 +201,7 @@ function App() {
               // 更新历史记录
               setHistoryRecords(loadedHistoryRecords);
               setHistoryStats(loadedHistoryStats);
+              window.dispatchEvent(new Event("xiluolin-history-changed"));
               setHistoryStatus(
                 result.history_record
                   ? "历史记录和统计已更新。"
@@ -221,9 +215,11 @@ function App() {
               setVoiceStatus(outputResult.message);
 
               if (outputResult.success) {
-                if (outputResult.method === "clipboard") {
-                  toast.success("已自动输入到光标位置");
-                }
+                toast.success(
+                  outputResult.method === "paste"
+                    ? "已自动输入到录音开始时的窗口"
+                    : "结果已复制到剪贴板",
+                );
               } else {
                 toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
               }
@@ -421,6 +417,7 @@ function App() {
     setHistoryRecords(loadedHistoryRecords);
     setHistoryStats(loadedHistoryStats);
     setHistoryStatus(nextStatus);
+    window.dispatchEvent(new Event("xiluolin-history-changed"));
   }
 
   async function handleDeleteHistoryRecord(id: string) {
@@ -762,6 +759,7 @@ function App() {
       setVoiceResult(result);
       const delivery = await invoke<DeliveryResult>("deliver_text", {
         sessionId: recordingResult.session_id,
+        historyId: null,
         text: result.final_text,
       });
       setActiveSessionId(null);
@@ -805,6 +803,7 @@ function App() {
     try {
       const result = await invoke<DeliveryResult>("deliver_text", {
         sessionId: null,
+        historyId: voiceResult.history_record?.id ?? null,
         text: voiceResult.final_text,
       });
       setVoiceStatus(result.message);

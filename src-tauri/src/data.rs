@@ -40,6 +40,8 @@ pub struct AppConfig {
     pub mute_system_audio: bool,
     #[serde(default)]
     pub selected_microphone: String,
+    #[serde(default)]
+    pub retain_recordings: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,6 +89,14 @@ pub struct HistoryRecord {
     pub duration_ms: i64,
     pub output_chars: i64,
     pub output_mode: String,
+    pub source: String,
+    pub asr_provider: String,
+    pub asr_model: String,
+    pub text_provider: String,
+    pub text_model: String,
+    pub used_fallback: bool,
+    pub delivery_method: String,
+    pub audio_path: Option<String>,
     pub created_at: String,
 }
 
@@ -98,6 +108,14 @@ pub struct HistoryRecordDraft {
     pub persona_name: String,
     pub duration_ms: i64,
     pub output_mode: String,
+    pub source: String,
+    pub asr_provider: String,
+    pub asr_model: String,
+    pub text_provider: String,
+    pub text_model: String,
+    pub used_fallback: bool,
+    pub delivery_method: String,
+    pub audio_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -150,6 +168,7 @@ pub fn default_app_config() -> AppConfig {
         auto_save_history: true,
         mute_system_audio: false,
         selected_microphone: "".to_string(),
+        retain_recordings: false,
     }
 }
 
@@ -203,11 +222,48 @@ impl LocalDatabase {
                 duration_ms INTEGER NOT NULL,
                 output_chars INTEGER NOT NULL,
                 output_mode TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'unknown',
+                asr_provider TEXT NOT NULL DEFAULT '',
+                asr_model TEXT NOT NULL DEFAULT '',
+                text_provider TEXT NOT NULL DEFAULT '',
+                text_model TEXT NOT NULL DEFAULT '',
+                used_fallback INTEGER NOT NULL DEFAULT 0,
+                delivery_method TEXT NOT NULL DEFAULT 'pending',
+                audio_path TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
             "#,
         )?;
+        self.ensure_history_record_columns()?;
         self.seed_builtin_personas()?;
+        Ok(())
+    }
+
+    fn ensure_history_record_columns(&self) -> rusqlite::Result<()> {
+        let mut statement = self
+            .connection
+            .prepare("PRAGMA table_info(history_records)")?;
+        let existing = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<rusqlite::Result<std::collections::HashSet<_>>>()?;
+        let columns = [
+            ("source", "TEXT NOT NULL DEFAULT 'unknown'"),
+            ("asr_provider", "TEXT NOT NULL DEFAULT ''"),
+            ("asr_model", "TEXT NOT NULL DEFAULT ''"),
+            ("text_provider", "TEXT NOT NULL DEFAULT ''"),
+            ("text_model", "TEXT NOT NULL DEFAULT ''"),
+            ("used_fallback", "INTEGER NOT NULL DEFAULT 0"),
+            ("delivery_method", "TEXT NOT NULL DEFAULT 'pending'"),
+            ("audio_path", "TEXT"),
+        ];
+        for (name, definition) in columns {
+            if !existing.contains(name) {
+                self.connection.execute(
+                    &format!("ALTER TABLE history_records ADD COLUMN {name} {definition}"),
+                    [],
+                )?;
+            }
+        }
         Ok(())
     }
 
@@ -392,9 +448,11 @@ impl LocalDatabase {
             r#"
             INSERT INTO history_records (
                 id, raw_text, final_text, persona_id, persona_name,
-                duration_ms, output_chars, output_mode
+                duration_ms, output_chars, output_mode, source,
+                asr_provider, asr_model, text_provider, text_model,
+                used_fallback, delivery_method, audio_path
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
             "#,
             params![
                 id,
@@ -404,7 +462,15 @@ impl LocalDatabase {
                 draft.persona_name,
                 draft.duration_ms,
                 output_chars,
-                draft.output_mode
+                draft.output_mode,
+                draft.source,
+                draft.asr_provider,
+                draft.asr_model,
+                draft.text_provider,
+                draft.text_model,
+                bool_to_int(draft.used_fallback),
+                draft.delivery_method,
+                draft.audio_path
             ],
         )?;
 
@@ -416,7 +482,9 @@ impl LocalDatabase {
         let mut statement = self.connection.prepare(
             r#"
             SELECT id, raw_text, final_text, persona_id, persona_name,
-                   duration_ms, output_chars, output_mode, created_at
+                   duration_ms, output_chars, output_mode, source,
+                   asr_provider, asr_model, text_provider, text_model,
+                   used_fallback, delivery_method, audio_path, created_at
             FROM history_records
             ORDER BY datetime(created_at) DESC, rowid DESC
             LIMIT ?1
@@ -476,6 +544,43 @@ impl LocalDatabase {
         Ok(())
     }
 
+    pub fn update_history_delivery_method(
+        &self,
+        id: &str,
+        delivery_method: &str,
+    ) -> rusqlite::Result<()> {
+        self.connection.execute(
+            "UPDATE history_records SET delivery_method = ?2, output_mode = ?2 WHERE id = ?1",
+            params![id, delivery_method],
+        )?;
+        Ok(())
+    }
+
+    pub fn history_audio_path(&self, id: &str) -> rusqlite::Result<Option<String>> {
+        self.connection
+            .query_row(
+                "SELECT audio_path FROM history_records WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map(|value| value.flatten())
+    }
+
+    pub fn list_history_audio_paths(&self) -> rusqlite::Result<Vec<String>> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT audio_path FROM history_records WHERE audio_path IS NOT NULL")?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        rows.collect()
+    }
+
+    pub fn clear_history_audio_paths(&self) -> rusqlite::Result<()> {
+        self.connection
+            .execute("UPDATE history_records SET audio_path = NULL", [])?;
+        Ok(())
+    }
+
     fn seed_builtin_personas(&self) -> rusqlite::Result<()> {
         let persona_count: i64 =
             self.connection
@@ -522,7 +627,9 @@ impl LocalDatabase {
         self.connection.query_row(
             r#"
             SELECT id, raw_text, final_text, persona_id, persona_name,
-                   duration_ms, output_chars, output_mode, created_at
+                   duration_ms, output_chars, output_mode, source,
+                   asr_provider, asr_model, text_provider, text_model,
+                   used_fallback, delivery_method, audio_path, created_at
             FROM history_records
             WHERE id = ?1
             "#,
@@ -679,6 +786,12 @@ pub fn history_statistics(app: tauri::AppHandle) -> Result<HistoryStatistics, St
 pub fn delete_history_record(app: tauri::AppHandle, id: String) -> Result<(), String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
+    let audio_path = database
+        .history_audio_path(&id)
+        .map_err(|error| error.to_string())?;
+    if let Some(audio_path) = audio_path {
+        crate::recording_storage::remove_managed_recording(&app, &audio_path)?;
+    }
     database
         .delete_history_record(&id)
         .map_err(|error| error.to_string())
@@ -750,6 +863,18 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
     });
 
     Ok(config)
+}
+
+pub fn update_history_delivery_for_app(
+    app: &tauri::AppHandle,
+    history_id: &str,
+    delivery_method: &str,
+) -> Result<(), String> {
+    let database = database_for_app(app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .update_history_delivery_method(history_id, delivery_method)
+        .map_err(|error| error.to_string())
 }
 
 fn database_for_app(app: &tauri::AppHandle) -> Result<LocalDatabase, String> {
@@ -844,7 +969,15 @@ fn history_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryR
         duration_ms: row.get(5)?,
         output_chars: row.get(6)?,
         output_mode: row.get(7)?,
-        created_at: row.get(8)?,
+        source: row.get(8)?,
+        asr_provider: row.get(9)?,
+        asr_model: row.get(10)?,
+        text_provider: row.get(11)?,
+        text_model: row.get(12)?,
+        used_fallback: int_to_bool(row.get(13)?),
+        delivery_method: row.get(14)?,
+        audio_path: row.get(15)?,
+        created_at: row.get(16)?,
     })
 }
 

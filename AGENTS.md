@@ -1,141 +1,56 @@
-# AGENTS.md
+# XiLuoLin Agent 协作规则
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+本文件是仓库内 Agent 开发行为的唯一规则源。`CLAUDE.md` 软链接到本文件；工具专属能力位于 `.agents/skills/`，仅在任务确实匹配时按需使用。
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+## 1. 沟通与项目定位
 
-## 1. Think Before Coding
+- 面向用户的沟通、文档、代码注释、Issue、PR 和 Git 提交说明使用中文。
+- 代码、API、类型、路径、命令、URL 和第三方技术名称保留英文。
+- XiLuoLin 是长期维护的开源 AI 语音输入桌面产品，不是比赛项目、一次性 demo 或最小 MVP。
+- 优先考虑真实用户价值、可靠性、隐私、可访问性和可维护性。
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+## 2. 工作原则
 
-Before implementing:
+- 先理解用户目标和现有实现，再修改代码；能从仓库确认的事实不要猜测。
+- 只修改完成当前需求所必需的内容，不顺手重构、格式化或清理无关代码。
+- 优先使用简单、可验证的实现，不添加没有明确需求的抽象、配置或依赖。
+- 延续现有模块边界、命名和代码风格；新依赖必须有明确用途。
+- 发现无关问题时记录并告知用户，不擅自扩大范围。
 
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+## 3. 工作区与数据安全
 
-## 2. Simplicity First
+- 修改前检查当前分支和工作区状态，不覆盖来源不明的本地改动。
+- 不擅自执行 `git reset`、`git clean`、强制推送、历史改写或删除用户改动。
+- 不提交 API Key、访问令牌、私人录音、用户完整文本、构建产物或本地缓存。
+- 日志和错误信息不得暴露凭据、用户完整文本或完整录音路径。
+- 涉及录音、凭据、剪贴板、历史记录或外部 Provider 时，明确检查隐私和失败路径。
 
-**Minimum code that solves the problem. Nothing speculative.**
+## 4. 文档使用
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+- 当前文档入口是 `docs/README.md`；只读取与当前任务相关的文档。
+- `docs/dev/` 是历史实施记录，不是当前规则源，不要求每次开发读取或更新。
+- 默认不创建任务跟踪表、逐任务复盘或新的方案文档；只有用户明确要求或信息需要长期维护时才创建。
+- 用户可见行为、配置方式、隐私边界、兼容性或架构发生变化时，同步更新对应的现行文档。
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+## 5. 验证
 
-## 3. Surgical Changes
+- 使用与改动范围匹配的最小检查，并报告实际运行结果。
+- TypeScript 改动至少运行 `pnpm typecheck`；前端构建相关改动运行 `pnpm build`。
+- Rust 改动运行相关测试，并按范围执行 `cargo fmt --check`、`cargo check` 或 `cargo test`。
+- 完整代码改动发布前优先运行 `pnpm check`；无法运行时说明准确阻塞原因。
+- 文档或配置改动至少检查引用、软链接和 `git diff --check`。
 
-**Touch only what you must. Clean up only your own mess.**
+## 6. Git 与发布
 
-When editing existing code:
+- 仓库维护任务默认直接在 `main` 上完成；外部贡献者仍遵循 `CONTRIBUTING.md` 的分支和 PR 流程。
+- 开始前确认 `main` 状态；工作区安全且不会覆盖本地提交时，可使用 `git pull --ff-only origin main`。
+- Commit 使用 `type: 中文描述`，例如 `docs: 整理项目文档结构`。
+- 验证通过后默认提交并推送 `main`，除非用户要求只修改、只检查、不要提交、不要推送或使用 PR。
+- 若存在无关未提交改动、分支分叉、验证失败或远端风险，停止发布并向用户说明，不自行 stash、rebase、reset 或覆盖远端。
+- 完成后说明主要改动、验证结果和提交信息。
 
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+## 7. Skills
 
-When your changes create orphans:
-
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
----
-
-# Project-Specific Instructions
-
-This repository contains XiLuoLin, an independently maintained open-source AI voice input assistant for office work, writing, and programming. It is a long-term product and engineering project, not a hackathon submission, throwaway demo, or minimum MVP.
-
-The product helps users turn speech into directly usable text through speech recognition, scenario-aware rewriting, hotwords, history, and desktop output workflows.
-
-## Communication Language
-
-- Use Chinese for user-facing conversation, documentation, code comments, Issue content, PR descriptions, and Git commit messages.
-- Keep code, API names, technical terms, URLs, paths, and third-party library names in English.
-
-## Priority Scenarios
-
-- Developers use voice to organize prompts, requirements, debugging notes, and instructions for Agent tools.
-- Team members convert spoken task instructions or collaboration messages into clear, structured text.
-- Creators capture ideas by voice and turn them into titles, key points, drafts, or task lists.
-
-## Open-Source Project Direction
-
-- Treat XiLuoLin as a maintainable desktop product and community project with an evolving roadmap.
-- Optimize for real user value, reliability, privacy, accessibility, documentation quality, and sustainable maintenance.
-- Keep product and architecture decisions understandable to external contributors.
-- Prefer incremental, reviewable improvements over competition-oriented feature stacking or one-off presentation work.
-- Record important decisions, limitations, setup requirements, and compatibility notes in `README.md`, `CONTRIBUTING.md`, or `docs/`.
-
-## Branch And PR Workflow
-
-- `main` is the protected, releasable baseline and should remain runnable.
-- Do not develop directly on `main`. Use short-lived branches such as `feat/...`, `fix/...`, `docs/...`, or `chore/...`.
-- External contributors should fork the repository when needed, create a focused branch, and open a PR targeting `main`.
-- Keep each change small, coherent, verified, and independently revertible.
-- After verification, summarize the changed files, checks, and commit message, then commit and push without pausing for approval unless the user explicitly requests review-only or dry-run behavior.
-- Every PR should explain the problem, solution, verification method, user-visible impact, and related Issue when applicable.
-- Use draft PRs for work in progress and request review only when the documented checks pass.
-
-## Commit Rules
-
-- Git commit messages must use `type: Chinese description`.
-- `type` must be lowercase English. The description must be Chinese.
-- Keep commit scope clear. One commit should represent one coherent change.
-- Do not mix unrelated changes in one commit.
-- Do not commit `.env`, real API keys, temporary recordings, build artifacts, or local caches.
-- Common commit types include `feat`, `fix`, `docs`, `refactor`, `style`, `test`, and `chore`.
-
-## Development Principles
-
-- Build for sustained daily use rather than only proving a minimum loop.
-- Keep the product focused on voice-to-usable-text workflows; evaluate broader features against the roadmap and user value.
-- Preserve Provider abstractions so cloud services and future local models can evolve independently.
-- Prefer existing ASR services or open-source models over training a speech model inside this repository.
-- Treat privacy, local data ownership, failure recovery, and cross-platform behavior as product requirements.
-- Every new dependency must have a clear purpose and be documented in the README or relevant technical document.
-- Avoid speculative complexity, but do not use “MVP” as a reason to leave known reliability, security, or maintainability gaps undocumented.
-
-## Quality And Verification
-
-- Every functional change must explain how it was verified.
-- Run relevant frontend and Rust checks before PR review; use `pnpm check` when the complete toolchain is available.
-- If automated coverage is unavailable, document reproducible manual verification steps in the PR.
-- Bug fixes should include the reproduction path, root cause, and post-fix verification.
-- Changes affecting audio, global shortcuts, clipboard output, credentials, or external providers require platform and privacy impact notes.
-
-## Documentation Requirements
-
-- `README.md` (Chinese) and `README.en.md` (English) explain project positioning, current status, core features, setup, usage, roadmap, privacy boundary, and contribution entry points. Keep both files synchronized when shared information changes.
-- `CONTRIBUTING.md` is the source of truth for community contribution workflow.
-- Important product decisions, architecture changes, compatibility constraints, and scope boundaries belong in Issues or `docs/`.
-- Historical development records may keep their original context, but they must be clearly marked as archived and must not define the current project direction.
+- `.agents/skills/` 中的 skill 是场景化参考，不是所有任务的固定流程。
+- 只在描述与当前任务匹配时读取对应 skill；若 skill 与本文件冲突，以本文件为准。
+- `next-dev-task` 只用于用户明确要求选择、继续或整理下一项开发任务的场景。

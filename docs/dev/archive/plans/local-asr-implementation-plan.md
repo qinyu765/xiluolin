@@ -1,6 +1,6 @@
 # 本地轻量 ASR 方案实施计划
 
-> 状态：T035 已按 M3 实施。当前实现使用 `whisper-rs` 0.16.0、`ggml-base-q5_1.bin`，本地模式默认关闭云端降级。本文后续内容保留为设计背景，实际行为以 README、solution-design 和 T035 文档为准。
+> **归档状态：已实施。** T035 已按 M3 实现本地离线 ASR，当前使用 `whisper-rs` 0.16.0 和 `ggml-base-q5_1.bin`，云端降级默认关闭。本文其余内容保留为早期设计背景，实际行为以 README、`docs/solution-design.md` 和 T035 任务文档为准。
 
 ## 背景
 

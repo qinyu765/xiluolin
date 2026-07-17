@@ -1,5 +1,7 @@
 # 模型服务配置说明
 
+> **归档状态：** 旧 Provider 配置指南。当前用户配置见 [`../../../usage-guide.md`](../../../usage-guide.md)，当前技术设计见 [`../../../solution-design.md`](../../../solution-design.md)。
+
 ## 概述
 
 项目支持两类模型服务的 provider 配置：

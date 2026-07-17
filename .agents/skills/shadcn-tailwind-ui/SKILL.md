@@ -30,7 +30,7 @@ Use this skill when building or refactoring visible React UI, including settings
 
 ## Component Selection
 
-Start with these components for the MVP UI foundation:
+Start with these components for the project UI foundation:
 
 - `button`
 - `card`

@@ -1,5 +1,7 @@
 # T004A 建立 shadcn/ui + Tailwind 前端基础
 
+> **归档说明：** 本文记录特定开发阶段的背景与决策，其中的 MVP、demo、比赛或旧分支流程表述仅用于保留历史，不代表 XiLuoLin 当前的开源项目定位与协作方式。当前信息请以根目录 `README.md`、`CONTRIBUTING.md` 和 `docs/roadmap.md` 为准。
+
 ## 任务目标
 
 为 `T004A 建立 shadcn/ui + Tailwind 前端基础` 建立可复用的前端 UI 基础，方便后续热词词典、历史记录、统计卡片和设置页使用统一组件与样式规则。

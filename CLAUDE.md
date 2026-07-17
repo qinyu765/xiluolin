@@ -73,9 +73,9 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 # Project-Specific Instructions
 
-This repository is for a Qiniu Cloud 2026 hackathon project. The selected topic is "voice input method".
+This repository contains XiLuoLin, an independently maintained open-source AI voice input assistant for office work, writing, and programming. It is a long-term product and engineering project, not a hackathon submission, throwaway demo, or minimum MVP.
 
-The product is an AI voice input assistant for office work, writing, and programming. It helps users turn speech into directly usable text, reducing typing, editing, and polishing cost.
+The product helps users turn speech into directly usable text through speech recognition, scenario-aware rewriting, hotwords, history, and desktop output workflows.
 
 ## Communication Language
 
@@ -84,39 +84,27 @@ The product is an AI voice input assistant for office work, writing, and program
 
 ## Priority Scenarios
 
-- Developers use voice to quickly organize and improve prompts while working with Agent tools or vibe coding workflows.
-- Team members convert spoken task instructions or collaboration messages into clearer and more structured text.
-- Creators quickly capture ideas by voice and turn them into titles, key points, drafts, or task lists.
+- Developers use voice to organize prompts, requirements, debugging notes, and instructions for Agent tools.
+- Team members convert spoken task instructions or collaboration messages into clear, structured text.
+- Creators capture ideas by voice and turn them into titles, key points, drafts, or task lists.
 
-## Hackathon Evaluation Context
+## Open-Source Project Direction
 
-The project should optimize for three evaluation dimensions:
-
-- Product completeness and innovation: reasonable product design, complete user flow, smooth interaction, and useful originality.
-- Development process and quality: clear architecture, readable code, reasonable PR and commit history, robustness, and maintainability.
-- Demo and communication: clear demo video and complete explanation of product value and functionality.
-
-Project validity requirements:
-
-- The work must stay aligned with the voice input method topic.
-- Keep continuous PR and commit records during development. Do not import all work in one final batch.
-- PR descriptions must not be empty and must match the actual changes.
-- If third-party libraries, frameworks, open-source projects, or reused historical code are referenced, document their source and purpose.
-- The README must list dependencies and clarify original work.
+- Treat XiLuoLin as a maintainable desktop product and community project with an evolving roadmap.
+- Optimize for real user value, reliability, privacy, accessibility, documentation quality, and sustainable maintenance.
+- Keep product and architecture decisions understandable to external contributors.
+- Prefer incremental, reviewable improvements over competition-oriented feature stacking or one-off presentation work.
+- Record important decisions, limitations, setup requirements, and compatibility notes in `README.md`, `CONTRIBUTING.md`, or `docs/`.
 
 ## Branch And PR Workflow
 
-- The development baseline branch is `main`.
-- Routine development happens directly on `main`; the repository no longer requires a persistent `dev` branch or routine feature branches.
-- Before starting work, update the local `main` branch from `origin/main` with a fast-forward-only pull.
-- Keep each change small, coherent, verified, and independently revertible so `main` remains runnable and reproducible.
+- `main` is the protected, releasable baseline and should remain runnable.
+- Do not develop directly on `main`. Use short-lived branches such as `feat/...`, `fix/...`, `docs/...`, or `chore/...`.
+- External contributors should fork the repository when needed, create a focused branch, and open a PR targeting `main`.
+- Keep each change small, coherent, verified, and independently revertible.
 - Before committing or pushing, show the changed files, verification result, and proposed commit message, then obtain explicit user approval.
-- After approval, commit and push directly to `origin/main`.
-- Use a temporary branch and a PR only when the user explicitly requests it, an external contributor needs review, or a high-risk change benefits from isolated review.
-- When a PR is used, it must target `main`, do one thing, and include:
-  - Feature description.
-  - Implementation approach.
-  - Test or verification method.
+- Every PR should explain the problem, solution, verification method, user-visible impact, and related Issue when applicable.
+- Use draft PRs for work in progress and request review only when the documented checks pass.
 
 ## Commit Rules
 
@@ -125,40 +113,29 @@ Project validity requirements:
 - Keep commit scope clear. One commit should represent one coherent change.
 - Do not mix unrelated changes in one commit.
 - Do not commit `.env`, real API keys, temporary recordings, build artifacts, or local caches.
-- Separate documentation, configuration, and feature-code commits when it helps review the development process.
-- Common commit types:
-  - `feat`: new feature.
-  - `fix`: bug fix.
-  - `docs`: documentation changes.
-  - `refactor`: code refactor.
-  - `style`: style or formatting changes.
-  - `chore`: maintenance, dependency, or configuration changes.
-- Commit examples:
-  - `feat: 新增人格配置本地存储`
-  - `fix: 修复录音状态未重置问题`
-  - `docs: 更新语音输入流程需求文档`
-  - `refactor: 重构数据层接口`
-  - `style: 调整首页布局样式`
-  - `chore: 更新项目依赖配置`
+- Common commit types include `feat`, `fix`, `docs`, `refactor`, `style`, `test`, and `chore`.
 
 ## Development Principles
 
-- Prioritize a demonstrable, explainable, and reproducible minimum loop.
-- Do not add features unrelated to voice input.
-- Do not build a full system-level input method kernel in the MVP. Focus on a voice input assistant.
-- Do not train speech models. Prefer existing ASR services or open-source models.
-- Do not build meeting transcription, long-audio transcription, or a complex multi-user collaboration platform.
-- Every new dependency must have a clear purpose and must be documented in the README.
+- Build for sustained daily use rather than only proving a minimum loop.
+- Keep the product focused on voice-to-usable-text workflows; evaluate broader features against the roadmap and user value.
+- Preserve Provider abstractions so cloud services and future local models can evolve independently.
+- Prefer existing ASR services or open-source models over training a speech model inside this repository.
+- Treat privacy, local data ownership, failure recovery, and cross-platform behavior as product requirements.
+- Every new dependency must have a clear purpose and be documented in the README or relevant technical document.
+- Avoid speculative complexity, but do not use “MVP” as a reason to leave known reliability, security, or maintainability gaps undocumented.
 
 ## Quality And Verification
 
 - Every functional change must explain how it was verified.
-- When a test system exists, run tests and builds before PR merge.
-- If no automated tests exist, document manual verification steps in the PR description.
-- For bug fixes, describe the reproduction path before the fix and the verification method after the fix.
+- Run relevant frontend and Rust checks before PR review; use `pnpm check` when the complete toolchain is available.
+- If automated coverage is unavailable, document reproducible manual verification steps in the PR.
+- Bug fixes should include the reproduction path, root cause, and post-fix verification.
+- Changes affecting audio, global shortcuts, clipboard output, credentials, or external providers require platform and privacy impact notes.
 
 ## Documentation Requirements
 
-- README must explain project positioning, core features, run instructions, dependency notes, original work, and demo method.
-- Important product decisions, competitor research, and scope boundaries should be written in Issues or `docs/`.
-- Demo video scripts, pitch drafts, and interview Q&A should be placed under `docs/` or `pitch/`.
+- `README.md` (Chinese) and `README.en.md` (English) explain project positioning, current status, core features, setup, usage, roadmap, privacy boundary, and contribution entry points. Keep both files synchronized when shared information changes.
+- `CONTRIBUTING.md` is the source of truth for community contribution workflow.
+- Important product decisions, architecture changes, compatibility constraints, and scope boundaries belong in Issues or `docs/`.
+- Historical development records may keep their original context, but they must be clearly marked as archived and must not define the current project direction.

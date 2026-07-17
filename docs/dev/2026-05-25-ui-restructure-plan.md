@@ -1,5 +1,7 @@
 # UI 重构计划
 
+> **归档说明：** 本文记录特定开发阶段的背景与决策，其中的 MVP、demo、比赛或旧分支流程表述仅用于保留历史，不代表 XiLuoLin 当前的开源项目定位与协作方式。当前信息请以根目录 `README.md`、`CONTRIBUTING.md` 和 `docs/roadmap.md` 为准。
+
 > 当前文档是 UI 重构启动时的计划稿。实际实现已经发生偏差：全局导航采用左侧导航；设置页采用顶部水平 Tab；首页 `QuickStartCard` 录音 / 上传入口当前被注释隐藏。当前事实源以 `README.md`、`docs/solution-design.md` 第 9 节和 `docs/dev/2026-05-25-t028-ui-e2e-verification.md` 为准。
 
 ## 问题背景

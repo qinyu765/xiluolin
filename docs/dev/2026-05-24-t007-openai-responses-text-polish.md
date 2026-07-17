@@ -1,5 +1,7 @@
 # T007 实现 OpenAI Responses API 文本整理
 
+> **归档说明：** 本文记录特定开发阶段的背景与决策，其中的 MVP、demo、比赛或旧分支流程表述仅用于保留历史，不代表 XiLuoLin 当前的开源项目定位与协作方式。当前信息请以根目录 `README.md`、`CONTRIBUTING.md` 和 `docs/roadmap.md` 为准。
+
 ## 任务目标
 
 在 `dev` 分支上实现 OpenAI Responses API 文本整理能力，支持输入原始识别文本、当前人格 prompt 和热词上下文，输出可直接复制使用的整理结果。

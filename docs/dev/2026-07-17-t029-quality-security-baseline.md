@@ -1,5 +1,7 @@
 # T029 建立前后端质量检查基线
 
+> **归档说明：** 本文记录特定开发阶段的背景与决策，其中的 MVP、demo、比赛或旧分支流程表述仅用于保留历史，不代表 XiLuoLin 当前的开源项目定位与协作方式。当前信息请以根目录 `README.md`、`CONTRIBUTING.md` 和 `docs/roadmap.md` 为准。
+
 ## 任务目标
 
 修复仓库现有的 TypeScript 和 Rust 编译阻塞，建立本地统一检查命令与 Windows GitHub Actions，使后续直接在 `main` 开发时具备明确、可重复的质量门禁。

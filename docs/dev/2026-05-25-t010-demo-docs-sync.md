@@ -1,5 +1,7 @@
 # T010 补齐演示和评审文档
 
+> **归档说明：** 本文记录特定开发阶段的背景与决策，其中的 MVP、demo、比赛或旧分支流程表述仅用于保留历史，不代表 XiLuoLin 当前的开源项目定位与协作方式。当前信息请以根目录 `README.md`、`CONTRIBUTING.md` 和 `docs/roadmap.md` 为准。
+
 ## 任务目标
 
 同步项目文档到当前 MVP 和 UI 重构状态，补齐面向评审的 README 说明、演示复现路径和演示脚本。
@@ -9,12 +11,12 @@
 - 更新 `README.md` 的项目状态，说明核心能力、当前界面结构和待验证项。
 - 更新 `README.md` 的演示复现流程，明确本地运行、模型配置、人格、热词、首页历史和统计的验证路径。
 - 补全 `README.md` 中新增前端和 Rust 依赖的用途说明。
-- 新增 `docs/demo-script.md`，用于评审讲解和录屏准备。
+- 新增 `docs/usage-guide.md`（由原演示脚本文档演进而来），用于评审讲解和录屏准备。
 - 更新 `docs/solution-design.md` 的 UI 信息架构，反映当前左侧导航、首页、人格页、热词页和设置页结构。
 - 继续同步当前实际限制：`QuickStartCard` 在首页被注释隐藏，前端尚未监听快捷键录音完成事件。
 - 记录新增录音指示器窗口：`src-tauri/src/indicator.rs`、根目录 `indicator.html` 和 `src-tauri/indicator.html` 已加入；两份 HTML 内容一致，生产打包资源配置仍需验证。
 - 记录配置弹窗风险：`AppSettingsDialog` 仍存在且引用 `recording_mode`，但当前 `AppConfig` 类型未包含该字段，主入口也未使用该弹窗。
-- 更新 `docs/demo-script.md` 和 T028 验证清单，避免把未接线的语音输入入口描述成当前可演示能力。
+- 更新 `docs/usage-guide.md`（由原演示脚本文档演进而来） 和 T028 验证清单，避免把未接线的语音输入入口描述成当前可演示能力。
 - 更新 `docs/dev/task-tracker.md` 中 T010 的状态和文档链接。
 
 ## 为什么这么做
@@ -24,7 +26,7 @@
 ## 涉及文件
 
 - `README.md`
-- `docs/demo-script.md`
+- `docs/usage-guide.md`（由原演示脚本文档演进而来）
 - `docs/solution-design.md`
 - `docs/dev/task-tracker.md`
 - `docs/dev/2026-05-25-t010-demo-docs-sync.md`

@@ -1,5 +1,7 @@
 # T002 初始化 Tauri + React + pnpm 项目
 
+> **归档说明：** 本文记录特定开发阶段的背景与决策，其中的 MVP、demo、比赛或旧分支流程表述仅用于保留历史，不代表 XiLuoLin 当前的开源项目定位与协作方式。当前信息请以根目录 `README.md`、`CONTRIBUTING.md` 和 `docs/roadmap.md` 为准。
+
 ## 任务目标
 
 直接在 `dev` 分支上初始化 Tauri v2、React、TypeScript、pnpm 项目骨架，并补充 README 运行说明和本机开发依赖说明。

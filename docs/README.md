@@ -22,6 +22,19 @@
 | [`troubleshooting.md`](./troubleshooting.md) | 当前故障定位和恢复方法 | 用户与开发人员 |
 | [`design/ui-style.md`](./design/ui-style.md) | 当前 UI 视觉规范 | 设计与前端开发人员 |
 | [`hotword-recommendations.md`](./hotword-recommendations.md) | 可选热词参考列表 | 用户与测试人员 |
+| [`retrospectives/README.md`](./retrospectives/README.md) | 工程复盘、决策背景和可复用经验 | 维护者与贡献者 |
+
+## 工程复盘
+
+[`retrospectives/`](./retrospectives/) 保存跨任务的背景、决策、问题根因、解决过程和经验总结。它们用于解释当前架构为何形成，不替代当前需求和方案文档。
+
+- [`2026-07-17-modernization-overview.md`](./retrospectives/2026-07-17-modernization-overview.md)：现代化改造总览、时间线和阶段结果。
+- [`quality-and-security-baseline.md`](./retrospectives/quality-and-security-baseline.md)：质量门禁、凭据、日志和录音安全。
+- [`capture-session-and-cross-app-delivery.md`](./retrospectives/capture-session-and-cross-app-delivery.md)：CaptureSession、焦点和跨应用投递。
+- [`capture-history-and-reprocessing.md`](./retrospectives/capture-history-and-reprocessing.md)：历史模型、录音留存和重新处理。
+- [`local-asr-and-provider-strategy.md`](./retrospectives/local-asr-and-provider-strategy.md)：本地 ASR、模型管理和降级策略。
+- [`collaboration-git-and-ci-lessons.md`](./retrospectives/collaboration-git-and-ci-lessons.md)：多 Agent、worktree、堆叠 PR 和 CI。
+- [`future-work-and-checklists.md`](./retrospectives/future-work-and-checklists.md)：遗留事项和通用检查清单。
 
 ## 历史归档
 

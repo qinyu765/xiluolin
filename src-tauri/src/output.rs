@@ -1,11 +1,17 @@
-use arboard::Clipboard;
-use enigo::{Enigo, Key, Keyboard, Settings};
+use arboard::{Clipboard, ImageData};
+use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use crate::{
+    capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
+    focus_capture::{restore_focus, FocusSnapshot},
+    indicator,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputMethod {
-    Keyboard,
     Clipboard,
     Manual,
 }
@@ -15,159 +21,200 @@ pub struct OutputResult {
     pub method: OutputMethod,
     pub success: bool,
     pub message: String,
+    pub target_restored: bool,
+    pub clipboard_restored: bool,
+    pub used_fallback: bool,
 }
 
-// 主输出命令:自动选择最佳输出方式
-#[tauri::command]
-pub async fn output_text(text: String) -> Result<OutputResult, String> {
-    let start_time = std::time::Instant::now();
-    println!("[⏱️ 输出] ========== 开始新的输出请求 ==========");
-    println!("[⏱️ 输出] 文本长度: {} 字符", text.len());
+#[derive(Debug)]
+enum ClipboardBackup {
+    Text(String),
+    Image(ImageData<'static>),
+}
 
-    // 1. 优先尝试剪贴板粘贴（更可靠，不会出现字符重复）
-    let step1_start = std::time::Instant::now();
-    println!("[⏱️ 输出] 尝试方法 1: 剪贴板粘贴");
-    match clipboard_paste(&text).await {
-        Ok(_) => {
-            println!(
-                "[⏱️ 输出] ✅ 剪贴板粘贴成功 - 耗时 {:?}",
-                step1_start.elapsed()
-            );
-            println!("[⏱️ 输出] 总耗时: {:?}", start_time.elapsed());
-            println!("[⏱️ 输出] ========== 输出请求完成 ==========");
-            return Ok(OutputResult {
-                method: OutputMethod::Clipboard,
-                success: true,
-                message: "已通过剪贴板输入".to_string(),
-            });
-        }
-        Err(e) => {
-            println!(
-                "[⏱️ 输出] ❌ 剪贴板粘贴失败 - 耗时 {:?}: {}",
-                step1_start.elapsed(),
-                e
-            );
-        }
+impl ClipboardBackup {
+    fn read(clipboard: &mut Clipboard) -> Option<Self> {
+        clipboard
+            .get_text()
+            .map(Self::Text)
+            .or_else(|_| clipboard.get_image().map(Self::Image))
+            .ok()
     }
 
-    // 2. 最终兜底:至少复制到剪贴板
-    let step2_start = std::time::Instant::now();
-    println!("[⏱️ 输出] 尝试方法 2: 仅复制到剪贴板");
-    clipboard_copy(&text).await?;
-    println!(
-        "[⏱️ 输出] ⚠️ 已复制到剪贴板，需要手动粘贴 - 耗时 {:?}",
-        step2_start.elapsed()
-    );
-    println!("[⏱️ 输出] 总耗时: {:?}", start_time.elapsed());
-    println!("[⏱️ 输出] ========== 输出请求完成 ==========");
-    Ok(OutputResult {
-        method: OutputMethod::Manual,
-        success: false,
-        message: "已复制到剪贴板,请手动粘贴 (Ctrl+V)".to_string(),
-    })
+    fn restore(self, clipboard: &mut Clipboard) -> bool {
+        match self {
+            Self::Text(text) => clipboard.set_text(text).is_ok(),
+            Self::Image(image) => clipboard.set_image(image).is_ok(),
+        }
+    }
 }
 
-// 剪贴板粘贴
-async fn clipboard_paste(text: &str) -> Result<(), String> {
-    println!("[clipboard_paste] ========== 开始剪贴板粘贴流程 ==========");
+#[derive(Debug, Clone, Copy)]
+struct PasteOutcome {
+    target_restored: bool,
+    clipboard_restored: bool,
+}
 
-    // 先复制到剪贴板
-    clipboard_copy(text).await?;
+#[tauri::command]
+pub async fn deliver_text(
+    app: tauri::AppHandle,
+    sessions: State<'_, CaptureSessionState>,
+    session_id: Option<String>,
+    text: String,
+) -> Result<OutputResult, String> {
+    let Some(session_id) = session_id else {
+        clipboard_copy(&text).await?;
+        return Ok(OutputResult {
+            method: OutputMethod::Clipboard,
+            success: true,
+            message: "结果已复制到剪贴板".to_string(),
+            target_restored: false,
+            clipboard_restored: false,
+            used_fallback: false,
+        });
+    };
 
-    // 模拟粘贴快捷键
-    tokio::task::spawn_blocking(|| {
-        println!("[clipboard_paste] 等待 20ms 后执行粘贴快捷键...");
-        std::thread::sleep(std::time::Duration::from_millis(20));
+    let context = sessions.delivery_context(&session_id)?;
+    sessions.update_status(&session_id, CaptureStatus::Delivering)?;
+    if context.source == CaptureSource::Hotkey {
+        let _ = indicator::update_indicator(&app, "delivering");
+    }
 
-        println!("[clipboard_paste] 初始化 enigo...");
-        let mut enigo = Enigo::new(&Settings::default()).map_err(|e| {
-            let err_msg = format!("初始化键盘模拟失败: {}", e);
-            println!("[clipboard_paste] ❌ {}", err_msg);
-            err_msg
-        })?;
+    if context.source == CaptureSource::App {
+        let result = clipboard_copy(&text).await;
+        return finish_delivery(
+            &app,
+            &sessions,
+            &session_id,
+            result.map(|_| OutputResult {
+                method: OutputMethod::Clipboard,
+                success: true,
+                message: "结果已复制到剪贴板".to_string(),
+                target_restored: false,
+                clipboard_restored: false,
+                used_fallback: false,
+            }),
+            false,
+        );
+    }
 
-        #[cfg(target_os = "macos")]
-        {
-            println!("[clipboard_paste] 执行 Cmd+V (macOS)...");
-            enigo
-                .key(Key::Meta, enigo::Direction::Press)
-                .map_err(|e| format!("按下Meta键失败: {}", e))?;
-            enigo
-                .key(Key::Unicode('v'), enigo::Direction::Click)
-                .map_err(|e| format!("按下V键失败: {}", e))?;
-            enigo
-                .key(Key::Meta, enigo::Direction::Release)
-                .map_err(|e| format!("释放Meta键失败: {}", e))?;
+    match clipboard_paste(&text, context.focus).await {
+        Ok(outcome) => finish_delivery(
+            &app,
+            &sessions,
+            &session_id,
+            Ok(OutputResult {
+                method: OutputMethod::Clipboard,
+                success: true,
+                message: "已输入到录音开始时的窗口".to_string(),
+                target_restored: outcome.target_restored,
+                clipboard_restored: outcome.clipboard_restored,
+                used_fallback: false,
+            }),
+            true,
+        ),
+        Err(paste_error) => {
+            let fallback = clipboard_copy(&text).await.map(|_| OutputResult {
+                method: OutputMethod::Manual,
+                success: false,
+                message: format!("自动粘贴失败，结果已复制到剪贴板：{paste_error}"),
+                target_restored: false,
+                clipboard_restored: false,
+                used_fallback: true,
+            });
+            finish_delivery(&app, &sessions, &session_id, fallback, true)
         }
+    }
+}
 
-        #[cfg(not(target_os = "macos"))]
-        {
-            println!("[clipboard_paste] 准备执行 Ctrl+V (Windows/Linux)...");
-            println!("[clipboard_paste] 步骤1: 按下 Ctrl 键");
-            enigo
-                .key(Key::Control, enigo::Direction::Press)
-                .map_err(|e| {
-                    let err_msg = format!("按下Ctrl键失败: {}", e);
-                    println!("[clipboard_paste] ❌ {}", err_msg);
-                    err_msg
-                })?;
-
-            println!("[clipboard_paste] 步骤2: 点击 V 键");
-            enigo
-                .key(Key::Unicode('v'), enigo::Direction::Click)
-                .map_err(|e| {
-                    let err_msg = format!("按下V键失败: {}", e);
-                    println!("[clipboard_paste] ❌ {}", err_msg);
-                    err_msg
-                })?;
-
-            println!("[clipboard_paste] 步骤3: 释放 Ctrl 键");
-            enigo
-                .key(Key::Control, enigo::Direction::Release)
-                .map_err(|e| {
-                    let err_msg = format!("释放Ctrl键失败: {}", e);
-                    println!("[clipboard_paste] ❌ {}", err_msg);
-                    err_msg
-                })?;
+fn finish_delivery(
+    app: &tauri::AppHandle,
+    sessions: &CaptureSessionState,
+    session_id: &str,
+    result: Result<OutputResult, String>,
+    show_indicator: bool,
+) -> Result<OutputResult, String> {
+    match result {
+        Ok(result) => {
+            sessions.finish(session_id, CaptureStatus::Completed)?;
+            if show_indicator {
+                let _ = indicator::finish_indicator(app, "completed");
+            }
+            Ok(result)
         }
+        Err(error) => {
+            let _ = sessions.finish(session_id, CaptureStatus::Failed);
+            if show_indicator {
+                let _ = indicator::finish_indicator(app, "failed");
+            }
+            Err(error)
+        }
+    }
+}
 
-        println!("[clipboard_paste] ✅ 粘贴快捷键执行完成");
-        println!("[clipboard_paste] ========== 剪贴板粘贴流程结束 ==========");
-        Ok::<(), String>(())
+async fn clipboard_paste(text: &str, focus: Option<FocusSnapshot>) -> Result<PasteOutcome, String> {
+    let text = text.to_string();
+    tokio::task::spawn_blocking(move || {
+        let mut clipboard = Clipboard::new().map_err(|error| format!("无法访问剪贴板：{error}"))?;
+        let previous_clipboard = ClipboardBackup::read(&mut clipboard);
+        clipboard
+            .set_text(text)
+            .map_err(|error| format!("写入剪贴板失败：{error}"))?;
+        drop(clipboard);
+
+        let target_restored = restore_focus(focus.as_ref())?;
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        send_paste_shortcut()?;
+        std::thread::sleep(std::time::Duration::from_millis(180));
+
+        let clipboard_restored = if let Some(previous_clipboard) = previous_clipboard {
+            Clipboard::new()
+                .map(|mut clipboard| previous_clipboard.restore(&mut clipboard))
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        Ok(PasteOutcome {
+            target_restored,
+            clipboard_restored,
+        })
     })
     .await
-    .map_err(|e| {
-        let err_msg = format!("粘贴操作失败: {}", e);
-        println!("[clipboard_paste] ❌ {}", err_msg);
-        err_msg
-    })?
+    .map_err(|error| format!("自动粘贴任务失败：{error}"))?
 }
 
-// 仅复制到剪贴板
+fn send_paste_shortcut() -> Result<(), String> {
+    let mut enigo =
+        Enigo::new(&Settings::default()).map_err(|error| format!("初始化键盘模拟失败：{error}"))?;
+
+    #[cfg(target_os = "macos")]
+    let modifier = Key::Meta;
+    #[cfg(not(target_os = "macos"))]
+    let modifier = Key::Control;
+
+    enigo
+        .key(modifier, Direction::Press)
+        .map_err(|error| format!("按下粘贴修饰键失败：{error}"))?;
+    let click_result = enigo
+        .key(Key::Unicode('v'), Direction::Click)
+        .map_err(|error| format!("触发粘贴快捷键失败：{error}"));
+    let release_result = enigo
+        .key(modifier, Direction::Release)
+        .map_err(|error| format!("释放粘贴修饰键失败：{error}"));
+
+    click_result?;
+    release_result
+}
+
 async fn clipboard_copy(text: &str) -> Result<(), String> {
     let text = text.to_string();
-    println!(
-        "[clipboard_copy] 复制文本到剪贴板，长度: {} 字符",
-        text.len()
-    );
     tokio::task::spawn_blocking(move || {
-        let mut clipboard = Clipboard::new().map_err(|e| {
-            let err_msg = format!("无法访问剪贴板: {}", e);
-            println!("[clipboard_copy] ❌ {}", err_msg);
-            err_msg
-        })?;
-        clipboard.set_text(text).map_err(|e| {
-            let err_msg = format!("写入剪贴板失败: {}", e);
-            println!("[clipboard_copy] ❌ {}", err_msg);
-            err_msg
-        })?;
-        println!("[clipboard_copy] ✅ 文本已复制到剪贴板");
-        Ok::<(), String>(())
+        let mut clipboard = Clipboard::new().map_err(|error| format!("无法访问剪贴板：{error}"))?;
+        clipboard
+            .set_text(text)
+            .map_err(|error| format!("写入剪贴板失败：{error}"))
     })
     .await
-    .map_err(|e| {
-        let err_msg = format!("剪贴板操作任务失败: {}", e);
-        println!("[clipboard_copy] ❌ {}", err_msg);
-        err_msg
-    })?
+    .map_err(|error| format!("剪贴板任务失败：{error}"))?
 }

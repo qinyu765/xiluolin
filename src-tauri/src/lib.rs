@@ -1,7 +1,9 @@
 pub mod asr;
 pub mod audio_control;
+pub mod capture_session;
 pub mod credentials;
 pub mod data;
+pub mod focus_capture;
 pub mod hotkey;
 pub mod indicator;
 pub mod output;
@@ -20,7 +22,10 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .manage(capture_session::CaptureSessionState::new())
+        .manage(recording::RecordingState::new())
         .setup(|app| {
+            indicator::ensure_indicator(app.handle())?;
             // 初始化快捷键状态
             app.manage(Arc::new(Mutex::new(hotkey::HotkeyState::default())));
 
@@ -58,12 +63,12 @@ pub fn run() {
 
             Ok(())
         })
-        .manage(recording::RecordingState::new())
         .invoke_handler(tauri::generate_handler![
             asr::transcribe_audio_path,
             text_polish::polish_text,
             pipeline::process_uploaded_audio,
             pipeline::process_recording_file,
+            capture_session::abort_capture_session,
             data::initialize_local_data,
             data::list_personas,
             data::set_default_persona,
@@ -88,7 +93,7 @@ pub fn run() {
             hotkey::register_both_hotkeys,
             hotkey::unregister_hotkey,
             indicator::update_indicator_status,
-            output::output_text,
+            output::deliver_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

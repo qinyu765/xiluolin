@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     asr::{transcribe_audio_file, AsrConfig},
+    capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
     data::{HistoryRecord, HistoryRecordDraft, LocalDatabase, Persona},
+    indicator,
     text_polish::{polish_text_with_openai, TextPolishConfig, TextPolishRequest},
 };
 
@@ -25,6 +27,12 @@ pub struct VoiceInputResult {
     pub final_text: String,
     pub used_text_fallback: bool,
     pub history_record: Option<HistoryRecord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoiceInputStage {
+    Transcribing,
+    Refining,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +101,24 @@ pub fn process_voice_input(
     database: &LocalDatabase,
     auto_save_history: bool,
 ) -> Result<VoiceInputResult, VoiceInputError> {
+    process_voice_input_with_progress(
+        request,
+        asr_config,
+        text_config,
+        database,
+        auto_save_history,
+        |_| {},
+    )
+}
+
+pub fn process_voice_input_with_progress(
+    request: VoiceInputRequest,
+    asr_config: AsrConfig,
+    text_config: TextPolishConfig,
+    database: &LocalDatabase,
+    auto_save_history: bool,
+    mut progress: impl FnMut(VoiceInputStage),
+) -> Result<VoiceInputResult, VoiceInputError> {
     let start_time = std::time::Instant::now();
     eprintln!("[⏱️ 性能] process_voice_input 开始");
 
@@ -105,6 +131,7 @@ pub fn process_voice_input(
     );
 
     // 2. ASR 识别
+    progress(VoiceInputStage::Transcribing);
     let step2_start = std::time::Instant::now();
     let transcription = transcribe_audio_file(&audio_path, &asr_config)
         .map_err(|error| VoiceInputError::RequestFailed(error.to_string()));
@@ -127,6 +154,7 @@ pub fn process_voice_input(
     );
 
     // 4. 文本润色
+    progress(VoiceInputStage::Refining);
     let step4_start = std::time::Instant::now();
     let polish_result = polish_text_with_openai(
         &TextPolishRequest {
@@ -300,72 +328,100 @@ pub fn consume_app_recording<T>(
 #[tauri::command]
 pub fn process_recording_file(
     app: tauri::AppHandle,
+    session_id: String,
     file_path: String,
     duration_ms: i64,
 ) -> Result<VoiceInputResult, String> {
     use crate::data::{read_app_config, LocalDatabase};
     use tauri::Manager;
 
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
-    let recordings_dir = app_data_dir.join("recordings");
+    let sessions = app.state::<CaptureSessionState>();
+    let context = sessions.delivery_context(&session_id)?;
+    let show_indicator = context.source == CaptureSource::Hotkey;
+    let result = (|| {
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| error.to_string())?;
+        let recordings_dir = app_data_dir.join("recordings");
 
-    consume_app_recording(
-        &recordings_dir,
-        std::path::Path::new(&file_path),
-        |audio_bytes, audio_extension| {
-            let config = read_app_config(app.clone())?;
-            eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr_provider);
+        consume_app_recording(
+            &recordings_dir,
+            std::path::Path::new(&file_path),
+            |audio_bytes, audio_extension| {
+                let config = read_app_config(app.clone())?;
+                eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr_provider);
 
-            std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
-            let database = LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
-                .map_err(|error| error.to_string())?;
-            database.initialize().map_err(|error| error.to_string())?;
+                std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
+                let database = LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
+                    .map_err(|error| error.to_string())?;
+                database.initialize().map_err(|error| error.to_string())?;
 
-            let asr_model = if config.asr_provider == "openai" {
-                config.openai_asr_model.clone()
-            } else {
-                config.asr_model.clone()
-            };
+                let asr_model = if config.asr_provider == "openai" {
+                    config.openai_asr_model.clone()
+                } else {
+                    config.asr_model.clone()
+                };
 
-            let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
-                (
-                    config.zhipu_api_key.clone(),
-                    config.zhipu_base_url.clone(),
-                    config.zhipu_model.clone(),
+                let (text_api_key, text_base_url, text_model) = if config.text_provider == "zhipu" {
+                    (
+                        config.zhipu_api_key.clone(),
+                        config.zhipu_base_url.clone(),
+                        config.zhipu_model.clone(),
+                    )
+                } else {
+                    (
+                        config.openai_api_key.clone(),
+                        config.openai_base_url.clone(),
+                        config.openai_model.clone(),
+                    )
+                };
+
+                process_voice_input_with_progress(
+                    VoiceInputRequest {
+                        audio_bytes,
+                        audio_extension,
+                        duration_ms,
+                    },
+                    AsrConfig {
+                        provider: config.asr_provider.clone(),
+                        api_key: config.asr_api_key,
+                        base_url: config.asr_base_url,
+                        model: asr_model,
+                    },
+                    TextPolishConfig {
+                        provider: config.text_provider,
+                        api_key: text_api_key,
+                        base_url: text_base_url,
+                        model: text_model,
+                    },
+                    &database,
+                    config.auto_save_history,
+                    |stage| {
+                        let (status, indicator_status) = match stage {
+                            VoiceInputStage::Transcribing => {
+                                (CaptureStatus::Transcribing, "transcribing")
+                            }
+                            VoiceInputStage::Refining => (CaptureStatus::Refining, "refining"),
+                        };
+                        let _ = sessions.update_status(&session_id, status);
+                        if show_indicator {
+                            let _ = indicator::update_indicator(&app, indicator_status);
+                        }
+                    },
                 )
-            } else {
-                (
-                    config.openai_api_key.clone(),
-                    config.openai_base_url.clone(),
-                    config.openai_model.clone(),
-                )
-            };
+                .map_err(|error| error.to_string())
+            },
+        )
+    })();
 
-            process_voice_input(
-                VoiceInputRequest {
-                    audio_bytes,
-                    audio_extension,
-                    duration_ms,
-                },
-                AsrConfig {
-                    provider: config.asr_provider.clone(),
-                    api_key: config.asr_api_key,
-                    base_url: config.asr_base_url,
-                    model: asr_model,
-                },
-                TextPolishConfig {
-                    provider: config.text_provider,
-                    api_key: text_api_key,
-                    base_url: text_base_url,
-                    model: text_model,
-                },
-                &database,
-                config.auto_save_history,
-            )
-            .map_err(|error| error.to_string())
-        },
-    )
+    if let Err(error) = &result {
+        let _ = sessions.finish(&session_id, CaptureStatus::Failed);
+        if show_indicator {
+            let _ = indicator::finish_indicator(&app, "failed");
+        }
+        eprintln!("语音输入处理失败：{error}");
+    }
+
+    result
 }

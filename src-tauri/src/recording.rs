@@ -9,6 +9,9 @@ use std::time::Instant;
 use tauri::{Manager, State};
 
 use crate::audio_control::windows_audio;
+use crate::capture_session::{
+    CaptureSessionStart, CaptureSessionState, CaptureSource, CaptureStatus,
+};
 use crate::data;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +22,7 @@ pub struct AudioDevice {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingResult {
+    pub session_id: String,
     pub file_path: String,
     pub duration_ms: u64,
 }
@@ -74,6 +78,7 @@ pub struct RecordingState {
     is_recording: Arc<Mutex<bool>>,
     start_time: Arc<Mutex<Option<Instant>>>,
     output_path: Arc<Mutex<Option<PathBuf>>>,
+    session_id: Arc<Mutex<Option<String>>>,
     writer: Arc<Mutex<Option<Arc<Mutex<Option<WavWriter<std::io::BufWriter<std::fs::File>>>>>>>>,
 }
 
@@ -83,6 +88,7 @@ impl RecordingState {
             is_recording: Arc::new(Mutex::new(false)),
             start_time: Arc::new(Mutex::new(None)),
             output_path: Arc::new(Mutex::new(None)),
+            session_id: Arc::new(Mutex::new(None)),
             writer: Arc::new(Mutex::new(None)),
         }
     }
@@ -92,7 +98,31 @@ impl RecordingState {
 pub async fn start_recording(
     state: State<'_, RecordingState>,
     app_handle: tauri::AppHandle,
-) -> Result<String, String> {
+) -> Result<CaptureSessionStart, String> {
+    start_recording_for_source(&state, &app_handle, CaptureSource::App)
+}
+
+pub fn start_recording_for_source(
+    state: &RecordingState,
+    app_handle: &tauri::AppHandle,
+    source: CaptureSource,
+) -> Result<CaptureSessionStart, String> {
+    let session_state = app_handle.state::<CaptureSessionState>();
+    let started = session_state.begin(source)?;
+
+    if let Err(error) = start_audio_capture(state, app_handle, &started.session_id) {
+        session_state.cancel(&started.session_id);
+        return Err(error);
+    }
+
+    Ok(started)
+}
+
+fn start_audio_capture(
+    state: &RecordingState,
+    app_handle: &tauri::AppHandle,
+    session_id: &str,
+) -> Result<(), String> {
     let mut is_recording = state
         .is_recording
         .lock()
@@ -102,7 +132,6 @@ pub async fn start_recording(
         return Err(RecordingError::AlreadyRecording.into());
     }
 
-    // 清理上一个 writer（如果存在）
     if let Ok(mut writer_state) = state.writer.lock() {
         if let Some(writer_arc) = writer_state.take() {
             if let Ok(mut writer_guard) = writer_arc.try_lock() {
@@ -113,28 +142,22 @@ pub async fn start_recording(
         }
     }
 
-    // 创建临时录音文件路径
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
-
     let recordings_dir = app_data_dir.join("recordings");
     fs::create_dir_all(&recordings_dir)
         .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
 
-    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
-    let output_path = recordings_dir.join(format!("recording_{}.wav", timestamp));
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S_%3f").to_string();
+    let output_path = recordings_dir.join(format!("recording_{timestamp}.wav"));
 
-    // 获取默认音频输入设备
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| RecordingError::NoInputDeviceAvailable)?;
-
-    // 获取设备支持的配置
+        .ok_or(RecordingError::NoInputDeviceAvailable)?;
     let config = device.default_input_config().map_err(|e| {
-        // 检查是否是权限问题
         let error_msg = e.to_string().to_lowercase();
         if error_msg.contains("permission") || error_msg.contains("access") {
             RecordingError::MicrophonePermissionDenied
@@ -145,34 +168,27 @@ pub async fn start_recording(
 
     let sample_rate = config.sample_rate().0;
     let channels = config.channels();
-
-    // 创建 WAV 文件写入器 - 强制使用单声道以兼容智谱 ASR
     let spec = WavSpec {
-        channels: 1, // 强制单声道
+        channels: 1,
         sample_rate,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
-
     let writer = WavWriter::create(&output_path, spec)
         .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
     let writer = Arc::new(Mutex::new(Some(writer)));
-
-    // 保存 writer 引用到状态中
     *state
         .writer
         .lock()
         .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(Arc::clone(&writer));
 
-    // 构建音频流
     let writer_clone = Arc::clone(&writer);
     let stream = match config.sample_format() {
         cpal::SampleFormat::F32 => device.build_input_stream(
-            &config.into(),
+            &config.clone().into(),
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
                 if let Ok(mut writer_guard) = writer_clone.lock() {
                     if let Some(writer) = writer_guard.as_mut() {
-                        // 如果是多声道，只取第一个声道（左声道）
                         for (i, &sample) in data.iter().enumerate() {
                             if i % channels as usize == 0 {
                                 let amplitude = (sample * i16::MAX as f32) as i16;
@@ -182,17 +198,14 @@ pub async fn start_recording(
                     }
                 }
             },
-            move |err| {
-                eprintln!("录音流错误: {}", err);
-            },
+            move |err| eprintln!("录音流错误: {err}"),
             None,
         ),
         cpal::SampleFormat::I16 => device.build_input_stream(
-            &config.into(),
+            &config.clone().into(),
             move |data: &[i16], _: &cpal::InputCallbackInfo| {
                 if let Ok(mut writer_guard) = writer_clone.lock() {
                     if let Some(writer) = writer_guard.as_mut() {
-                        // 如果是多声道，只取第一个声道（左声道）
                         for (i, &sample) in data.iter().enumerate() {
                             if i % channels as usize == 0 {
                                 let _ = writer.write_sample(sample);
@@ -201,17 +214,14 @@ pub async fn start_recording(
                     }
                 }
             },
-            move |err| {
-                eprintln!("录音流错误: {}", err);
-            },
+            move |err| eprintln!("录音流错误: {err}"),
             None,
         ),
         cpal::SampleFormat::U16 => device.build_input_stream(
-            &config.into(),
+            &config.clone().into(),
             move |data: &[u16], _: &cpal::InputCallbackInfo| {
                 if let Ok(mut writer_guard) = writer_clone.lock() {
                     if let Some(writer) = writer_guard.as_mut() {
-                        // 如果是多声道，只取第一个声道（左声道）
                         for (i, &sample) in data.iter().enumerate() {
                             if i % channels as usize == 0 {
                                 let amplitude = (sample as i32 - 32768) as i16;
@@ -221,9 +231,7 @@ pub async fn start_recording(
                     }
                 }
             },
-            move |err| {
-                eprintln!("录音流错误: {}", err);
-            },
+            move |err| eprintln!("录音流错误: {err}"),
             None,
         ),
         _ => {
@@ -236,12 +244,10 @@ pub async fn start_recording(
     }
     .map_err(|e| RecordingError::StreamBuildFailed(e.to_string()))?;
 
-    // 启动录音流
     stream
         .play()
         .map_err(|e| RecordingError::StreamStartFailed(e.to_string()))?;
 
-    // 保存状态
     *is_recording = true;
     *state
         .start_time
@@ -250,26 +256,37 @@ pub async fn start_recording(
     *state
         .output_path
         .lock()
-        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(output_path.clone());
+        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(output_path);
+    *state
+        .session_id
+        .lock()
+        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? =
+        Some(session_id.to_string());
 
-    // 将 stream 泄漏以保持录音持续进行
-    // writer 已保存到状态中，会在 stop_recording 时正确关闭
     std::mem::forget(stream);
 
-    // 如果配置了静音其他应用，则执行静音
     if let Ok(config) = data::read_app_config(app_handle.clone()) {
         if config.mute_system_audio {
             let _ = windows_audio::mute_all_sessions();
         }
     }
 
-    Ok("recording_started".to_string())
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn stop_recording(state: State<'_, RecordingState>) -> Result<RecordingResult, String> {
-    // 检查录音状态并获取必要信息
-    let (duration_ms, output_path) = {
+pub async fn stop_recording(
+    state: State<'_, RecordingState>,
+    app_handle: tauri::AppHandle,
+) -> Result<RecordingResult, String> {
+    stop_recording_for_session(&state, &app_handle).await
+}
+
+pub async fn stop_recording_for_session(
+    state: &RecordingState,
+    app_handle: &tauri::AppHandle,
+) -> Result<RecordingResult, String> {
+    let (session_id, duration_ms, output_path) = {
         let mut is_recording = state
             .is_recording
             .lock()
@@ -294,6 +311,12 @@ pub async fn stop_recording(state: State<'_, RecordingState>) -> Result<Recordin
             .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
             .clone()
             .ok_or_else(|| RecordingError::StateLockFailed("输出路径未找到".to_string()))?;
+        let session_id = state
+            .session_id
+            .lock()
+            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
+            .clone()
+            .ok_or_else(|| RecordingError::StateLockFailed("CaptureSession 未找到".to_string()))?;
 
         // 重置状态
         *is_recording = false;
@@ -305,8 +328,12 @@ pub async fn stop_recording(state: State<'_, RecordingState>) -> Result<Recordin
             .output_path
             .lock()
             .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = None;
+        *state
+            .session_id
+            .lock()
+            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = None;
 
-        (duration_ms, output_path)
+        (session_id, duration_ms, output_path)
     }; // MutexGuard 在这里被释放
 
     // 等待一小段时间确保所有音频数据已写入
@@ -327,7 +354,12 @@ pub async fn stop_recording(state: State<'_, RecordingState>) -> Result<Recordin
     // 恢复其他应用的音频
     let _ = windows_audio::unmute_all_sessions();
 
+    app_handle
+        .state::<CaptureSessionState>()
+        .update_status(&session_id, CaptureStatus::Transcribing)?;
+
     Ok(RecordingResult {
+        session_id,
         file_path: output_path.to_string_lossy().to_string(),
         duration_ms,
     })

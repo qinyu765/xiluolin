@@ -22,6 +22,9 @@ import type {
   AppConfig,
   AudioDevice,
   VoiceInputResult,
+  RecordingStartResult,
+  RecordingResult,
+  DeliveryResult,
   HistoryRecord,
   HistoryStatistics,
 } from "@/types";
@@ -65,6 +68,7 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const selectedPersona = useMemo(
     () => personas.find((persona) => persona.id === selectedPersonaId),
@@ -141,7 +145,7 @@ function App() {
 
       // 监听快捷键录音完成事件
       console.log("正在注册 recording-completed 事件监听器...");
-      unlistenCompleted = await listen<{ file_path: string; duration_ms: number }>(
+      unlistenCompleted = await listen<RecordingResult>(
         "recording-completed",
         async (event) => {
           // 防止重复处理（React StrictMode 会导致事件监听器注册两次）
@@ -165,6 +169,7 @@ function App() {
             const step1Start = performance.now();
             console.log("[⏱️ 前端] 步骤1: 开始调用 process_recording_file...");
             const result = await invoke<VoiceInputResult>("process_recording_file", {
+              sessionId: event.payload.session_id,
               filePath: event.payload.file_path,
               durationMs: event.payload.duration_ms,
             });
@@ -190,10 +195,10 @@ function App() {
                   invoke<HistoryStatistics>("history_statistics"),
                 ]),
                 // 并行任务2: 自动输出文本到光标位置
-                invoke<{ method: string; success: boolean; message: string }>(
-                  "output_text",
-                  { text: result.final_text }
-                )
+                invoke<DeliveryResult>("deliver_text", {
+                  sessionId: event.payload.session_id,
+                  text: result.final_text,
+                })
               ]);
 
               step2Duration = performance.now() - step2Start;
@@ -241,6 +246,9 @@ function App() {
             console.log(`[⏱️ 前端] ========================================`);
           } catch (error) {
             const errorMessage = String(error);
+            await invoke("abort_capture_session", {
+              sessionId: event.payload.session_id,
+            }).catch(() => undefined);
             console.error("❌ 录音处理失败:", errorMessage);
             setVoiceStatus(`录音处理失败：${errorMessage}`);
             toast.error(`录音处理失败：${errorMessage}`);
@@ -694,11 +702,13 @@ function App() {
     setVoiceStatus("正在录音中...");
 
     try {
-      await invoke<string>("start_recording");
+      const started = await invoke<RecordingStartResult>("start_recording");
+      setActiveSessionId(started.session_id);
     } catch (error) {
       const errorMessage = String(error);
       setIsRecording(false);
       setRecordingStartTime(null);
+      setActiveSessionId(null);
       setVoiceStatus(`开始录音失败：${errorMessage}`);
 
       // 根据错误类型显示不同的提示
@@ -723,16 +733,25 @@ function App() {
     setVoiceStatus("正在停止录音并处理...");
 
     try {
-      const recordingResult = await invoke<{ file_path: string; duration_ms: number }>("stop_recording");
+      const recordingResult = await invoke<RecordingResult>("stop_recording");
+      if (activeSessionId && activeSessionId !== recordingResult.session_id) {
+        throw new Error("录音会话与当前界面状态不一致");
+      }
       setVoiceStatus("录音完成，正在执行 ASR 识别...");
 
       // 使用新的命令处理录音文件
       const result = await invoke<VoiceInputResult>("process_recording_file", {
+        sessionId: recordingResult.session_id,
         filePath: recordingResult.file_path,
         durationMs: recordingResult.duration_ms,
       });
 
       setVoiceResult(result);
+      const delivery = await invoke<DeliveryResult>("deliver_text", {
+        sessionId: recordingResult.session_id,
+        text: result.final_text,
+      });
+      setActiveSessionId(null);
       await reloadHistoryData(
         result.history_record
           ? "历史记录和统计已更新。"
@@ -740,8 +759,8 @@ function App() {
       );
       setVoiceStatus(
         result.used_text_fallback
-          ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
-          : "语音主流程已完成，结果可复制使用。",
+          ? "ASR 已完成，文本整理失败，已复制原始识别文本。"
+          : delivery.message,
       );
       if (result.used_text_fallback) {
         toast.warning("文本整理失败，已保留原始识别文本");
@@ -750,6 +769,12 @@ function App() {
       }
     } catch (error) {
       const errorMessage = String(error);
+      if (activeSessionId) {
+        await invoke("abort_capture_session", {
+          sessionId: activeSessionId,
+        }).catch(() => undefined);
+      }
+      setActiveSessionId(null);
       setVoiceStatus(`录音处理失败：${errorMessage}`);
       toast.error(`录音处理失败：${errorMessage}`);
     } finally {
@@ -765,17 +790,14 @@ function App() {
     setVoiceStatus("正在输出文本...");
 
     try {
-      const result = await invoke<{ method: string; success: boolean; message: string }>("output_text", {
+      const result = await invoke<DeliveryResult>("deliver_text", {
+        sessionId: null,
         text: voiceResult.final_text,
       });
       setVoiceStatus(result.message);
 
       if (result.success) {
-        if (result.method === "keyboard") {
-          toast.success("已自动输入到光标位置");
-        } else if (result.method === "clipboard") {
-          toast.success("已通过剪贴板输入");
-        }
+        toast.success("结果已复制到剪贴板");
       } else {
         toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
       }

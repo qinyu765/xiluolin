@@ -6,3 +6,21 @@ export type VoiceInputResult = {
   used_text_fallback: boolean;
   history_record: HistoryRecord | null;
 };
+
+export type RecordingStartResult = {
+  session_id: string;
+};
+
+export type RecordingResult = RecordingStartResult & {
+  file_path: string;
+  duration_ms: number;
+};
+
+export type DeliveryResult = {
+  method: "clipboard" | "manual";
+  success: boolean;
+  message: string;
+  target_restored: boolean;
+  clipboard_restored: boolean;
+  used_fallback: boolean;
+};

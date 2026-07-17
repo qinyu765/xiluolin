@@ -23,3 +23,20 @@ export type AudioDevice = {
   name: string;
   is_default: boolean;
 };
+
+export type ReadinessCheck = {
+  ready: boolean;
+  blocking: boolean;
+  detail: string;
+};
+
+export type InputReadiness = {
+  microphone: ReadinessCheck;
+  asr: ReadinessCheck;
+  text_processing: ReadinessCheck;
+  hotkey: ReadinessCheck;
+  auto_paste: ReadinessCheck;
+  models_ready: boolean;
+  can_process: boolean;
+  can_dictate: boolean;
+};

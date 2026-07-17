@@ -22,6 +22,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShortcutInput } from "@/components/ui/shortcut-input";
+import { InputReadinessCard } from "@/components/settings/InputReadinessCard";
 import type { AppConfig, AudioDevice } from "@/types";
 
 type SettingsPageProps = {
@@ -66,6 +67,7 @@ export function SettingsPage({
     invoke<AppConfig>("update_app_config", { config: nextConfig })
       .then((savedConfig) => {
         onConfigSaved(savedConfig);
+        window.dispatchEvent(new Event("xiluolin-config-saved"));
         toast.success("通用设置已保存，快捷键已生效");
       })
       .catch((error) => {
@@ -84,6 +86,8 @@ export function SettingsPage({
           管理应用配置和模型服务
         </p>
       </div>
+
+      <InputReadinessCard />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">

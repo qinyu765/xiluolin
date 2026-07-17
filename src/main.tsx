@@ -21,6 +21,7 @@ import type {
   PersonaDraft,
   AppConfig,
   AudioDevice,
+  InputReadiness,
   VoiceInputResult,
   RecordingStartResult,
   RecordingResult,
@@ -348,6 +349,7 @@ function App() {
         config: nextConfig,
       });
       setAppConfig(savedConfig);
+      window.dispatchEvent(new Event("xiluolin-config-saved"));
       setAsrStatus(
         savedConfig.asr_api_key
           ? "智谱 ASR 配置已保存。"
@@ -388,6 +390,7 @@ function App() {
         config: nextConfig,
       });
       setAppConfig(savedConfig);
+      window.dispatchEvent(new Event("xiluolin-config-saved"));
       setOpenaiStatus(
         savedConfig.openai_api_key
           ? "OpenAI 配置已保存。"
@@ -612,10 +615,15 @@ function App() {
       return;
     }
 
-    // 检查 API Key 配置
-    if (!appConfig?.asr_api_key || !appConfig?.openai_api_key) {
-      toast.error("请先在设置页配置 API Key");
-      setVoiceStatus("未配置 API Key，请前往设置页配置。");
+    try {
+      const readiness = await invoke<InputReadiness>("read_input_readiness");
+      if (!readiness.models_ready) {
+        toast.error("请先完成语音识别和文本 Provider 配置");
+        setVoiceStatus("模型配置不完整，请前往设置页查看就绪检查。");
+        return;
+      }
+    } catch (error) {
+      toast.error(`无法检查模型配置：${String(error)}`);
       return;
     }
 
@@ -688,10 +696,15 @@ function App() {
   }
 
   async function handleStartRecording() {
-    // 检查 API Key 配置
-    if (!appConfig?.asr_api_key || !appConfig?.openai_api_key) {
-      toast.error("请先在设置页配置 API Key");
-      setVoiceStatus("未配置 API Key，请前往设置页配置。");
+    try {
+      const readiness = await invoke<InputReadiness>("read_input_readiness");
+      if (!readiness.can_process) {
+        toast.error("语音输入环境未就绪，请前往设置页查看缺失项");
+        setVoiceStatus("麦克风或模型配置未就绪。");
+        return;
+      }
+    } catch (error) {
+      toast.error(`无法检查语音输入环境：${String(error)}`);
       return;
     }
 

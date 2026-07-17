@@ -8,6 +8,7 @@ pub mod hotkey;
 pub mod indicator;
 pub mod output;
 pub mod pipeline;
+pub mod readiness;
 pub mod recording;
 pub mod text_polish;
 
@@ -89,6 +90,7 @@ pub fn run() {
             recording::start_recording,
             recording::stop_recording,
             recording::list_audio_devices,
+            readiness::read_input_readiness,
             hotkey::register_hotkey,
             hotkey::register_both_hotkeys,
             hotkey::unregister_hotkey,

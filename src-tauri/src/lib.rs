@@ -1,3 +1,4 @@
+pub mod app_migration;
 pub mod asr;
 pub mod audio_control;
 pub mod capture_session;
@@ -9,6 +10,7 @@ pub mod hotkey;
 pub mod indicator;
 pub mod local_asr;
 pub mod local_asr_model;
+pub mod macos_permissions;
 pub mod output;
 pub mod pipeline;
 pub mod readiness;
@@ -30,6 +32,7 @@ pub fn run() {
         .manage(capture_session::CaptureSessionState::new())
         .manage(recording::RecordingState::new())
         .setup(|app| {
+            app_migration::migrate_legacy_app_data(app.handle())?;
             indicator::ensure_indicator(app.handle())?;
             // 初始化快捷键状态
             app.manage(Arc::new(Mutex::new(hotkey::HotkeyState::default())));
@@ -102,6 +105,8 @@ pub fn run() {
             local_asr_model::download_local_asr_model,
             local_asr_model::delete_local_asr_model,
             local_asr_model::verify_local_asr_model,
+            macos_permissions::request_macos_permission,
+            macos_permissions::open_macos_privacy_settings,
             recording_storage::recording_storage_info,
             recording_storage::open_recordings_directory,
             recording_storage::clear_retained_recordings,

@@ -72,7 +72,8 @@ The detailed product and engineering documents are currently maintained in Chine
 - pnpm 10+
 - Rust stable toolchain
 - Windows: Microsoft Visual Studio C++ Build Tools and WebView2 Runtime
-- macOS / Windows: microphone permission; automatic text delivery may also require accessibility or input-monitoring permission
+- macOS 13+: microphone permission; cross-app automatic paste also requires Accessibility permission
+- Windows: microphone permission; cross-integrity-level input can be restricted by the system
 
 ## Local Development
 

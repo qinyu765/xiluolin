@@ -11,7 +11,8 @@
     "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo check --manifest-path src-tauri/Cargo.toml && cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "pnpm build && pnpm check:rust",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:build:macos:arm64": "MACOSX_DEPLOYMENT_TARGET=13.0 CMAKE_OSX_DEPLOYMENT_TARGET=13.0 pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

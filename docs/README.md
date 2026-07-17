@@ -10,6 +10,7 @@
 4. [`solution-design.md`](./solution-design.md)：当前架构、模块、数据模型和关键流程。
 5. [`usage-guide.md`](./usage-guide.md)：安装、Provider 配置、使用和验证步骤。
 6. [`troubleshooting.md`](./troubleshooting.md)：录音、快捷键、Provider 和跨应用输出排查。
+7. [`macos-build.md`](./macos-build.md)：Apple Silicon 本地构建、安装和权限说明。
 
 ## 当前文档
 
@@ -20,6 +21,7 @@
 | [`solution-design.md`](./solution-design.md) | 当前技术架构和设计约束 | 开发人员 |
 | [`usage-guide.md`](./usage-guide.md) | 配置、使用和端到端验证 | 用户与测试人员 |
 | [`troubleshooting.md`](./troubleshooting.md) | 当前故障定位和恢复方法 | 用户与开发人员 |
+| [`macos-build.md`](./macos-build.md) | macOS Apple Silicon 构建与安装 | 用户、维护者、测试人员 |
 | [`design/ui-style.md`](./design/ui-style.md) | 当前 UI 视觉规范 | 设计与前端开发人员 |
 | [`hotword-recommendations.md`](./hotword-recommendations.md) | 可选热词参考列表 | 用户与测试人员 |
 | [`retrospectives/README.md`](./retrospectives/README.md) | 工程复盘、决策背景和可复用经验 | 维护者与贡献者 |

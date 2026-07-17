@@ -28,13 +28,33 @@ export type AudioDevice = {
   is_default: boolean;
 };
 
+export type ReadinessAction =
+  | "request_microphone"
+  | "open_microphone_settings"
+  | "request_accessibility"
+  | "open_accessibility_settings";
+
+export type PermissionStatus =
+  | "authorized"
+  | "denied"
+  | "restricted"
+  | "not_determined"
+  | "unsupported"
+  | "unknown";
+
 export type ReadinessCheck = {
   ready: boolean;
   blocking: boolean;
   detail: string;
+  actions: ReadinessAction[];
 };
 
 export type InputReadiness = {
+  platform: string;
+  macos_permissions: {
+    microphone: PermissionStatus;
+    accessibility: PermissionStatus;
+  } | null;
   microphone: ReadinessCheck;
   asr: ReadinessCheck;
   text_processing: ReadinessCheck;

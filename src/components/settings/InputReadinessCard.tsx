@@ -3,8 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
+  ExternalLinkIcon,
   Loader2Icon,
   RefreshCwIcon,
+  ShieldCheckIcon,
   XCircleIcon,
 } from "lucide-react";
 
@@ -16,7 +18,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { InputReadiness, ReadinessCheck } from "@/types";
+import type {
+  InputReadiness,
+  ReadinessAction,
+  ReadinessCheck,
+} from "@/types";
 
 const CHECK_LABELS: Array<{
   key: keyof Pick<
@@ -32,6 +38,13 @@ const CHECK_LABELS: Array<{
   { key: "auto_paste", label: "自动粘贴" },
 ];
 
+const ACTION_LABELS: Record<ReadinessAction, string> = {
+  request_microphone: "请求麦克风权限",
+  open_microphone_settings: "打开麦克风设置",
+  request_accessibility: "请求辅助功能权限",
+  open_accessibility_settings: "打开辅助功能设置",
+};
+
 function StatusIcon({ check }: { check: ReadinessCheck }) {
   if (check.ready) {
     return <CheckCircle2Icon className="size-5 text-emerald-600" aria-hidden="true" />;
@@ -42,10 +55,15 @@ function StatusIcon({ check }: { check: ReadinessCheck }) {
   return <AlertTriangleIcon className="size-5 text-amber-500" aria-hidden="true" />;
 }
 
+function actionPermission(action: ReadinessAction) {
+  return action.includes("microphone") ? "microphone" : "accessibility";
+}
+
 export function InputReadinessCard() {
   const [readiness, setReadiness] = useState<InputReadiness | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingAction, setPendingAction] = useState<ReadinessAction | null>(null);
 
   const refresh = useCallback(async (showLoading = false) => {
     if (showLoading) setIsLoading(true);
@@ -61,12 +79,36 @@ export function InputReadinessCard() {
   }, []);
 
   useEffect(() => {
-    const handleConfigSaved = () => void refresh();
+    const handleRefresh = () => void refresh();
     void refresh(true);
-    window.addEventListener("xiluolin-config-saved", handleConfigSaved);
-    return () =>
-      window.removeEventListener("xiluolin-config-saved", handleConfigSaved);
+    window.addEventListener("xiluolin-config-saved", handleRefresh);
+    window.addEventListener("focus", handleRefresh);
+    return () => {
+      window.removeEventListener("xiluolin-config-saved", handleRefresh);
+      window.removeEventListener("focus", handleRefresh);
+    };
   }, [refresh]);
+
+  const runAction = useCallback(
+    async (action: ReadinessAction) => {
+      setPendingAction(action);
+      setError(null);
+      try {
+        const permission = actionPermission(action);
+        if (action.startsWith("request_")) {
+          await invoke("request_macos_permission", { permission });
+          await refresh();
+        } else {
+          await invoke("open_macos_privacy_settings", { permission });
+        }
+      } catch (actionError) {
+        setError(String(actionError));
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [refresh],
+  );
 
   const summary = readiness?.can_dictate
     ? "快捷键语音输入已就绪"
@@ -106,11 +148,35 @@ export function InputReadinessCard() {
               return (
                 <div key={key} className="flex gap-3 rounded-lg border p-3">
                   <StatusIcon check={check} />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{label}</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {check.detail}
                     </p>
+                    {check.actions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {check.actions.map((action) => (
+                          <Button
+                            key={action}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            disabled={pendingAction !== null}
+                            onClick={() => void runAction(action)}
+                          >
+                            {pendingAction === action ? (
+                              <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+                            ) : action.startsWith("request_") ? (
+                              <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
+                            ) : (
+                              <ExternalLinkIcon className="size-3.5" aria-hidden="true" />
+                            )}
+                            {ACTION_LABELS[action]}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

@@ -1,0 +1,26 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="background" x1="160" y1="120" x2="860" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#312E81"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="300" y1="340" x2="720" y2="680" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDBA74"/>
+      <stop offset="1" stop-color="#F97316"/>
+    </linearGradient>
+    <filter id="shadow" x="120" y="120" width="784" height="784" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#000000" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+  <rect x="72" y="72" width="880" height="880" rx="214" fill="url(#background)"/>
+  <g filter="url(#shadow)">
+    <path d="M262 300C262 257.474 296.474 223 339 223H685C727.526 223 762 257.474 762 300V606C762 648.526 727.526 683 685 683H501L362 803V683H339C296.474 683 262 648.526 262 606V300Z" fill="#F9FAFB"/>
+  </g>
+  <g stroke="url(#wave)" stroke-width="42" stroke-linecap="round">
+    <path d="M354 475V531"/>
+    <path d="M433 409V597"/>
+    <path d="M512 349V657"/>
+    <path d="M591 409V597"/>
+    <path d="M670 475V531"/>
+  </g>
+</svg>

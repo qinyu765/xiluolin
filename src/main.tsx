@@ -215,13 +215,19 @@ function App() {
               setVoiceStatus(outputResult.message);
 
               if (outputResult.success) {
-                toast.success(
-                  outputResult.method === "paste"
-                    ? "已自动输入到录音开始时的窗口"
-                    : "结果已复制到剪贴板",
-                );
+                toast.success(outputResult.message);
+              } else if (outputResult.message.includes("辅助功能权限")) {
+                toast.warning(outputResult.message, {
+                  action: {
+                    label: "打开设置",
+                    onClick: () =>
+                      void invoke("open_macos_privacy_settings", {
+                        permission: "accessibility",
+                      }),
+                  },
+                });
               } else {
-                toast.warning("自动粘贴失败，已复制到剪贴板，请手动粘贴 (Ctrl+V)");
+                toast.warning(outputResult.message);
               }
             } catch (outputError) {
               const errorMessage = String(outputError);

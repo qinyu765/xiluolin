@@ -332,7 +332,7 @@ ASR 阶段不接收人格提示词，不做人格化改写。
 
 ### 4.8 CaptureSession 与输出模块
 
-快捷键录音开始时，Rust 创建只在本地内存存在的 CaptureSession，并保存 `session_id`、输入来源、处理状态和 Windows 目标窗口句柄。原生句柄不序列化给前端。
+快捷键录音开始时，Rust 创建只在本地内存存在的 CaptureSession，并保存 `session_id`、输入来源、处理状态和平台目标窗口快照。Windows 保存窗口句柄；macOS 保存前台应用 PID、Bundle ID 和 Accessibility 窗口指纹。原生信息不序列化给前端。
 
 状态机：
 当前输出模块支持：
@@ -346,11 +346,11 @@ Recording → Transcribing → Refining → Delivering → Completed / Failed
 最终文本通过 `deliver_text(session_id, text)` 投递：
 
 1. 应用内录音只复制文本，不向外部窗口发送粘贴快捷键。
-2. Windows 快捷键录音先恢复录音开始时的目标窗口，再模拟 `Ctrl+V`。
+2. Windows 快捷键录音恢复目标窗口后模拟 `Ctrl+V`；macOS 在辅助功能权限允许时优先恢复原窗口，失败后退化为原应用，再发送 `Command+V`。
 3. 自动粘贴前备份文本或图片剪贴板，成功后恢复原内容。
 4. 目标窗口关闭、系统拒绝恢复或粘贴失败时，保留生成文本并提示手动粘贴。
 
-macOS 当前保持编译兼容并向当前活动窗口粘贴；录音开始时目标窗口恢复作为后续平台增强。Windows 提升权限窗口受 UIPI 限制，必须保留复制兜底。
+macOS 自动投递前会确认前台 PID 与录音开始时的目标应用一致；权限不足、目标退出或焦点确认超时时不发送键盘事件。Windows 提升权限窗口受 UIPI 限制。两个平台都必须保留复制兜底。
 
 ### 4.9 设置模块
 

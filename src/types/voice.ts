@@ -24,6 +24,7 @@ export type DeliveryResult = {
   success: boolean;
   message: string;
   target_restored: boolean;
+  target_restore_level: "window" | "application" | "none";
   clipboard_restored: boolean;
   used_fallback: boolean;
 };

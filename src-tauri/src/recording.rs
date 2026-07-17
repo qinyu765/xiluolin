@@ -123,6 +123,13 @@ fn start_audio_capture(
     app_handle: &tauri::AppHandle,
     session_id: &str,
 ) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    if crate::macos_permissions::microphone_status()
+        != crate::macos_permissions::PermissionStatus::Authorized
+    {
+        return Err(RecordingError::MicrophonePermissionDenied.into());
+    }
+
     let mut is_recording = state
         .is_recording
         .lock()

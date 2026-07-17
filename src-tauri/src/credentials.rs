@@ -1,6 +1,7 @@
 use crate::data::AppConfig;
 
-const CREDENTIAL_SERVICE: &str = "com.xiluolin.app";
+const CREDENTIAL_SERVICE: &str = "com.xiluolin.desktop";
+const LEGACY_CREDENTIAL_SERVICE: &str = "com.xiluolin.app";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CredentialKey {
@@ -69,32 +70,54 @@ pub trait CredentialStore {
 pub struct SystemCredentialStore;
 
 impl SystemCredentialStore {
-    fn entry(key: CredentialKey) -> Result<keyring::Entry, String> {
-        keyring::Entry::new(CREDENTIAL_SERVICE, key.account())
+    fn entry(service: &str, key: CredentialKey) -> Result<keyring::Entry, String> {
+        keyring::Entry::new(service, key.account())
             .map_err(|error| format!("初始化系统凭据库失败：{error}"))
+    }
+
+    fn primary_entry(key: CredentialKey) -> Result<keyring::Entry, String> {
+        Self::entry(CREDENTIAL_SERVICE, key)
+    }
+
+    fn legacy_entry(key: CredentialKey) -> Result<keyring::Entry, String> {
+        Self::entry(LEGACY_CREDENTIAL_SERVICE, key)
     }
 }
 
 impl CredentialStore for SystemCredentialStore {
     fn get(&self, key: CredentialKey) -> Result<Option<String>, String> {
-        match Self::entry(key)?.get_password() {
-            Ok(value) => Ok(Some(value)),
+        match Self::primary_entry(key)?.get_password() {
+            Ok(value) => return Ok(Some(value)),
+            Err(keyring::Error::NoEntry) => {}
+            Err(error) => return Err(format!("读取系统凭据失败：{error}")),
+        }
+
+        match Self::legacy_entry(key)?.get_password() {
+            Ok(value) => {
+                Self::primary_entry(key)?
+                    .set_password(&value)
+                    .map_err(|error| format!("迁移系统凭据失败：{error}"))?;
+                Ok(Some(value))
+            }
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(error) => Err(format!("读取系统凭据失败：{error}")),
+            Err(error) => Err(format!("读取旧版系统凭据失败：{error}")),
         }
     }
 
     fn set(&self, key: CredentialKey, value: &str) -> Result<(), String> {
-        Self::entry(key)?
+        Self::primary_entry(key)?
             .set_password(value)
             .map_err(|error| format!("保存系统凭据失败：{error}"))
     }
 
     fn delete(&self, key: CredentialKey) -> Result<(), String> {
-        match Self::entry(key)?.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(error) => Err(format!("删除系统凭据失败：{error}")),
+        for entry in [Self::primary_entry(key)?, Self::legacy_entry(key)?] {
+            match entry.delete_credential() {
+                Ok(()) | Err(keyring::Error::NoEntry) => {}
+                Err(error) => return Err(format!("删除系统凭据失败：{error}")),
+            }
         }
+        Ok(())
     }
 }
 

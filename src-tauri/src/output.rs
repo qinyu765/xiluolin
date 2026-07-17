@@ -5,7 +5,7 @@ use tauri::State;
 
 use crate::{
     capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
-    focus_capture::{restore_focus, FocusSnapshot},
+    focus_capture::{restore_focus, FocusRestoreLevel, FocusSnapshot},
     indicator,
 };
 
@@ -23,6 +23,7 @@ pub struct OutputResult {
     pub success: bool,
     pub message: String,
     pub target_restored: bool,
+    pub target_restore_level: FocusRestoreLevel,
     pub clipboard_restored: bool,
     pub used_fallback: bool,
 }
@@ -52,7 +53,7 @@ impl ClipboardBackup {
 
 #[derive(Debug, Clone, Copy)]
 struct PasteOutcome {
-    target_restored: bool,
+    target_restore_level: FocusRestoreLevel,
     clipboard_restored: bool,
 }
 
@@ -78,6 +79,7 @@ pub async fn deliver_text(
             success: true,
             message: "结果已复制到剪贴板".to_string(),
             target_restored: false,
+            target_restore_level: FocusRestoreLevel::None,
             clipboard_restored: false,
             used_fallback: false,
         });
@@ -100,6 +102,7 @@ pub async fn deliver_text(
                 success: true,
                 message: "结果已复制到剪贴板".to_string(),
                 target_restored: false,
+                target_restore_level: FocusRestoreLevel::None,
                 clipboard_restored: false,
                 used_fallback: false,
             }),
@@ -115,8 +118,15 @@ pub async fn deliver_text(
             Ok(OutputResult {
                 method: OutputMethod::Paste,
                 success: true,
-                message: "已输入到录音开始时的窗口".to_string(),
-                target_restored: outcome.target_restored,
+                message: match outcome.target_restore_level {
+                    FocusRestoreLevel::Window => "已输入到录音开始时的窗口".to_string(),
+                    FocusRestoreLevel::Application => {
+                        "未能精确定位原窗口，已输入到录音开始时的应用".to_string()
+                    }
+                    FocusRestoreLevel::None => "已发送自动粘贴".to_string(),
+                },
+                target_restored: outcome.target_restore_level != FocusRestoreLevel::None,
+                target_restore_level: outcome.target_restore_level,
                 clipboard_restored: outcome.clipboard_restored,
                 used_fallback: false,
             }),
@@ -126,13 +136,28 @@ pub async fn deliver_text(
             let fallback = clipboard_copy(&text).await.map(|_| OutputResult {
                 method: OutputMethod::Manual,
                 success: false,
-                message: format!("自动粘贴失败，结果已复制到剪贴板：{paste_error}"),
+                message: format!(
+                    "自动粘贴失败，结果已复制到剪贴板，可手动按 {}：{paste_error}",
+                    manual_paste_shortcut()
+                ),
                 target_restored: false,
+                target_restore_level: FocusRestoreLevel::None,
                 clipboard_restored: false,
                 used_fallback: true,
             });
             finish_delivery(&app, &sessions, &session_id, fallback, true)
         }
+    }
+}
+
+fn manual_paste_shortcut() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "Command+V"
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        "Ctrl+V"
     }
 }
 
@@ -187,7 +212,7 @@ async fn clipboard_paste(text: &str, focus: Option<FocusSnapshot>) -> Result<Pas
             .map_err(|error| format!("写入剪贴板失败：{error}"))?;
         drop(clipboard);
 
-        let target_restored = restore_focus(focus.as_ref())?;
+        let target_restore_level = restore_focus(focus.as_ref())?;
         std::thread::sleep(std::time::Duration::from_millis(40));
         send_paste_shortcut()?;
         std::thread::sleep(std::time::Duration::from_millis(180));
@@ -201,7 +226,7 @@ async fn clipboard_paste(text: &str, focus: Option<FocusSnapshot>) -> Result<Pas
         };
 
         Ok(PasteOutcome {
-            target_restored,
+            target_restore_level,
             clipboard_restored,
         })
     })

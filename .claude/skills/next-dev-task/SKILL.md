@@ -32,16 +32,16 @@ This skill keeps development task execution auditable for the Qiniu Hackathon vo
    - `Done` only after the change is pushed to `main`, a PR is merged, or the user explicitly confirms completion.
    - `Blocked` with a concrete blocker when work cannot continue.
    - Use `不适用（main 直提）` in the PR column for direct-to-`main` tasks; use `待创建` only when a PR is planned but does not exist yet.
-9. Before any commit or PR, stop and ask for explicit user approval. Show:
+9. After verification, publish the task without pausing for approval unless the user explicitly requests review-only or dry-run behavior. Before publishing, summarize:
    - Changed files.
    - Verification result.
-   - Suggested commit message using `type: 中文描述`.
+   - Commit message using `type: 中文描述`.
    - PR description containing feature description, implementation approach, and verification method.
-10. Only after approval:
-    - Create the commit directly on `main`. The commit must include the implementation, task document, and task tracker state change.
-    - Push the verified commit to `origin/main`.
-    - Create a temporary branch and PR only when the user explicitly requests it or isolated review is required.
-    - When a PR is used, do not create a follow-up commit solely to add its number or URL to `docs/dev/task-tracker.md`; report the URL in the final response.
+10. Publish through the current short-lived branch:
+    - Create a focused commit containing the implementation, task document, and task tracker state change.
+    - Push the branch and create or update a PR targeting `main`.
+    - Do not create a follow-up commit solely to add the PR number or URL to `docs/dev/task-tracker.md`; report the URL in the final response.
+    - Stop before commit or push only when the user explicitly asks not to publish, requests a dry run, or the working tree contains unrelated changes whose ownership is unclear.
 
 ## Execution Pitfalls To Check
 
@@ -63,7 +63,7 @@ Run these checks when the task touches dependencies, external APIs, build toolin
 - For HTTP client libraries, verify the installed crate API from local registry source before assuming examples from memory. In this project `ureq` 3.x multipart lives under `ureq::unversioned::multipart`.
 - For provider tasks, use mock HTTP tests for request shape and local validation. Real API smoke tests are recommended before merge when credentials and sample files are available, but may be deferred if the task document records the deferral and no secrets are committed.
 - Before creating a PR, read `git remote -v` and use the actual GitHub owner/repo. Do not infer owner or repo from the local folder path.
-- After committing on `main`, check `git status --short --branch`. If `main` is ahead of `origin/main`, push `main` after the user has approved the commit and push.
+- After committing, check `git status --short --branch`; push the current short-lived branch and confirm it tracks the expected remote branch.
 - For PR creation, prefer using GitHub MCP tool (`mcp__github__create_pull_request`) over `gh` CLI, as `gh` may not be installed. Extract owner and repo from `git remote -v` output.
 - After PR creation, do not make a second commit only to update the tracker PR column. Put the PR URL in the final response and, when useful, the PR description.
 
@@ -93,14 +93,13 @@ Use this structure for every completed task document:
 
 ## Git And PR Rules
 
-- Use `main` as the working branch for routine development.
-- Pull `origin/main` with `--ff-only` before starting a task.
-- Keep direct-to-`main` commits small, coherent, verified, and independently revertible.
-- Use a PR only when explicitly requested or when isolated review is required; PRs must target `main`.
+- Use `main` as the stable baseline and start each task from an up-to-date short-lived branch.
+- Pull `origin/main` with `--ff-only` before creating the task branch.
+- Keep commits small, coherent, verified, and independently revertible.
+- Push the task branch and open a PR targeting `main` after verification; do not pause for approval unless the user explicitly requests review-only or dry-run behavior.
 - Commit messages must use `type: 中文描述`.
 - Do not commit `.env`, real API keys, temporary recordings, build artifacts, or local caches.
 - Keep PR descriptions non-empty and matched to actual changes.
-- Do not run commit or PR commands before explicit user approval.
 
 ## Completion Checklist
 

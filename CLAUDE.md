@@ -102,7 +102,7 @@ The product helps users turn speech into directly usable text through speech rec
 - Do not develop directly on `main`. Use short-lived branches such as `feat/...`, `fix/...`, `docs/...`, or `chore/...`.
 - External contributors should fork the repository when needed, create a focused branch, and open a PR targeting `main`.
 - Keep each change small, coherent, verified, and independently revertible.
-- Before committing or pushing, show the changed files, verification result, and proposed commit message, then obtain explicit user approval.
+- After verification, summarize the changed files, checks, and commit message, then commit and push without pausing for approval unless the user explicitly requests review-only or dry-run behavior.
 - Every PR should explain the problem, solution, verification method, user-visible impact, and related Issue when applicable.
 - Use draft PRs for work in progress and request review only when the documented checks pass.
 

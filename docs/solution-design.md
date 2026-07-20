@@ -15,7 +15,7 @@
 设计原则：
 
 - 优先完成办公、写作和编程场景下的短语音输入闭环。
-- 当前默认采用云端 Provider，使用智谱 GLM-ASR-2512 作为 ASR Provider，使用 OpenAI 作为文本整理 Provider，同时保持接口可扩展。
+- 当前默认采用云端 Provider，ASR 和文本整理均可选择智谱或 OpenAI-compatible 服务，同时保持模型名和接口地址可配置。
 - 保留 Provider 抽象，后续可扩展本地离线 ASR 或更多模型服务。
 - 本地保存人格、热词、历史和统计数据，降低隐私风险。
 - 不做完整系统级输入法内核，不做会议纪要和长音频转写。
@@ -197,9 +197,9 @@ Provider 模块分为 ASR Provider 和快速文本模型 Provider。
 | 能力 | Provider | 模型 / 接口 | 选择原因 |
 |---|---|---|---|
 | 语音转文本 | 智谱 GLM-ASR-2512 | `audio/transcriptions`，`model=glm-asr-2512` | 面向语音识别，支持音频输入和文本输出，适合短语音输入闭环 |
-| 人格化文本整理 | OpenAI | Responses API | 适合基于 `instructions` 和 `input` 做文本改写、结构整理和风格控制 |
+| 人格化文本整理 | 智谱或 OpenAI-compatible | `chat/completions`，模型名可配置 | 适合基于 system/user messages 做文本改写、结构整理和风格控制 |
 
-这里保持 Provider 抽象。当前先稳定智谱 ASR + OpenAI 文本整理链路，同时逐步扩展 OpenAI-compatible、其他 ASR 服务和本地离线能力。
+这里保持 Provider 抽象。供应商选择只决定读取哪组 API Key、Base URL 和模型配置，不在 UI 中绑定固定模型名。
 
 #### ASR Provider
 
@@ -445,11 +445,11 @@ API Key 不写入项目文件，不提交到 Git，也不明文保存在 Tauri S
 
 ## 6. Prompt 设计
 
-OpenAI 文本整理请求由三部分组成：
+文本整理请求使用 OpenAI-compatible `chat/completions` 结构，由三部分组成：
 
-1. `instructions`：固定系统要求和当前人格提示词。
-2. `input`：用户原始识别文本。
-3. `input` 中的辅助上下文：热词词典、输出格式要求和必要场景说明。
+1. `system` message：固定系统要求、当前人格和热词上下文。
+2. `user` message：用户原始识别文本。
+3. 请求参数：短文本默认限制 `max_tokens=512`；智谱 Provider 默认发送 `thinking.type=disabled`，避免实时输入场景产生不必要的长推理。
 
 基础要求：
 

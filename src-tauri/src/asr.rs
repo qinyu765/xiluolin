@@ -21,7 +21,7 @@ pub struct AsrConfig {
     pub fallback_model: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct AsrTranscription {
     pub text: String,
     pub provider: String,
@@ -67,12 +67,12 @@ impl fmt::Display for AsrError {
 
 impl std::error::Error for AsrError {}
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct ZhipuTranscriptionResponse {
     text: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct OpenAITranscriptionResponse {
     text: String,
 }
@@ -385,6 +385,7 @@ fn transcriptions_url(base_url: &str) -> String {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn transcribe_audio_path(
     audio_path: String,
     provider: String,

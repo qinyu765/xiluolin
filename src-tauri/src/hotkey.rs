@@ -1,5 +1,8 @@
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
+use tauri_specta::Event;
+
+use crate::events::{RecordingCompletedEvent, RecordingErrorEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent};
 use tokio::sync::Mutex;
 
@@ -34,6 +37,7 @@ impl Default for HotkeyState {
 
 // 注册全局快捷键
 #[tauri::command]
+#[specta::specta]
 pub async fn register_hotkey(app: AppHandle, shortcut: String, mode: String) -> Result<(), String> {
     let state = app.state::<Arc<Mutex<HotkeyState>>>();
     let mut state = state.lock().await;
@@ -101,6 +105,7 @@ pub async fn register_hotkey(app: AppHandle, shortcut: String, mode: String) -> 
 
 // 同时注册长按和切换两种模式的快捷键
 #[tauri::command]
+#[specta::specta]
 pub async fn register_both_hotkeys(
     app: AppHandle,
     longpress_shortcut: Option<String>,
@@ -187,6 +192,7 @@ pub async fn register_both_hotkeys(
 
 // 注销全局快捷键
 #[tauri::command]
+#[specta::specta]
 pub async fn unregister_hotkey(app: AppHandle) -> Result<(), String> {
     let state = app.state::<Arc<Mutex<HotkeyState>>>();
     let mut state = state.lock().await;
@@ -273,7 +279,7 @@ async fn handle_long_press_mode(app: &AppHandle, event: ShortcutEvent) {
                     eprintln!("长按模式: 启动录音失败: {:?}", e);
                     if !e.contains("上一条语音输入仍在处理中") {
                         let _ = crate::indicator::finish_indicator(app, "failed");
-                        let _ = app.emit("recording-error", e);
+                        let _ = RecordingErrorEvent(e).emit(app);
                     }
                 }
             }
@@ -294,7 +300,7 @@ async fn handle_long_press_mode(app: &AppHandle, event: ShortcutEvent) {
                     state.is_recording_via_hotkey = false;
                     // 触发后续处理流程
                     println!("长按模式: 准备发送 recording-completed 事件");
-                    match app.emit("recording-completed", &result) {
+                    match RecordingCompletedEvent(result).emit(app) {
                         Ok(_) => println!("长按模式: recording-completed 事件发送成功"),
                         Err(e) => eprintln!("长按模式: recording-completed 事件发送失败: {:?}", e),
                     }
@@ -304,7 +310,7 @@ async fn handle_long_press_mode(app: &AppHandle, event: ShortcutEvent) {
                     app.state::<crate::capture_session::CaptureSessionState>()
                         .cancel_current();
                     let _ = crate::indicator::finish_indicator(app, "failed");
-                    let _ = app.emit("recording-error", e);
+                    let _ = RecordingErrorEvent(e).emit(app);
                 }
             }
         }
@@ -343,7 +349,7 @@ async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
                 let mut state = hotkey_state.lock().await;
                 state.is_recording_via_hotkey = false;
                 println!("切换模式: 准备发送 recording-completed 事件");
-                match app.emit("recording-completed", &result) {
+                match RecordingCompletedEvent(result).emit(app) {
                     Ok(_) => println!("切换模式: recording-completed 事件发送成功"),
                     Err(e) => eprintln!("切换模式: recording-completed 事件发送失败: {:?}", e),
                 }
@@ -353,7 +359,7 @@ async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
                 app.state::<crate::capture_session::CaptureSessionState>()
                     .cancel_current();
                 let _ = crate::indicator::finish_indicator(app, "failed");
-                let _ = app.emit("recording-error", e);
+                let _ = RecordingErrorEvent(e).emit(app);
             }
         }
     } else {
@@ -371,7 +377,7 @@ async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
                 eprintln!("切换模式: 启动录音失败: {:?}", e);
                 if !e.contains("上一条语音输入仍在处理中") {
                     let _ = crate::indicator::finish_indicator(app, "failed");
-                    let _ = app.emit("recording-error", e);
+                    let _ = RecordingErrorEvent(e).emit(app);
                 }
             }
         }

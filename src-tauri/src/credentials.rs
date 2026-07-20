@@ -29,7 +29,7 @@ impl CredentialKey {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct AppCredentials {
     pub asr_api_key: String,
     pub openai_api_key: String,

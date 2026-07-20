@@ -34,6 +34,7 @@ fn default_persona(database: &LocalDatabase) -> Result<crate::data::Persona, Str
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn read_retained_recording(
     app: tauri::AppHandle,
     history_id: String,
@@ -47,6 +48,7 @@ pub fn read_retained_recording(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn reprocess_history_audio(
     app: tauri::AppHandle,
     history_id: String,
@@ -108,6 +110,7 @@ pub fn reprocess_history_audio(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn refine_history_text(
     app: tauri::AppHandle,
     history_id: String,

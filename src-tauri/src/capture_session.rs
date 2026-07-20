@@ -5,14 +5,14 @@ use uuid::Uuid;
 
 use crate::focus_capture::{capture_focus, FocusSnapshot};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureSource {
     Hotkey,
     App,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureStatus {
     Recording,
@@ -23,7 +23,7 @@ pub enum CaptureStatus {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct CaptureSessionStart {
     pub session_id: String,
 }
@@ -189,6 +189,7 @@ impl CaptureSessionState {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn abort_capture_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, CaptureSessionState>,

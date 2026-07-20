@@ -14,16 +14,17 @@ use crate::capture_session::{
 };
 use crate::data;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AudioDevice {
     pub name: String,
     pub is_default: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct RecordingResult {
     pub session_id: String,
     pub file_path: String,
+    #[specta(type = specta_typescript::Number)]
     pub duration_ms: u64,
 }
 
@@ -95,6 +96,7 @@ impl RecordingState {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn start_recording(
     state: State<'_, RecordingState>,
     app_handle: tauri::AppHandle,
@@ -282,6 +284,7 @@ fn start_audio_capture(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_recording(
     state: State<'_, RecordingState>,
     app_handle: tauri::AppHandle,
@@ -373,6 +376,7 @@ pub async fn stop_recording_for_session(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
     let host = cpal::default_host();
 

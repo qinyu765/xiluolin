@@ -130,6 +130,7 @@ pub fn hide_indicator(app: &AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn update_indicator_status(app: AppHandle, status: String) -> Result<(), String> {
     update_indicator(&app, &status)
 }

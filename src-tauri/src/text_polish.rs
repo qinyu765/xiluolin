@@ -10,7 +10,7 @@ pub struct TextPolishConfig {
     pub model: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct TextPolishRequest {
     pub raw_text: String,
     #[serde(default)]
@@ -19,7 +19,7 @@ pub struct TextPolishRequest {
     pub hotword_context: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct TextPolishResult {
     pub final_text: String,
     pub used_fallback: bool,
@@ -49,13 +49,13 @@ impl fmt::Display for TextPolishError {
 
 impl std::error::Error for TextPolishError {}
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 struct ChatMessage {
     role: String,
     content: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 struct ChatCompletionsRequest {
     model: String,
     messages: Vec<ChatMessage>,
@@ -65,17 +65,17 @@ struct ChatCompletionsRequest {
     thinking: Option<ThinkingConfig>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 struct ThinkingConfig {
     r#type: &'static str,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct ChatCompletionsResponse {
     choices: Vec<ChatChoice>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct ChatChoice {
     message: ChatMessage,
 }
@@ -340,6 +340,7 @@ fn chat_completions_url(base_url: &str) -> String {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn polish_text(
     request: TextPolishRequest,
     provider: String,

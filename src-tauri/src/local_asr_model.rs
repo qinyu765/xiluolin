@@ -4,10 +4,11 @@ use std::{
     path::PathBuf,
 };
 
-use serde::Serialize;
-use tauri::{Emitter, Manager};
+use serde::{Deserialize, Serialize};
+use tauri::Manager;
+use tauri_specta::Event;
 
-use crate::capture_session::CaptureSessionState;
+use crate::{capture_session::CaptureSessionState, events::LocalAsrDownloadProgressEvent};
 
 pub const LOCAL_ASR_MODEL_NAME: &str = "ggml-base-q5_1.bin";
 pub const LOCAL_ASR_MODEL_URL: &str =
@@ -27,17 +28,20 @@ impl Drop for TemporaryDownload {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct LocalAsrModelInfo {
     pub name: String,
     pub path: String,
     pub exists: bool,
+    #[specta(type = specta_typescript::Number)]
     pub size_bytes: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type, Deserialize)]
 pub struct LocalAsrDownloadProgress {
+    #[specta(type = specta_typescript::Number)]
     pub downloaded_bytes: u64,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub total_bytes: Option<u64>,
     pub percent: Option<u8>,
 }
@@ -64,11 +68,13 @@ fn model_info(app: &tauri::AppHandle) -> Result<LocalAsrModelInfo, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn local_asr_model_info(app: tauri::AppHandle) -> Result<LocalAsrModelInfo, String> {
     model_info(&app)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn download_local_asr_model(app: tauri::AppHandle) -> Result<LocalAsrModelInfo, String> {
     if app.state::<CaptureSessionState>().has_active() {
         return Err("语音输入正在进行中，请完成后再下载模型".to_string());
@@ -112,14 +118,12 @@ fn download_model(app: &tauri::AppHandle) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         downloaded += read as u64;
         let percent = total.map(|total| ((downloaded * 100 / total.max(1)).min(100)) as u8);
-        let _ = app.emit(
-            "local-asr-download-progress",
-            LocalAsrDownloadProgress {
-                downloaded_bytes: downloaded,
-                total_bytes: total,
-                percent,
-            },
-        );
+        let _ = LocalAsrDownloadProgressEvent(LocalAsrDownloadProgress {
+            downloaded_bytes: downloaded,
+            total_bytes: total,
+            percent,
+        })
+        .emit(app);
     }
     file.sync_all().map_err(|error| error.to_string())?;
 
@@ -135,6 +139,7 @@ fn download_model(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn delete_local_asr_model(app: tauri::AppHandle) -> Result<LocalAsrModelInfo, String> {
     if app.state::<CaptureSessionState>().has_active() {
         return Err("语音输入正在进行中，请完成后再删除模型".to_string());
@@ -148,6 +153,7 @@ pub fn delete_local_asr_model(app: tauri::AppHandle) -> Result<LocalAsrModelInfo
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn verify_local_asr_model(app: tauri::AppHandle) -> Result<(), String> {
     let path = model_path(&app)?;
     tauri::async_runtime::spawn_blocking(move || crate::local_asr::verify_model(&path))

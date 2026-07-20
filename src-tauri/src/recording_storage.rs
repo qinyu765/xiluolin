@@ -6,9 +6,11 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::{capture_session::CaptureSessionState, data::LocalDatabase};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct RecordingStorageInfo {
+    #[specta(type = specta_typescript::Number)]
     pub file_count: u64,
+    #[specta(type = specta_typescript::Number)]
     pub total_bytes: u64,
     pub directory: String,
 }
@@ -67,6 +69,7 @@ pub fn remove_managed_recording(app: &tauri::AppHandle, path: &str) -> Result<()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn recording_storage_info(app: tauri::AppHandle) -> Result<RecordingStorageInfo, String> {
     let root = recordings_dir(&app)?;
     let mut file_count = 0;
@@ -89,6 +92,7 @@ pub fn recording_storage_info(app: tauri::AppHandle) -> Result<RecordingStorageI
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn open_recordings_directory(app: tauri::AppHandle) -> Result<(), String> {
     let root = recordings_dir(&app)?;
     app.opener()
@@ -97,6 +101,7 @@ pub fn open_recordings_directory(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn clear_retained_recordings(app: tauri::AppHandle) -> Result<RecordingStorageInfo, String> {
     if app.state::<CaptureSessionState>().has_active() {
         return Err("语音输入正在进行中，请完成后再清理录音".to_string());

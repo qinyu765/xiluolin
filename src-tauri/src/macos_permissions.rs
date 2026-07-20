@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum PermissionStatus {
     Authorized,
@@ -11,14 +11,14 @@ pub enum PermissionStatus {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum MacosPermissionKind {
     Microphone,
     Accessibility,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct MacosPermissionState {
     pub microphone: PermissionStatus,
     pub accessibility: PermissionStatus,
@@ -144,6 +144,7 @@ mod platform {
 pub use platform::{accessibility_status, microphone_status, state};
 
 #[tauri::command]
+#[specta::specta]
 pub async fn request_macos_permission(
     permission: MacosPermissionKind,
 ) -> Result<PermissionStatus, String> {
@@ -158,6 +159,7 @@ pub async fn request_macos_permission(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn open_macos_privacy_settings(permission: MacosPermissionKind) -> Result<(), String> {
     platform::open_settings(permission)
 }

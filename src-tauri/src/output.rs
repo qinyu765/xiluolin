@@ -9,7 +9,7 @@ use crate::{
     indicator,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputMethod {
     Paste,
@@ -17,7 +17,7 @@ pub enum OutputMethod {
     Manual,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct OutputResult {
     pub method: OutputMethod,
     pub success: bool,
@@ -58,6 +58,7 @@ struct PasteOutcome {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn deliver_text(
     app: tauri::AppHandle,
     sessions: State<'_, CaptureSessionState>,

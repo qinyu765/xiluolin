@@ -15,10 +15,11 @@ use crate::{
     text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct VoiceInputRequest {
     pub audio_bytes: Vec<u8>,
     pub audio_extension: String,
+    #[specta(type = specta_typescript::Number)]
     pub duration_ms: i64,
 }
 
@@ -30,7 +31,7 @@ pub struct HistoryContext {
     pub audio_path: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct VoiceInputResult {
     pub raw_text: String,
     pub final_text: String,
@@ -283,6 +284,7 @@ fn default_persona(database: &LocalDatabase) -> Result<Persona, VoiceInputError>
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn process_uploaded_audio(
     app: tauri::AppHandle,
     request: VoiceInputRequest,
@@ -383,11 +385,12 @@ pub fn consume_app_recording<T>(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn process_recording_file(
     app: tauri::AppHandle,
     session_id: String,
     file_path: String,
-    duration_ms: i64,
+    duration_ms: u32,
 ) -> Result<VoiceInputResult, String> {
     use crate::data::{read_app_config, LocalDatabase};
     use tauri::Manager;
@@ -436,7 +439,7 @@ pub fn process_recording_file(
                     VoiceInputRequest {
                         audio_bytes,
                         audio_extension,
-                        duration_ms,
+                        duration_ms: i64::from(duration_ms),
                     },
                     asr_config,
                     TextPolishConfig {

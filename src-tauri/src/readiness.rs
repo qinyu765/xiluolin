@@ -8,7 +8,7 @@ use crate::{
     macos_permissions::{MacosPermissionState, PermissionStatus},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadinessAction {
     RequestMicrophone,
@@ -17,7 +17,7 @@ pub enum ReadinessAction {
     OpenAccessibilitySettings,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct ReadinessCheck {
     pub ready: bool,
     pub blocking: bool,
@@ -25,7 +25,7 @@ pub struct ReadinessCheck {
     pub actions: Vec<ReadinessAction>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct InputReadiness {
     pub platform: String,
     pub macos_permissions: Option<MacosPermissionState>,
@@ -40,6 +40,7 @@ pub struct InputReadiness {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn read_input_readiness(app: tauri::AppHandle) -> Result<InputReadiness, String> {
     let config = read_app_config(app.clone())?;
     let permissions = macos_permission_state();

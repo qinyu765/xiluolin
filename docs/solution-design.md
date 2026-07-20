@@ -52,6 +52,10 @@ React 前端负责所有用户可见交互：
 - 热词词典管理。
 - 模型服务、快捷键和输出方式设置。
 
+前端按业务领域使用 controller hooks 管理状态：`recording`、`history`、`persona`、`hotword` 和 `config`。`App` 只负责页面组合与导航；录音 controller 使用显式阶段并统一处理快捷键和应用内录音完成流程。设置页通过 props、callback 和 revision 显式刷新就绪状态与录音存储统计，不依赖全局 DOM 自定义事件。
+
+Rust command、event 和跨 IPC 数据类型通过 Specta 生成 `src/generated/tauri-bindings.ts`。前端只能通过生成的 `commands` 和 `events` 调用 Tauri，生成文件由 `pnpm bindings:check` 在 CI 中检查漂移。
+
 前端 UI 基础选择 shadcn/ui + Tailwind CSS。shadcn/ui 组件以源码形式进入项目，适合根据桌面语音输入助手的产品气质做局部定制；Tailwind CSS 负责布局、间距、状态和设计 token。按产品需求添加组件，优先覆盖按钮、选择器、输入框、卡片、标签页、弹窗和开关。
 
 性能边界：
@@ -376,6 +380,8 @@ API Key 不写入项目文件，不提交到 Git，也不明文保存在 Tauri S
 
 项目使用 SQLite + Tauri Store + 系统凭据库。
 
+Rust 数据层按 `models`、`database`、`persona_repository`、`hotword_repository`、`history_repository` 和 `commands` 拆分；`data/mod.rs` 保持公共 re-export，避免调用方依赖内部文件结构。
+
 - SQLite：保存结构化业务数据。
 - Tauri Store：保存 Provider、Base URL、模型名、默认人格 ID、快捷键等非敏感轻量配置。
 - 系统凭据库：保存 ASR、OpenAI 和智谱文本 Provider 的 API Key；Windows 使用 Credential Manager，macOS 使用 Keychain。
@@ -561,7 +567,7 @@ Prompt 工程师人格示例目标：
 - 至少一个全局快捷键是否真实注册成功。
 - 当前平台的自动粘贴和目标窗口恢复能力。
 
-`models_ready` 供上传音频入口使用；`can_process` 额外要求麦克风；`can_dictate` 再额外要求快捷键。自动粘贴是非阻断能力，失败时继续使用剪贴板兜底。配置保存成功后前端发送本地事件刷新检查，也支持用户手动重新检查；不周期轮询系统凭据库。
+`models_ready` 供上传音频入口使用；`can_process` 额外要求麦克风；`can_dictate` 再额外要求快捷键。自动粘贴是非阻断能力，失败时继续使用剪贴板兜底。配置保存或本地模型变化后，由设置页显式增加 refresh revision 刷新检查，也支持用户手动重新检查；不周期轮询系统凭据库。
 
 通用设置提供 `retain_recordings` 开关，默认关闭且依赖自动保存历史。录音存储卡片展示应用管理 WAV 的数量、占用空间和目录，并提供打开目录和清理全部操作；活跃 CaptureSession 期间禁止清理。
 

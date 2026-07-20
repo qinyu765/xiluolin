@@ -104,13 +104,18 @@ pnpm tauri dev
 |---|---|
 | `pnpm dev` | 启动前端开发服务 |
 | `pnpm typecheck` | 执行 TypeScript 类型检查 |
+| `pnpm lint` | 执行 ESLint 代码质量检查 |
+| `pnpm format:check` | 检查前端与脚本格式 |
+| `pnpm test` | 运行 Vitest/React Testing Library 测试 |
+| `pnpm bindings:generate` | 从 Rust 命令与事件生成 TypeScript IPC 绑定 |
+| `pnpm bindings:check` | 检查生成绑定是否与 Rust 契约一致 |
 | `pnpm build` | 类型检查并构建前端 |
 | `pnpm check:rust` | 执行 Rust 格式、编译和测试检查 |
 | `pnpm check` | 执行完整前端与 Rust 质量检查 |
 | `pnpm tauri dev` | 启动桌面应用开发模式 |
 | `pnpm tauri:build:macos:arm64` | 构建 macOS 13+ Apple Silicon `.app` 和 `.dmg` |
 
-GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行质量检查。涉及录音、快捷键、凭据或输出能力的变更仍需在桌面环境中手动验证。
+GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行 Ubuntu 前端检查，以及 Windows/macOS Rust 检查。涉及录音、快捷键、凭据或输出能力的变更仍需在桌面环境中手动验证。
 
 ## 配置与使用
 

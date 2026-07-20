@@ -35,7 +35,8 @@
 ## 5. 验证
 
 - 使用与改动范围匹配的最小检查，并报告实际运行结果。
-- TypeScript 改动至少运行 `pnpm typecheck`；前端构建相关改动运行 `pnpm build`。
+- TypeScript 改动至少运行 `pnpm lint`、`pnpm test` 和 `pnpm typecheck`；前端构建相关改动运行 `pnpm build`。
+- 修改 Tauri command、event 或跨 IPC 数据类型后运行 `pnpm bindings:generate`，并确认 `pnpm bindings:check` 通过。
 - Rust 改动运行相关测试，并按范围执行 `cargo fmt --check`、`cargo check` 或 `cargo test`。
 - 完整代码改动发布前优先运行 `pnpm check`；无法运行时说明准确阻塞原因。
 - 文档或配置改动至少检查引用、软链接和 `git diff --check`。

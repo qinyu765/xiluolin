@@ -26,6 +26,8 @@
    - 遗留问题、发布前验证、后续演进建议和可复用检查清单。
 8. [`macos-voice-input-reliability.md`](./macos-voice-input-reliability.md)
    - macOS 快捷键竞态、Provider 可观测性、Keychain 授权、文本延迟和自动粘贴 native crash 的完整复盘。
+9. [`recording-overlay-and-ui-interaction.md`](./recording-overlay-and-ui-interaction.md)
+   - 透明悬浮窗口、纯黑状态胶囊、跨平台材质边界、通用 hover/active/focus 反馈和验证流程。
 
 ## 阅读建议
 
@@ -33,5 +35,6 @@
 - 排查安全和数据问题：读“质量与安全基线”。
 - 开发快捷键、悬浮窗或自动粘贴：读“CaptureSession 与跨应用投递”。
 - 修改历史表或录音生命周期：读“Capture 历史与重新处理”。
+- 修改录音悬浮窗或通用交互反馈：读“录音悬浮窗与桌面交互设计复盘”。
 - 修改本地模型或 Provider：读“本地 ASR 与 Provider 策略”。
 - 处理多 Agent、分支和 CI：读“协作、Git 与 CI 经验”。

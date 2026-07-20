@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Monitor, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 const INDICATOR_LABEL: &str = "recording-indicator";
 const INDICATOR_WIDTH: f64 = 320.0;
@@ -43,7 +43,7 @@ pub fn ensure_indicator(app: &AppHandle) -> Result<WebviewWindow, String> {
         .map_err(|error| format!("创建录音指示器失败：{error}"))?;
     let _ = window.set_ignore_cursor_events(true);
 
-    position_indicator(&window);
+    position_indicator(app, &window);
 
     Ok(window)
 }
@@ -51,19 +51,17 @@ pub fn ensure_indicator(app: &AppHandle) -> Result<WebviewWindow, String> {
 pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
     let window = ensure_indicator(app)?;
     INDICATOR_REVISION.fetch_add(1, Ordering::SeqCst);
-    position_indicator(&window);
+    position_indicator(app, &window);
     update_window(&window, "recording")?;
     window
         .show()
         .map_err(|error| format!("显示录音指示器失败：{error}"))
 }
 
-fn position_indicator(window: &WebviewWindow) {
-    let monitor = window
-        .current_monitor()
-        .ok()
-        .flatten()
-        .or_else(|| window.primary_monitor().ok().flatten());
+fn position_indicator(app: &AppHandle, window: &WebviewWindow) {
+    let monitor = cursor_monitor(app)
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .or_else(|| window.current_monitor().ok().flatten());
     let window_size = window.outer_size().ok();
 
     if let (Some(monitor), Some(window_size)) = (monitor, window_size) {
@@ -77,6 +75,11 @@ fn position_indicator(window: &WebviewWindow) {
         );
         let _ = window.set_position(tauri::Position::Physical(position));
     }
+}
+
+fn cursor_monitor(app: &AppHandle) -> Option<Monitor> {
+    let cursor = app.cursor_position().ok()?;
+    app.monitor_from_point(cursor.x, cursor.y).ok().flatten()
 }
 
 fn indicator_position(

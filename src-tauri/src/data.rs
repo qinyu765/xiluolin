@@ -926,9 +926,7 @@ pub fn delete_history_record(app: tauri::AppHandle, id: String) -> Result<(), St
 
 #[tauri::command]
 pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
-    use crate::credentials::{
-        load_credentials, sanitized_config, AppCredentials, SystemCredentialStore,
-    };
+    use crate::credentials::{load_system_credentials, sanitized_config, AppCredentials};
     use tauri_plugin_store::StoreExt;
 
     let store = app
@@ -940,7 +938,7 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     };
 
     let legacy_credentials = AppCredentials::from_config(&config);
-    let credentials = load_credentials(&legacy_credentials, &SystemCredentialStore)?;
+    let credentials = load_system_credentials(&legacy_credentials)?;
     let sanitized = sanitized_config(&config);
 
     if sanitized != config {
@@ -956,13 +954,11 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
 
 #[tauri::command]
 pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
-    use crate::credentials::{
-        sanitized_config, save_credentials, AppCredentials, SystemCredentialStore,
-    };
+    use crate::credentials::{sanitized_config, save_system_credentials, AppCredentials};
     use tauri_plugin_store::StoreExt;
 
     let credentials = AppCredentials::from_config(&config);
-    save_credentials(&credentials, &SystemCredentialStore)?;
+    save_system_credentials(&credentials)?;
 
     let store = app
         .store(APP_CONFIG_STORE)

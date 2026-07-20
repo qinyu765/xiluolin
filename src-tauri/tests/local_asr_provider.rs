@@ -1,17 +1,14 @@
-use std::{
-    fs,
-    path::PathBuf,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{fs, path::PathBuf};
 
+use uuid::Uuid;
 use xiluolin_lib::asr::{transcribe_audio_file, AsrConfig};
 
 fn temp_path(extension: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    std::env::temp_dir().join(format!("xiluolin-local-asr-{nanos}.{extension}"))
+    std::env::temp_dir().join(format!(
+        "xiluolin-local-asr-{}.{}",
+        Uuid::new_v4(),
+        extension
+    ))
 }
 
 fn local_config(model_path: PathBuf) -> AsrConfig {

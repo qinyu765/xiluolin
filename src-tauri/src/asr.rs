@@ -229,33 +229,41 @@ fn transcribe_with_zhipu(
         eprintln!("无法读取音频文件的 WAV 规格信息");
     }
 
-    // 构建 multipart form
-    let form = ureq::unversioned::multipart::Form::new()
-        .text("model", config.model.trim())
+    // 智谱网关可能在校验 Authorization 后提前拒绝上传。ureq 在仍写入
+    // multipart body 时会把这种响应表现为 Broken pipe，导致真正的 HTTP 状态和
+    // 错误体丢失。reqwest 对该场景的响应处理更稳健，并支持 HTTP/2。
+    let file_name = audio_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("recording.wav")
+        .to_string();
+    let audio_bytes = std::fs::read(audio_path)
+        .map_err(|error| AsrError::RequestFailed(format!("读取音频文件失败：{error}")))?;
+    let file_part = reqwest::blocking::multipart::Part::bytes(audio_bytes)
+        .file_name(file_name)
+        .mime_str(audio_mime_type(audio_path))
+        .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
+    let form = reqwest::blocking::multipart::Form::new()
+        .text("model", config.model.trim().to_string())
         .text("stream", "false")
-        .file("file", audio_path)
-        .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
-
-    // 创建禁用自动状态码错误的 agent,以便获取错误响应体
-    let agent = ureq::Agent::config_builder()
-        .http_status_as_error(false)
+        .part("file", file_part);
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
         .build()
-        .new_agent();
-
-    let response = agent
+        .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
+    let response = client
         .post(&url)
-        .header(
-            "Authorization",
-            &format!("Bearer {}", config.api_key.trim()),
-        )
-        .send(form)
+        .bearer_auth(config.api_key.trim())
+        .multipart(form)
+        .send()
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
 
-    // 手动检查状态码
     let status = response.status();
     let status_code = status.as_u16();
-    if status_code >= 400 && status_code < 600 {
-        let body = response.into_body().read_to_string().unwrap_or_default();
+    let body = response
+        .text()
+        .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
+    if !status.is_success() {
         eprintln!("ASR Error Response: status={}, body={}", status_code, body);
         return Err(AsrError::RequestFailed(format!(
             "http status: {}, body: {}",
@@ -263,9 +271,7 @@ fn transcribe_with_zhipu(
         )));
     }
 
-    let transcription: ZhipuTranscriptionResponse = response
-        .into_body()
-        .read_json()
+    let transcription: ZhipuTranscriptionResponse = serde_json::from_str(&body)
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
 
     Ok(AsrTranscription {
@@ -274,6 +280,18 @@ fn transcribe_with_zhipu(
         model: config.model.clone(),
         used_fallback: false,
     })
+}
+
+fn audio_mime_type(audio_path: &Path) -> &'static str {
+    match audio_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("mp3") => "audio/mpeg",
+        _ => "audio/wav",
+    }
 }
 
 fn transcribe_with_local(

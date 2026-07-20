@@ -4,25 +4,232 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>语音输入状态</title>
+    <link rel="icon" href="data:," />
     <style>
-      * { box-sizing: border-box; }
-      html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
-      body { display: flex; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .indicator { min-width: 190px; height: 44px; padding: 0 16px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #fff; background: rgba(28, 28, 32, 0.94); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.35); }
-      .dot { width: 9px; height: 9px; border-radius: 50%; background: #ff4757; animation: pulse 1.2s ease-in-out infinite; }
-      .label { font-size: 14px; font-weight: 600; white-space: nowrap; }
-      .indicator[data-status="transcribing"] .dot,
-      .indicator[data-status="refining"] .dot,
-      .indicator[data-status="delivering"] .dot { background: #60a5fa; }
-      .indicator[data-status="completed"] .dot { background: #34d399; animation: none; }
-      .indicator[data-status="failed"] .dot { background: #fb7185; animation: none; }
-      @keyframes pulse { 50% { transform: scale(1.45); opacity: .6; } }
+      :root {
+        color-scheme: dark;
+        font-family:
+          Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui,
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+        user-select: none;
+        pointer-events: none;
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .indicator {
+        --signal: #72b7ff;
+        --signal-soft: rgba(114, 183, 255, 0.22);
+        position: relative;
+        width: 296px;
+        height: 42px;
+        padding: 0 15px;
+        display: grid;
+        grid-template-columns: 10px minmax(76px, 1fr) 31px 38px;
+        align-items: center;
+        gap: 11px;
+        color: rgba(255, 255, 255, 0.96);
+        background: rgba(7, 7, 8, 0.94);
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 999px;
+        box-shadow:
+          0 10px 26px rgba(0, 0, 0, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(20px) saturate(120%);
+        -webkit-backdrop-filter: blur(20px) saturate(120%);
+        transition:
+          border-color 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .status-dot {
+        position: relative;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--signal);
+        box-shadow: 0 0 10px var(--signal-soft);
+      }
+
+      .status-dot::after {
+        content: "";
+        position: absolute;
+        inset: -4px;
+        border: 1px solid var(--signal);
+        border-radius: inherit;
+        opacity: 0;
+      }
+
+      .indicator[data-status="recording"] {
+        --signal: #ff6473;
+        --signal-soft: rgba(255, 100, 115, 0.28);
+      }
+
+      .indicator[data-status="recording"] .status-dot::after {
+        animation: status-pulse 1.35s ease-out infinite;
+      }
+
+      .indicator[data-status="completed"] {
+        --signal: #48d99b;
+        --signal-soft: rgba(72, 217, 155, 0.24);
+        border-color: rgba(72, 217, 155, 0.32);
+        box-shadow:
+          0 10px 26px rgba(0, 0, 0, 0.28),
+          inset 0 0 0 1px rgba(72, 217, 155, 0.08);
+      }
+
+      .indicator[data-status="failed"] {
+        --signal: #ff7583;
+        --signal-soft: rgba(255, 117, 131, 0.25);
+        border-color: rgba(255, 117, 131, 0.32);
+      }
+
+      .label {
+        overflow: hidden;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.015em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .audio-bars {
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+      }
+
+      .audio-bar {
+        width: 3px;
+        height: 7px;
+        border-radius: 99px;
+        background: var(--signal);
+        box-shadow: 0 0 6px var(--signal-soft);
+        transform-origin: center;
+      }
+
+      .indicator[data-status="recording"] .audio-bar {
+        animation: recording-bar 1.15s ease-in-out infinite;
+      }
+
+      .indicator[data-status="transcribing"] .audio-bar,
+      .indicator[data-status="refining"] .audio-bar,
+      .indicator[data-status="delivering"] .audio-bar {
+        animation: processing-bar 0.68s ease-in-out infinite alternate;
+      }
+
+      .audio-bar:nth-child(2) {
+        animation-delay: 90ms !important;
+      }
+
+      .audio-bar:nth-child(3) {
+        animation-delay: 180ms !important;
+      }
+
+      .audio-bar:nth-child(4) {
+        animation-delay: 270ms !important;
+      }
+
+      .audio-bar:nth-child(5) {
+        animation-delay: 360ms !important;
+      }
+
+      .elapsed {
+        color: rgba(255, 255, 255, 0.56);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-align: right;
+      }
+
+      @keyframes status-pulse {
+        0% {
+          transform: scale(0.72);
+          opacity: 0.78;
+        }
+        75%,
+        100% {
+          transform: scale(1.55);
+          opacity: 0;
+        }
+      }
+
+      @keyframes recording-bar {
+        0%,
+        100% {
+          transform: scaleY(0.52);
+          opacity: 0.72;
+        }
+        45% {
+          transform: scaleY(1.75);
+          opacity: 1;
+        }
+        70% {
+          transform: scaleY(0.85);
+          opacity: 0.86;
+        }
+      }
+
+      @keyframes processing-bar {
+        from {
+          transform: scaleY(0.48);
+          opacity: 0.56;
+        }
+        to {
+          transform: scaleY(1.65);
+          opacity: 1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .status-dot::after,
+        .audio-bar {
+          animation: none !important;
+        }
+      }
     </style>
   </head>
   <body>
-    <div id="indicator" class="indicator" data-status="recording">
-      <span class="dot" aria-hidden="true"></span>
+    <div
+      id="indicator"
+      class="indicator"
+      data-status="recording"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span class="status-dot" aria-hidden="true"></span>
       <span id="label" class="label">正在录音</span>
+      <span class="audio-bars" aria-hidden="true">
+        <span class="audio-bar"></span>
+        <span class="audio-bar"></span>
+        <span class="audio-bar"></span>
+        <span class="audio-bar"></span>
+        <span class="audio-bar"></span>
+      </span>
+      <span id="elapsed" class="elapsed">0:00</span>
     </div>
     <script>
       const labels = {
@@ -33,10 +240,54 @@
         completed: "输入完成",
         failed: "处理失败",
       };
+
+      const indicator = document.getElementById("indicator");
+      const label = document.getElementById("label");
+      const elapsed = document.getElementById("elapsed");
+      let recordingStartedAt = null;
+      let elapsedMs = 0;
+      let timerId = null;
+
+      function formatElapsed(durationMs) {
+        const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = String(totalSeconds % 60).padStart(2, "0");
+        return `${minutes}:${seconds}`;
+      }
+
+      function renderElapsed() {
+        if (recordingStartedAt !== null) {
+          elapsedMs = Date.now() - recordingStartedAt;
+        }
+        elapsed.textContent = formatElapsed(elapsedMs);
+      }
+
+      function stopTimer() {
+        if (timerId !== null) {
+          window.clearInterval(timerId);
+          timerId = null;
+        }
+        renderElapsed();
+        recordingStartedAt = null;
+      }
+
+      function startTimer() {
+        stopTimer();
+        elapsedMs = 0;
+        recordingStartedAt = Date.now();
+        renderElapsed();
+        timerId = window.setInterval(renderElapsed, 200);
+      }
+
       window.setIndicatorStatus = (status) => {
-        const indicator = document.getElementById("indicator");
-        const label = document.getElementById("label");
-        if (!indicator || !label || !labels[status]) return;
+        if (!indicator || !label || !elapsed || !labels[status]) return;
+
+        if (status === "recording") {
+          startTimer();
+        } else if (recordingStartedAt !== null) {
+          stopTimer();
+        }
+
         indicator.dataset.status = status;
         label.textContent = labels[status];
       };

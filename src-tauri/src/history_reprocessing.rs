@@ -5,7 +5,7 @@ use crate::{
     data::{read_app_config, HistoryRecord, LocalDatabase},
     pipeline::{process_voice_input, HistoryContext, VoiceInputRequest},
     recording_storage::read_managed_recording,
-    text_polish::{polish_text_with_openai, TextPolishConfig, TextPolishRequest},
+    text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
 };
 
 fn database_for_app(app: &tauri::AppHandle) -> Result<LocalDatabase, String> {
@@ -123,9 +123,10 @@ pub fn refine_history_text(
         .map_err(|error| error.to_string())?;
     let (text_api_key, text_base_url, text_model) = selected_text_model(&config);
     let text_provider = config.text_provider.clone();
-    let result = polish_text_with_openai(
+    let result = polish_text_with_provider(
         &TextPolishRequest {
             raw_text: existing.raw_text,
+            persona_id: persona.id.clone(),
             persona_description: persona.description.clone(),
             hotword_context,
         },

@@ -10,6 +10,7 @@ pub struct HotkeyState {
     pub longpress_shortcut: Option<String>,
     pub toggle_shortcut: Option<String>,
     pub is_recording_via_hotkey: bool, // 跟踪通过快捷键触发的录音状态
+    event_gate: Arc<Mutex<()>>,        // 串行处理 Press/Released，避免启动与停止乱序
 }
 
 #[derive(Clone, Debug)]
@@ -26,6 +27,7 @@ impl Default for HotkeyState {
             longpress_shortcut: None,
             toggle_shortcut: None,
             is_recording_via_hotkey: false,
+            event_gate: Arc::new(Mutex::new(())),
         }
     }
 }
@@ -225,6 +227,16 @@ fn handle_hotkey_event(app: &AppHandle, event: ShortcutEvent, mode: &RecordingMo
     let mode = mode.clone();
 
     tauri::async_runtime::spawn(async move {
+        // 全局快捷键插件会连续回调 Pressed/Released。录音启动包含设备初始化，
+        // 如果两个回调各自并发执行，Released 可能在 Pressed 写入状态前先返回，
+        // 留下一条无法通过长按释放停止的录音。用独立 gate 保证事件按进入顺序执行。
+        let event_gate = {
+            let state = app.state::<Arc<Mutex<HotkeyState>>>();
+            let gate = state.lock().await.event_gate.clone();
+            gate
+        };
+        let _event_guard = event_gate.lock().await;
+
         match mode {
             RecordingMode::LongPress => {
                 handle_long_press_mode(&app, event).await;

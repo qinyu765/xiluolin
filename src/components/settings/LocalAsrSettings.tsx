@@ -150,8 +150,8 @@ export function LocalAsrSettings({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="zhipu">智谱 GLM-ASR</SelectItem>
-              <SelectItem value="openai">OpenAI Whisper</SelectItem>
+              <SelectItem value="zhipu">智谱</SelectItem>
+              <SelectItem value="openai">OpenAI 兼容</SelectItem>
             </SelectContent>
           </Select>
         </div>

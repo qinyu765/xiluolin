@@ -68,9 +68,16 @@ export function HomePage({
     <div className="space-y-6">
       {/* 问候语 */}
       <div className="rounded-lg border bg-card p-6">
-        <h2 className="text-2xl font-medium">
-          Hi, 当前人格是{selectedPersona?.name || "未选择"}
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-2xl font-medium">
+            Hi，当前人格是{selectedPersona?.name || "未选择"}
+          </h2>
+          {selectedPersona?.id === "general" ? (
+            <span className="inline-flex h-6 items-center rounded-md border bg-muted px-2 text-xs font-medium">
+              推荐
+            </span>
+          ) : null}
+        </div>
         {selectedPersona?.description && (
           <p className="mt-2 text-sm text-muted-foreground">
             {selectedPersona.description}

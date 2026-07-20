@@ -159,9 +159,11 @@ Tauri Store
   └─ 非敏感偏好
 
 系统凭据库
-  ├─ asr_api_key
-  ├─ openai_api_key
-  └─ zhipu_api_key
+  └─ com.xiluolin.desktop / app_credentials_v1
+      └─ AppCredentials JSON（ASR、OpenAI-compatible、智谱文本 Key）
+
+进程内缓存
+  └─ OnceLock<Mutex<Option<AppCredentials>>>
 ```
 
 Windows 使用 Credential Manager，macOS 使用 Keychain。
@@ -196,7 +198,13 @@ Windows 使用 Credential Manager，macOS 使用 Keychain。
 - 业务逻辑不直接依赖操作系统 API；
 - 可以测试迁移失败、删除和优先级。
 
-### 4.6 测试场景
+### 4.6 macOS 授权体验修正
+
+早期实现把三个 Key 保存成三个独立条目，并兼容旧服务名 `com.xiluolin.app`。后端启动、前端初始化和就绪检查又会重复读取配置；在 ad-hoc 签名的 `tauri dev` 下，这会放大为多次 Keychain 授权弹窗。
+
+当前实现改为一个 bundled 条目并在首次读取后缓存到进程内。旧分散条目只用于一次性迁移。这样不降低安全存储级别，同时减少授权次数和重复系统调用。
+
+### 4.7 测试场景
 
 - 旧明文值成功迁移；
 - 已存在的安全凭据优先于旧值；

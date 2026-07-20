@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -118,10 +119,10 @@ export function InputReadinessCard() {
 
   return (
     <Card>
-      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <CardHeader className="grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5">
+        <div className="min-w-0">
           <CardTitle>语音输入就绪检查</CardTitle>
-          <CardDescription className="mt-2">
+          <CardDescription className="mt-1.5">
             {error ? `检查失败：${error}` : summary}
           </CardDescription>
         </div>
@@ -129,6 +130,7 @@ export function InputReadinessCard() {
           type="button"
           variant="outline"
           size="sm"
+          className="row-span-2 self-start"
           onClick={() => void refresh(true)}
           disabled={isLoading}
         >
@@ -142,11 +144,17 @@ export function InputReadinessCard() {
       </CardHeader>
       <CardContent>
         {readiness ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {CHECK_LABELS.map(({ key, label }) => {
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-6">
+            {CHECK_LABELS.map(({ key, label }, index) => {
               const check = readiness[key];
               return (
-                <div key={key} className="flex gap-3 rounded-lg border p-3">
+                <div
+                  key={key}
+                  className={cn(
+                    "flex min-h-24 gap-3 rounded-lg border p-3",
+                    index < 3 ? "md:col-span-2" : "md:col-span-3",
+                  )}
+                >
                   <StatusIcon check={check} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{label}</p>

@@ -104,3 +104,80 @@ pnpm check
 - 脱敏后的错误信息。
 
 不要提交 API Key、私人录音、用户完整文本或完整本地路径。安全问题按照 [`../SECURITY.md`](../SECURITY.md) 私下报告。
+
+
+## macOS：ASR 和文本整理完成后应用直接退出
+
+如果终端没有 Rust panic，而是直接回到 shell，先检查最新崩溃报告：
+
+```bash
+ls -lt ~/Library/Logs/DiagnosticReports/xiluolin-*.ips | head
+```
+
+若调用栈包含以下内容：
+
+```text
+SIGTRAP
+_dispatch_assert_queue_fail
+TSMCurrentKeyboardInputSourceRefCreate
+enigo
+send_paste_shortcut
+```
+
+说明自动粘贴在线程错误的位置触发了 macOS 输入法 API。当前版本已在 macOS 使用固定 ANSI V 键码，不再从 worker 线程做 Unicode 布局查询。确认运行的是重新编译后的版本：
+
+```bash
+pnpm tauri dev
+```
+
+修复后的投递日志应包含：
+
+```text
+[文本投递] 自动粘贴成功：restore_level=Window, clipboard_restored=true
+```
+
+## 快捷键一直提示“上一条语音输入仍在处理中”
+
+1. 检查日志中 `Released` 是否早于“录音启动成功”；
+2. 确认当前版本包含快捷键事件串行 gate；
+3. 处理失败后应看到会话被取消，而不是永久保留；
+4. 开发热更新前先停止正在进行的录音；
+5. 仍无法恢复时退出旧进程，再重新运行 `pnpm tauri dev`。
+
+## ASR 返回 Broken pipe
+
+当前智谱上传使用 reqwest 并读取真实 HTTP 响应。若仍看到旧的 `io: Broken pipe`，通常表示运行的还是旧二进制。
+
+重新编译后，认证问题应显示为明确的 401，额度或计费问题可能显示 402，限流可能显示 429。不要把真实 API Key粘贴到公开 Issue 或日志中。
+
+## 智谱 ASR 返回 1214：文件时长限制为 0-30 秒
+
+智谱 `audio/transcriptions` 当前会拒绝超过 30 秒的音频。请停止当前会话后重新录制较短内容。XiLuoLin 的定位是短语音输入，不应把该接口用于会议或长音频转写。
+
+## 文本整理过慢
+
+- 智谱 Provider 默认关闭思考并限制输出长度；
+- 请求总超时为 12 秒，失败后保留原始 ASR 文本；
+- 模型名由用户配置，供应商下拉框不绑定具体型号；
+- 评估新模型时，应比较相同短文本下的总延迟、失败率、限流和质量。
+
+需要查看正文时，可临时运行：
+
+```bash
+XILUOLIN_LOG_TEXT=1 pnpm tauri dev
+```
+
+默认不要开启全文日志；其中可能包含敏感口述内容。
+
+## macOS：启动时连续出现 Keychain 弹窗
+
+当前版本只使用：
+
+```text
+service: com.xiluolin.desktop
+account: app_credentials_v1
+```
+
+如果仍出现 `asr_api_key`、`openai_api_key` 或 `zhipu_api_key`，说明钥匙串中还存在旧条目。退出应用并在“钥匙串访问”中搜索 `com.xiluolin.desktop` 和 `com.xiluolin.app`，确认能够重新获取 Key 后再删除旧的分散条目。
+
+`pnpm tauri dev` 使用 ad-hoc 开发签名，重新编译后系统可能重新确认授权。发布和长期测试应使用稳定签名的 `.app`。

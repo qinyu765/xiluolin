@@ -24,6 +24,8 @@
    - 并发工作区冲突、worktree 隔离、堆叠 PR、rebase 和 Windows CI。
 7. [`future-work-and-checklists.md`](./future-work-and-checklists.md)
    - 遗留问题、发布前验证、后续演进建议和可复用检查清单。
+8. [`macos-voice-input-reliability.md`](./macos-voice-input-reliability.md)
+   - macOS 快捷键竞态、Provider 可观测性、Keychain 授权、文本延迟和自动粘贴 native crash 的完整复盘。
 
 ## 阅读建议
 

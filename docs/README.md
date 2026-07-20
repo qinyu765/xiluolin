@@ -37,6 +37,7 @@
 - [`local-asr-and-provider-strategy.md`](./retrospectives/local-asr-and-provider-strategy.md)：本地 ASR、模型管理和降级策略。
 - [`collaboration-git-and-ci-lessons.md`](./retrospectives/collaboration-git-and-ci-lessons.md)：多 Agent、worktree、堆叠 PR 和 CI。
 - [`future-work-and-checklists.md`](./retrospectives/future-work-and-checklists.md)：遗留事项和通用检查清单。
+- [`macos-voice-input-reliability.md`](./retrospectives/macos-voice-input-reliability.md)：macOS 语音输入链路、Keychain、Provider 延迟和自动粘贴崩溃复盘。
 
 ## 历史归档
 

@@ -4,7 +4,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-const DEFAULT_PERSONA_ID: &str = "prompt-engineer";
+pub const GENERAL_PERSONA_ID: &str = "general";
+const DEFAULT_PERSONA_ID: &str = GENERAL_PERSONA_ID;
 const APP_CONFIG_STORE: &str = "settings.json";
 const APP_CONFIG_KEY: &str = "app_config";
 
@@ -331,7 +332,9 @@ impl LocalDatabase {
             r#"
             SELECT id, name, description, icon, is_default, created_at, updated_at
             FROM personas
-            ORDER BY is_default DESC, created_at ASC
+            ORDER BY CASE WHEN id = 'general' THEN 0 ELSE 1 END,
+                     created_at ASC,
+                     rowid ASC
             "#,
         )?;
 
@@ -374,9 +377,15 @@ impl LocalDatabase {
         self.get_persona(&id)
     }
 
-    pub fn update_persona(&self, id: &str, draft: PersonaDraft) -> rusqlite::Result<Persona> {
-        let updated = self.connection.execute(
-            r#"
+    pub fn update_persona(&self, id: &str, draft: PersonaDraft) -> Result<Persona, String> {
+        if id == GENERAL_PERSONA_ID {
+            return Err("通用人格是系统内置人格，不可修改".to_string());
+        }
+
+        let updated = self
+            .connection
+            .execute(
+                r#"
             UPDATE personas
             SET name = ?2,
                 description = ?3,
@@ -384,23 +393,29 @@ impl LocalDatabase {
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?1
             "#,
-            params![id, draft.name, draft.description, draft.icon],
-        )?;
+                params![id, draft.name, draft.description, draft.icon],
+            )
+            .map_err(|error| error.to_string())?;
 
         if updated == 0 {
-            return Err(rusqlite::Error::QueryReturnedNoRows);
+            return Err("人格不存在".to_string());
         }
 
-        self.get_persona(id)
+        self.get_persona(id).map_err(|error| error.to_string())
     }
 
-    pub fn delete_persona(&self, id: &str) -> rusqlite::Result<()> {
+    pub fn delete_persona(&self, id: &str) -> Result<(), String> {
+        if id == GENERAL_PERSONA_ID {
+            return Err("通用人格是系统内置人格，不可删除".to_string());
+        }
+
         let deleted = self
             .connection
-            .execute("DELETE FROM personas WHERE id = ?1", [id])?;
+            .execute("DELETE FROM personas WHERE id = ?1", [id])
+            .map_err(|error| error.to_string())?;
 
         if deleted == 0 {
-            return Err(rusqlite::Error::QueryReturnedNoRows);
+            return Err("人格不存在".to_string());
         }
 
         Ok(())
@@ -712,11 +727,13 @@ impl LocalDatabase {
         let persona_count: i64 =
             self.connection
                 .query_row("SELECT COUNT(*) FROM personas", [], |row| row.get(0))?;
-        if persona_count > 0 {
-            return Ok(());
-        }
+        let is_fresh_database = persona_count == 0;
 
         for persona in builtin_personas() {
+            if !is_fresh_database && persona.id != GENERAL_PERSONA_ID {
+                continue;
+            }
+            let is_default = is_fresh_database && persona.id == GENERAL_PERSONA_ID;
             self.connection.execute(
                 r#"
                 INSERT INTO personas (
@@ -730,7 +747,7 @@ impl LocalDatabase {
                     persona.name,
                     persona.description,
                     persona.icon,
-                    bool_to_int(persona.is_default)
+                    bool_to_int(is_default)
                 ],
             )?;
         }
@@ -1014,39 +1031,40 @@ fn database_for_app(app: &tauri::AppHandle) -> Result<LocalDatabase, String> {
 fn builtin_personas() -> Vec<PersonaSeed> {
     vec![
         PersonaSeed {
+            id: GENERAL_PERSONA_ID,
+            name: "通用人格",
+            description: "让文本保持自然、清晰、口语化的语气，同时更精炼易读，要把句尾的句号去掉。",
+            icon: "Sparkles",
+        },
+        PersonaSeed {
             id: "prompt-engineer",
             name: "Prompt 工程师",
             description: "将语音转换为清晰、可执行的 AI Prompt。输出结构：目标、上下文、约束、期望结果。适合与 Agent 工具协作。",
             icon: "Bot",
-            is_default: true,
         },
         PersonaSeed {
             id: "task-collaborator",
             name: "任务协作者",
             description: "将口述任务整理为结构化的工作指令。包含：背景、要求、交付物、时间节点。语气温和明确。",
             icon: "ClipboardList",
-            is_default: false,
         },
         PersonaSeed {
             id: "idea-organizer",
             name: "灵感整理师",
             description: "将碎片化想法整理为可展开的创作素材。输出：标题候选、关键要点、后续待办。适合写作和创作场景。",
             icon: "Lightbulb",
-            is_default: false,
         },
         PersonaSeed {
             id: "formal-message",
             name: "正式消息助手",
             description: "将口语化表达转换为正式的办公消息或邮件。语气礼貌准确，可直接发送。",
             icon: "Mail",
-            is_default: false,
         },
         PersonaSeed {
             id: "translator",
             name: "翻译官",
             description: "如果文本为中文，翻译成自然流畅的英文；如已是英文则仅做清理润色，不改变语言。专有名词保持原样。",
             icon: "Languages",
-            is_default: false,
         },
     ]
 }
@@ -1056,7 +1074,6 @@ struct PersonaSeed {
     name: &'static str,
     description: &'static str,
     icon: &'static str,
-    is_default: bool,
 }
 
 fn persona_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Persona> {

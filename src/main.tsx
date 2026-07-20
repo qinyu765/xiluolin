@@ -32,6 +32,12 @@ import type {
 import { emptyHotwordDraft, emptyPersonaDraft } from "@/types";
 import "./styles.css";
 
+const SIDEBAR_TAB_CLASS =
+  "group h-9 flex-none justify-start gap-2 rounded-md px-3 text-muted-foreground transition-[color,background-color,box-shadow,transform] duration-150 hover:translate-x-0.5 hover:bg-card hover:text-foreground hover:shadow-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm";
+
+const SIDEBAR_ICON_CLASS =
+  "size-4 text-muted-foreground transition-[color,transform] duration-150 group-hover:scale-105 group-hover:text-primary group-data-[state=active]:text-primary";
+
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -935,34 +941,25 @@ function App() {
           </h1>
         </div>
 
-        {/* 导航菜单 */}
-        <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 rounded-none bg-transparent p-2">
-          <TabsTrigger
-            value="home"
-            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
-          >
-            <HomeIcon className="size-4" aria-hidden="true" />
+        {/* 主导航在顶部，设置入口独立固定在侧边栏底部。 */}
+        <TabsList className="flex h-auto min-h-0 w-full flex-1 flex-col items-stretch gap-1 rounded-none bg-transparent p-2 pb-3">
+          <TabsTrigger value="home" className={SIDEBAR_TAB_CLASS}>
+            <HomeIcon className={SIDEBAR_ICON_CLASS} aria-hidden="true" />
             首页
           </TabsTrigger>
-          <TabsTrigger
-            value="persona"
-            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
-          >
-            <UserIcon className="size-4" aria-hidden="true" />
+          <TabsTrigger value="persona" className={SIDEBAR_TAB_CLASS}>
+            <UserIcon className={SIDEBAR_ICON_CLASS} aria-hidden="true" />
             人格
           </TabsTrigger>
-          <TabsTrigger
-            value="hotword"
-            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
-          >
-            <BookmarkIcon className="size-4" aria-hidden="true" />
+          <TabsTrigger value="hotword" className={SIDEBAR_TAB_CLASS}>
+            <BookmarkIcon className={SIDEBAR_ICON_CLASS} aria-hidden="true" />
             热词
           </TabsTrigger>
           <TabsTrigger
             value="settings"
-            className="justify-start gap-2 rounded-md data-[state=active]:bg-background"
+            className={`${SIDEBAR_TAB_CLASS} relative mt-auto before:absolute before:-top-3 before:left-0 before:right-0 before:h-px before:bg-border/80 before:content-['']`}
           >
-            <SettingsIcon className="size-4" aria-hidden="true" />
+            <SettingsIcon className={SIDEBAR_ICON_CLASS} aria-hidden="true" />
             设置
           </TabsTrigger>
         </TabsList>

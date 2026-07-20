@@ -107,7 +107,7 @@ export function QuickStartCard({
             <SelectContent>
               {personas.map((persona) => (
                 <SelectItem key={persona.id} value={persona.id}>
-                  {persona.name}
+                  {persona.name}{persona.id === "general" ? "（推荐）" : ""}
                 </SelectItem>
               ))}
             </SelectContent>

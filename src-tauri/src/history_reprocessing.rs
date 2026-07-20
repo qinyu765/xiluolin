@@ -126,6 +126,7 @@ pub fn refine_history_text(
     let result = polish_text_with_provider(
         &TextPolishRequest {
             raw_text: existing.raw_text,
+            persona_id: persona.id.clone(),
             persona_description: persona.description.clone(),
             hotword_context,
         },

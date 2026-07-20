@@ -210,6 +210,7 @@ pub fn process_voice_input_with_progress(
     let polish_result = polish_text_with_provider(
         &TextPolishRequest {
             raw_text: transcription.text.clone(),
+            persona_id: persona.id.clone(),
             persona_description: persona.description.clone(),
             hotword_context,
         },

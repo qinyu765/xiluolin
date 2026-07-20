@@ -430,7 +430,9 @@ pub fn process_recording_file(
     }
 
     if let Err(error) = &result {
-        let _ = sessions.finish(&session_id, CaptureStatus::Failed);
+        // 错误路径必须无条件释放会话。finish 受状态机约束且此前忽略了返回值，
+        // 一旦状态更新异常就会永久触发“上一条语音输入仍在处理中”。
+        sessions.cancel(&session_id);
         if show_indicator {
             let _ = indicator::finish_indicator(&app, "failed");
         }

@@ -66,7 +66,7 @@ export function ShortcutInput({
     }
   };
 
-  const handleKeyUp = (e: React.KeyboardEvent) => {
+  const handleKeyUp = () => {
     // 在标准格式下，不支持单独的修饰键作为快捷键
     // 因此 keyUp 事件不需要特殊处理
     return;
@@ -193,19 +193,19 @@ function getKeyName(key: string, code: string): string {
   // 特殊键映射
   const specialKeys: Record<string, string> = {
     " ": "Space",
-    "ArrowUp": "Up",
-    "ArrowDown": "Down",
-    "ArrowLeft": "Left",
-    "ArrowRight": "Right",
-    "Enter": "Enter",
-    "Escape": "Escape",
-    "Backspace": "Backspace",
-    "Tab": "Tab",
-    "Delete": "Delete",
-    "Home": "Home",
-    "End": "End",
-    "PageUp": "PageUp",
-    "PageDown": "PageDown",
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right",
+    Enter: "Enter",
+    Escape: "Escape",
+    Backspace: "Backspace",
+    Tab: "Tab",
+    Delete: "Delete",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
   };
 
   // 处理修饰键（不区分左右）

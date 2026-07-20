@@ -24,7 +24,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
               "flex h-12 w-12 cursor-pointer items-center justify-center rounded-md border-2 transition-[color,background-color,border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:shadow-sm active:translate-y-0 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               isSelected
                 ? "border-primary bg-primary/10 shadow-xs"
-                : "border-border hover:border-primary/50 hover:bg-accent"
+                : "border-border hover:border-primary/50 hover:bg-accent",
             )}
             title={iconName}
           >

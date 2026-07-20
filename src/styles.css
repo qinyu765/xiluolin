@@ -80,8 +80,7 @@
     @apply min-h-screen bg-background text-foreground antialiased;
     min-width: 320px;
     font-family:
-      Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui,
-      sans-serif;
+      Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;

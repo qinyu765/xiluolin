@@ -6,6 +6,7 @@ authors = ["XiLuoLin Contributors"]
 license = "MIT"
 repository = "https://github.com/qinyu765/xiluolin"
 edition = "2021"
+default-run = "xiluolin"
 
 [lib]
 name = "xiluolin_lib"

@@ -35,11 +35,11 @@ pub enum TextPolishError {
 impl fmt::Display for TextPolishError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingApiKey => write!(formatter, "OpenAI API Key 不能为空"),
+            Self::MissingApiKey => write!(formatter, "文本处理 API Key 不能为空"),
             Self::MissingRawText => write!(formatter, "原始识别文本不能为空"),
-            Self::RequestFailed(message) => write!(formatter, "OpenAI 文本整理请求失败：{message}"),
+            Self::RequestFailed(message) => write!(formatter, "文本整理请求失败：{message}"),
             Self::InvalidResponse(message) => {
-                write!(formatter, "OpenAI 文本整理响应解析失败：{message}")
+                write!(formatter, "文本整理响应解析失败：{message}")
             }
         }
     }
@@ -54,14 +54,22 @@ struct ChatMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct OpenAiChatRequest {
+struct ChatCompletionsRequest {
     model: String,
     messages: Vec<ChatMessage>,
     temperature: f32,
+    max_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ThinkingConfig>,
+}
+
+#[derive(Debug, Serialize)]
+struct ThinkingConfig {
+    r#type: &'static str,
 }
 
 #[derive(Debug, Deserialize)]
-struct OpenAiChatResponse {
+struct ChatCompletionsResponse {
     choices: Vec<ChatChoice>,
 }
 
@@ -70,7 +78,7 @@ struct ChatChoice {
     message: ChatMessage,
 }
 
-pub fn polish_text_with_openai(
+pub fn polish_text_with_provider(
     request: &TextPolishRequest,
     config: &TextPolishConfig,
 ) -> Result<TextPolishResult, TextPolishError> {
@@ -85,7 +93,7 @@ pub fn polish_text_with_openai(
                 error_message: None,
             })
         }
-        Err(error @ TextPolishError::RequestFailed(_)) => {
+        Err(error @ (TextPolishError::RequestFailed(_) | TextPolishError::InvalidResponse(_))) => {
             eprintln!("[⏱️ 文本润色] ❌ 润色失败，使用降级方案: {}", error);
             Ok(TextPolishResult {
                 final_text: request.raw_text.trim().to_string(),
@@ -113,7 +121,7 @@ fn send_polish_request(
     eprintln!("[⏱️ 文本润色] 构建消息 - 耗时 {:?}", step1_start.elapsed());
 
     let step2_start = std::time::Instant::now();
-    let body = OpenAiChatRequest {
+    let body = ChatCompletionsRequest {
         model: config.model.trim().to_string(),
         messages: vec![
             ChatMessage {
@@ -126,6 +134,15 @@ fn send_polish_request(
             },
         ],
         temperature: 0.3,
+        // 语音整理通常只需要短输出。限制生成长度可避免模型过度推理。
+        max_tokens: 512,
+        // GLM-4.7 默认会生成较长 reasoning_content；实测短句可从约 21 秒
+        // 降到约 2.6 秒。其他 OpenAI 兼容服务不发送该扩展字段。
+        thinking: config
+            .provider
+            .trim()
+            .eq_ignore_ascii_case("zhipu")
+            .then_some(ThinkingConfig { r#type: "disabled" }),
     };
     eprintln!(
         "[⏱️ 文本润色] 构建请求体 - 耗时 {:?}",
@@ -133,7 +150,13 @@ fn send_polish_request(
     );
 
     let step3_start = std::time::Instant::now();
-    let response = ureq::post(&chat_completions_url(&config.base_url))
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(12)))
+        .http_status_as_error(false)
+        .build()
+        .new_agent();
+    let response = agent
+        .post(&chat_completions_url(&config.base_url))
         .header(
             "Authorization",
             &format!("Bearer {}", config.api_key.trim()),
@@ -146,8 +169,16 @@ fn send_polish_request(
         step3_start.elapsed()
     );
 
+    let status_code = response.status().as_u16();
+    if !response.status().is_success() {
+        let response_body = response.into_body().read_to_string().unwrap_or_default();
+        return Err(TextPolishError::RequestFailed(format!(
+            "http status: {status_code}, body: {response_body}"
+        )));
+    }
+
     let step4_start = std::time::Instant::now();
-    let response: OpenAiChatResponse = response
+    let response: ChatCompletionsResponse = response
         .into_body()
         .read_json()
         .map_err(|error| TextPolishError::InvalidResponse(error.to_string()))?;
@@ -247,5 +278,5 @@ pub fn polish_text(
         model,
     };
 
-    polish_text_with_openai(&request, &config).map_err(|error| error.to_string())
+    polish_text_with_provider(&request, &config).map_err(|error| error.to_string())
 }

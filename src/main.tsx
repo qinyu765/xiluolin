@@ -52,8 +52,8 @@ function App() {
   const [editingPersonaId, setEditingPersonaId] = useState<string | null>(null);
   const [isPersonaDialogOpen, setIsPersonaDialogOpen] = useState(false);
   const [status, setStatus] = useState("正在读取本地人格配置...");
-  const [asrStatus, setAsrStatus] = useState("正在读取智谱 ASR 配置...");
-  const [openaiStatus, setOpenaiStatus] = useState("正在读取 OpenAI 配置...");
+  const [asrStatus, setAsrStatus] = useState("正在读取 ASR 配置...");
+  const [textProcessingStatus, setTextProcessingStatus] = useState("正在读取文本处理配置...");
   const [hotwordStatus, setHotwordStatus] = useState("正在读取热词词典...");
   const [historyStatus, setHistoryStatus] = useState("正在读取历史记录...");
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([]);
@@ -62,7 +62,7 @@ function App() {
   const [voiceResult, setVoiceResult] = useState<VoiceInputResult | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isAsrSaving, setIsAsrSaving] = useState(false);
-  const [isOpenaiSaving, setIsOpenaiSaving] = useState(false);
+  const [isTextProcessingSaving, setIsTextProcessingSaving] = useState(false);
   const [isHotwordSaving, setIsHotwordSaving] = useState(false);
   const [isPersonaSaving, setIsPersonaSaving] = useState(false);
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
@@ -132,14 +132,14 @@ function App() {
         setHistoryStats(loadedHistoryStats);
         setAudioDevices(loadedAudioDevices);
         setStatus("已加载内置人格，可选择默认整理风格。");
-        setAsrStatus("智谱 ASR 配置已加载。");
-        setOpenaiStatus("OpenAI 配置已加载。");
+        setAsrStatus("ASR 配置已加载。");
+        setTextProcessingStatus("文本处理配置已加载。");
         setHotwordStatus("热词词典已加载。");
         setHistoryStatus("历史记录和统计已加载。");
       } catch (error) {
         setStatus(`读取本地数据失败：${String(error)}`);
-        setAsrStatus("智谱 ASR 配置读取失败。");
-        setOpenaiStatus("OpenAI 配置读取失败。");
+        setAsrStatus("ASR 配置读取失败。");
+        setTextProcessingStatus("文本处理配置读取失败。");
         setHotwordStatus("热词词典读取失败。");
         setHistoryStatus("历史记录读取失败。");
       }
@@ -385,13 +385,13 @@ function App() {
           : "ASR 配置已保存，真实转写前仍需填写 API Key。",
       );
     } catch (error) {
-      setAsrStatus(`保存智谱 ASR 配置失败：${String(error)}`);
+      setAsrStatus(`保存 ASR 配置失败：${String(error)}`);
     } finally {
       setIsAsrSaving(false);
     }
   }
 
-  async function handleSaveOpenaiConfig(
+  async function handleSaveTextProcessingConfig(
     event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -401,18 +401,32 @@ function App() {
 
     const nextConfig = {
       ...appConfig,
+      zhipu_api_key: appConfig.zhipu_api_key.trim(),
+      zhipu_base_url: appConfig.zhipu_base_url.trim(),
+      zhipu_model: appConfig.zhipu_model.trim(),
       openai_api_key: appConfig.openai_api_key.trim(),
       openai_base_url: appConfig.openai_base_url.trim(),
       openai_model: appConfig.openai_model.trim(),
     };
+    const usesZhipu = nextConfig.text_provider === "zhipu";
+    const providerLabel = usesZhipu ? "智谱" : "OpenAI 兼容";
+    const selectedApiKey = usesZhipu
+      ? nextConfig.zhipu_api_key
+      : nextConfig.openai_api_key;
+    const selectedBaseUrl = usesZhipu
+      ? nextConfig.zhipu_base_url
+      : nextConfig.openai_base_url;
+    const selectedModel = usesZhipu
+      ? nextConfig.zhipu_model
+      : nextConfig.openai_model;
 
-    if (!nextConfig.openai_base_url || !nextConfig.openai_model) {
-      setOpenaiStatus("Base URL 和模型名不能为空。");
+    if (!selectedBaseUrl || !selectedModel) {
+      setTextProcessingStatus("当前文本处理服务的 Base URL 和模型名不能为空。");
       return;
     }
 
-    setIsOpenaiSaving(true);
-    setOpenaiStatus("正在保存 OpenAI 配置...");
+    setIsTextProcessingSaving(true);
+    setTextProcessingStatus(`正在保存${providerLabel}文本处理配置...`);
 
     try {
       const savedConfig = await invoke<AppConfig>("update_app_config", {
@@ -420,15 +434,15 @@ function App() {
       });
       setAppConfig(savedConfig);
       window.dispatchEvent(new Event("xiluolin-config-saved"));
-      setOpenaiStatus(
-        savedConfig.openai_api_key
-          ? "OpenAI 配置已保存。"
-          : "OpenAI 配置已保存，真实整理前仍需填写 API Key。",
+      setTextProcessingStatus(
+        selectedApiKey
+          ? `${providerLabel}文本处理配置已保存。`
+          : `${providerLabel}文本处理配置已保存，真实整理前仍需填写 API Key。`,
       );
     } catch (error) {
-      setOpenaiStatus(`保存 OpenAI 配置失败：${String(error)}`);
+      setTextProcessingStatus(`保存文本处理配置失败：${String(error)}`);
     } finally {
-      setIsOpenaiSaving(false);
+      setIsTextProcessingSaving(false);
     }
   }
 
@@ -730,7 +744,7 @@ function App() {
       );
       setVoiceStatus(
         result.used_text_fallback
-          ? "ASR 已完成，OpenAI 整理失败，已保留原文作为结果。"
+          ? "ASR 已完成，文本整理失败，已保留原文作为结果。"
           : "语音主流程已完成，结果可复制使用。",
       );
       if (result.used_text_fallback) {
@@ -1015,11 +1029,11 @@ function App() {
                 appConfig={appConfig}
                 audioDevices={audioDevices}
                 asrStatus={asrStatus}
-                openaiStatus={openaiStatus}
+                textProcessingStatus={textProcessingStatus}
                 isAsrSaving={isAsrSaving}
-                isOpenaiSaving={isOpenaiSaving}
+                isTextProcessingSaving={isTextProcessingSaving}
                 onSaveAsrConfig={handleSaveAsrConfig}
-                onSaveOpenaiConfig={handleSaveOpenaiConfig}
+                onSaveTextProcessingConfig={handleSaveTextProcessingConfig}
                 onConfigChange={setAppConfig}
                 onConfigSaved={setAppConfig}
               />

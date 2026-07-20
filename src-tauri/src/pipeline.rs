@@ -1,6 +1,7 @@
 use std::{
     fmt,
     path::PathBuf,
+    sync::OnceLock,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -11,7 +12,7 @@ use crate::{
     capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
     data::{HistoryRecord, HistoryRecordDraft, LocalDatabase, Persona},
     indicator,
-    text_polish::{polish_text_with_openai, TextPolishConfig, TextPolishRequest},
+    text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +52,7 @@ pub enum VoiceInputError {
     EmptyAudio,
     UnsupportedAudioExtension(String),
     MissingDefaultPersona,
+    EmptyTranscription,
     RequestFailed(String),
 }
 
@@ -65,12 +67,37 @@ impl fmt::Display for VoiceInputError {
                 )
             }
             Self::MissingDefaultPersona => write!(formatter, "默认人格不存在"),
+            Self::EmptyTranscription => write!(formatter, "未识别到有效语音，请靠近麦克风后重试"),
             Self::RequestFailed(message) => write!(formatter, "{message}"),
         }
     }
 }
 
 impl std::error::Error for VoiceInputError {}
+
+fn log_processing_result(
+    stage: &str,
+    provider: &str,
+    model: &str,
+    text: &str,
+    used_fallback: bool,
+) {
+    eprintln!(
+        "[结果] stage={stage}, provider={provider}, model={model}, chars={}, fallback={used_fallback}",
+        text.chars().count()
+    );
+
+    // 语音正文可能包含隐私信息，因此默认不写入终端日志。开发者需要排查
+    // 识别/润色内容时，可显式使用 XILUOLIN_LOG_TEXT=1 启动应用。
+    static LOG_TEXT: OnceLock<bool> = OnceLock::new();
+    if *LOG_TEXT.get_or_init(|| {
+        std::env::var("XILUOLIN_LOG_TEXT")
+            .map(|value| matches!(value.trim(), "1" | "true" | "TRUE" | "yes" | "YES"))
+            .unwrap_or(false)
+    }) {
+        eprintln!("[结果正文] stage={stage}: {text}");
+    }
+}
 
 pub fn prepare_uploaded_audio_file(
     audio_bytes: Vec<u8>,
@@ -151,6 +178,16 @@ pub fn process_voice_input_with_progress(
         .map_err(|error| VoiceInputError::RequestFailed(error.to_string()));
     let _ = std::fs::remove_file(&audio_path);
     let transcription = transcription?;
+    if transcription.text.trim().is_empty() {
+        return Err(VoiceInputError::EmptyTranscription);
+    }
+    log_processing_result(
+        "ASR",
+        &transcription.provider,
+        &transcription.model,
+        &transcription.text,
+        transcription.used_fallback,
+    );
     eprintln!(
         "[⏱️ 性能] 步骤2: ASR 识别 - 耗时 {:?}",
         step2_start.elapsed()
@@ -170,7 +207,7 @@ pub fn process_voice_input_with_progress(
     // 4. 文本润色
     progress(VoiceInputStage::Refining);
     let step4_start = std::time::Instant::now();
-    let polish_result = polish_text_with_openai(
+    let polish_result = polish_text_with_provider(
         &TextPolishRequest {
             raw_text: transcription.text.clone(),
             persona_description: persona.description.clone(),
@@ -179,6 +216,13 @@ pub fn process_voice_input_with_progress(
         &text_config,
     )
     .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+    log_processing_result(
+        "文本润色",
+        &text_config.provider,
+        &text_config.model,
+        &polish_result.final_text,
+        polish_result.used_fallback,
+    );
     eprintln!(
         "[⏱️ 性能] 步骤4: 文本润色 - 耗时 {:?}",
         step4_start.elapsed()

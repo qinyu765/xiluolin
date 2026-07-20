@@ -6,7 +6,9 @@ use std::{
 
 use xiluolin_lib::{
     data::default_app_config,
-    text_polish::{polish_text_with_openai, TextPolishConfig, TextPolishError, TextPolishRequest},
+    text_polish::{
+        polish_text_with_provider, TextPolishConfig, TextPolishError, TextPolishRequest,
+    },
 };
 
 fn read_request(stream: &mut TcpStream) -> Vec<u8> {
@@ -21,8 +23,22 @@ fn read_request(stream: &mut TcpStream) -> Vec<u8> {
             Ok(0) => break,
             Ok(count) => {
                 request.extend_from_slice(&buffer[..count]);
-                if String::from_utf8_lossy(&request).contains("原始识别文本") {
-                    break;
+                if let Some(header_end) =
+                    request.windows(4).position(|window| window == b"\r\n\r\n")
+                {
+                    let headers = String::from_utf8_lossy(&request[..header_end]);
+                    let content_length = headers
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().ok())
+                                .flatten()
+                        })
+                        .unwrap_or(0);
+                    if request.len() >= header_end + 4 + content_length {
+                        break;
+                    }
                 }
             }
             Err(error)
@@ -78,6 +94,15 @@ fn openai_config(base_url: String, api_key: &str) -> TextPolishConfig {
     }
 }
 
+fn zhipu_config(base_url: String, api_key: &str) -> TextPolishConfig {
+    TextPolishConfig {
+        provider: "zhipu".to_string(),
+        api_key: api_key.to_string(),
+        base_url,
+        model: "glm-4.7".to_string(),
+    }
+}
+
 fn polish_request() -> TextPolishRequest {
     TextPolishRequest {
         raw_text: "这个任务帮我整理一下原始识别文本".to_string(),
@@ -104,7 +129,7 @@ fn default_config_contains_text_provider_and_zhipu_config() {
 
 #[test]
 fn rejects_missing_openai_api_key_before_network_request() {
-    let error = polish_text_with_openai(
+    let error = polish_text_with_provider(
         &polish_request(),
         &openai_config("http://127.0.0.1:9".to_string(), ""),
     )
@@ -120,7 +145,7 @@ fn posts_persona_hotwords_and_raw_text_to_chat_completions_endpoint() {
         r#"{"choices":[{"message":{"role":"assistant","content":"请帮我整理这个任务：原始识别文本。"}}]}"#,
     );
 
-    let result = polish_text_with_openai(
+    let result = polish_text_with_provider(
         &polish_request(),
         &openai_config(format!("{base_url}/v1"), "test-key"),
     )
@@ -135,11 +160,38 @@ fn posts_persona_hotwords_and_raw_text_to_chat_completions_endpoint() {
     assert!(request_lowercase.contains("authorization: bearer test-key"));
     assert!(request_lowercase.contains("content-type: application/json"));
     assert!(request_text.contains(r#""model": "gpt-4o-mini""#));
+    assert!(request_text.contains(r#""max_tokens": 512"#));
+    assert!(!request_text.contains(r#""thinking""#));
     assert!(request_text.contains(r#""role": "system""#));
     assert!(request_text.contains("Prompt 工程师"));
     assert!(request_text.contains("保留用户原意"));
     assert!(request_text.contains("原始识别文本"));
     assert!(request_text.contains("codex -> Codex"));
+}
+
+#[test]
+fn zhipu_requests_disable_thinking_by_default() {
+    let (base_url, handle) = spawn_mock_openai_server(
+        "200 OK",
+        r#"{"choices":[{"message":{"role":"assistant","content":"整理结果"}}]}"#,
+    );
+
+    let result = polish_text_with_provider(
+        &polish_request(),
+        &zhipu_config(format!("{base_url}/api/paas/v4"), "test-key"),
+    )
+    .expect("mock polish should pass");
+    let raw_request = handle.join().expect("mock server should finish");
+    let request_text = String::from_utf8_lossy(&raw_request);
+
+    assert_eq!(result.final_text, "整理结果");
+    let body = request_text
+        .split_once("\r\n\r\n")
+        .expect("request should contain a body")
+        .1;
+    let body: serde_json::Value = serde_json::from_str(body).expect("body should be valid JSON");
+    assert_eq!(body["thinking"]["type"], "disabled");
+    assert_eq!(body["max_tokens"], 512);
 }
 
 #[test]
@@ -154,7 +206,7 @@ fn request_requires_persona_style_rewrite_instead_of_plain_cleanup() {
         hotword_context: String::new(),
     };
 
-    let result = polish_text_with_openai(
+    let result = polish_text_with_provider(
         &request,
         &openai_config(format!("{base_url}/v1"), "test-key"),
     )
@@ -176,7 +228,7 @@ fn request_failure_returns_raw_text_as_fallback() {
         r#"{"error":{"message":"server error"}}"#,
     );
 
-    let result = polish_text_with_openai(
+    let result = polish_text_with_provider(
         &polish_request(),
         &openai_config(format!("{base_url}/v1/"), "test-key"),
     )
@@ -187,5 +239,5 @@ fn request_failure_returns_raw_text_as_fallback() {
     assert!(result
         .error_message
         .expect("fallback should keep error message")
-        .contains("OpenAI 文本整理请求失败"));
+        .contains("文本整理请求失败"));
 }

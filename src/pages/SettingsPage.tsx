@@ -31,11 +31,11 @@ type SettingsPageProps = {
   appConfig: AppConfig | null;
   audioDevices: AudioDevice[];
   asrStatus: string;
-  openaiStatus: string;
+  textProcessingStatus: string;
   isAsrSaving: boolean;
-  isOpenaiSaving: boolean;
+  isTextProcessingSaving: boolean;
   onSaveAsrConfig: (event: React.FormEvent<HTMLFormElement>) => void;
-  onSaveOpenaiConfig: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSaveTextProcessingConfig: (event: React.FormEvent<HTMLFormElement>) => void;
   onConfigChange: (config: AppConfig) => void;
   onConfigSaved: (config: AppConfig) => void;
 };
@@ -44,11 +44,11 @@ export function SettingsPage({
   appConfig,
   audioDevices,
   asrStatus,
-  openaiStatus,
+  textProcessingStatus,
   isAsrSaving,
-  isOpenaiSaving,
+  isTextProcessingSaving,
   onSaveAsrConfig,
-  onSaveOpenaiConfig,
+  onSaveTextProcessingConfig,
   onConfigChange,
   onConfigSaved,
 }: SettingsPageProps) {
@@ -284,13 +284,13 @@ export function SettingsPage({
                       <SelectValue placeholder="选择服务商" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="zhipu">智谱 AI (GLM-ASR-2512)</SelectItem>
-                      <SelectItem value="openai">OpenAI (Whisper)</SelectItem>
-                      <SelectItem value="local">本地 Whisper（离线）</SelectItem>
+                      <SelectItem value="zhipu">智谱 AI</SelectItem>
+                      <SelectItem value="openai">OpenAI 兼容</SelectItem>
+                      <SelectItem value="local">本地（离线）</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    智谱 GLM-ASR-2512 提供免费额度，OpenAI Whisper 需要付费
+                    模型名可在下方自行配置；应用不会根据服务商选择覆盖模型名
                   </p>
                 </div>
 
@@ -434,7 +434,7 @@ export function SettingsPage({
             </CardHeader>
 
             <CardContent>
-              <form className="grid gap-4" onSubmit={onSaveOpenaiConfig}>
+              <form className="grid gap-4" onSubmit={onSaveTextProcessingConfig}>
                 <div className="grid gap-2">
                   <Label htmlFor="text-provider">服务商</Label>
                   <Select
@@ -451,12 +451,12 @@ export function SettingsPage({
                       <SelectValue placeholder="选择服务商" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="zhipu">智谱 AI (GLM-4.7-Flash)</SelectItem>
-                      <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="zhipu">智谱 AI</SelectItem>
+                      <SelectItem value="openai">OpenAI 兼容</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    智谱 GLM-4.7-Flash 提供免费额度，适合 MVP 验证
+                    模型名可在下方自行配置；应用不会根据服务商选择覆盖模型名
                   </p>
                 </div>
 
@@ -572,14 +572,14 @@ export function SettingsPage({
 
                 <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm leading-6 text-muted-foreground">
-                    {openaiStatus}
+                    {textProcessingStatus}
                   </p>
                   <Button
                     type="submit"
                     size="sm"
-                    disabled={!appConfig || isOpenaiSaving}
+                    disabled={!appConfig || isTextProcessingSaving}
                   >
-                    {isOpenaiSaving ? (
+                    {isTextProcessingSaving ? (
                       <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
                     ) : (
                       <SaveIcon className="size-4" aria-hidden="true" />

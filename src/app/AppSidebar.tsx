@@ -4,8 +4,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Page } from "@/types";
 
 const TAB_CLASS =
-  "justify-start gap-2 rounded-none border-l-2 border-transparent px-5 py-3 text-muted-foreground transition-colors data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-none";
-const ICON_CLASS = "size-4 shrink-0";
+  "group h-9 flex-none justify-start gap-2 rounded-md px-3 text-muted-foreground transition-[color,background-color,box-shadow,transform] duration-150 hover:translate-x-0.5 hover:bg-card hover:text-foreground hover:shadow-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm";
+const ICON_CLASS =
+  "size-4 text-muted-foreground transition-[color,transform] duration-150 group-hover:scale-105 group-hover:text-primary group-data-[state=active]:text-primary";
 
 export function AppSidebar({
   page,
@@ -21,11 +22,13 @@ export function AppSidebar({
       orientation="vertical"
       className="fixed left-0 top-0 z-10 flex h-screen w-48 flex-col border-r bg-muted/30"
     >
-      <div className="border-b px-5 py-5">
-        <p className="text-lg font-semibold tracking-tight">XiLuoLin</p>
-        <p className="mt-1 text-xs text-muted-foreground">AI 语音输入助手</p>
+      <div className="border-b px-6 py-4">
+        <h1 className="text-2xl font-semibold tracking-normal [font-family:Georgia,'Times_New_Roman',serif]">
+          XiLuoLin
+        </h1>
       </div>
-      <TabsList className="flex h-auto flex-1 flex-col items-stretch gap-1 rounded-none bg-transparent p-0 py-3">
+
+      <TabsList className="flex h-auto min-h-0 w-full flex-1 flex-col items-stretch gap-1 rounded-none bg-transparent p-2 pb-3">
         <TabsTrigger value="home" className={TAB_CLASS}>
           <HomeIcon className={ICON_CLASS} aria-hidden="true" />
           首页

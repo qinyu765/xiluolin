@@ -10,10 +10,10 @@ permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Windows quality checks
-    runs-on: windows-latest
-    timeout-minutes: 30
+  frontend:
+    name: Frontend quality checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -25,20 +25,29 @@ jobs:
           node-version: 22
 
       - name: Enable pnpm
-        shell: pwsh
         run: corepack enable
 
-      - name: Install frontend dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type-check frontend
-        run: pnpm typecheck
+      - name: Check frontend
+        run: pnpm check:frontend
 
-      - name: Build frontend
-        run: pnpm build:frontend
+  rust:
+    name: Rust checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Rust stable
-        shell: pwsh
+        shell: bash
         run: |
           rustup update stable
           rustup default stable

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+src/generated/
+src-tauri/target/
+.playwright-cli/
+pnpm-lock.yaml

@@ -71,3 +71,4 @@ DESIGN.md
 # AI 辅助工具本地配置
 .agents/settings.local.json
 .claude/settings.local.json
+.playwright-cli/

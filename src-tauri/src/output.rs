@@ -65,6 +65,12 @@ pub async fn deliver_text(
     history_id: Option<String>,
     text: String,
 ) -> Result<OutputResult, String> {
+    eprintln!(
+        "[文本投递] 开始：session={}, chars={}",
+        session_id.as_deref().unwrap_or("none"),
+        text.chars().count()
+    );
+
     let Some(session_id) = session_id else {
         clipboard_copy(&text).await?;
         if let Some(history_id) = history_id {
@@ -110,29 +116,37 @@ pub async fn deliver_text(
         );
     }
 
+    eprintln!("[文本投递] 快捷键录音：准备恢复目标窗口并自动粘贴");
     match clipboard_paste(&text, context.focus).await {
-        Ok(outcome) => finish_delivery(
-            &app,
-            &sessions,
-            &session_id,
-            Ok(OutputResult {
-                method: OutputMethod::Paste,
-                success: true,
-                message: match outcome.target_restore_level {
-                    FocusRestoreLevel::Window => "已输入到录音开始时的窗口".to_string(),
-                    FocusRestoreLevel::Application => {
-                        "未能精确定位原窗口，已输入到录音开始时的应用".to_string()
-                    }
-                    FocusRestoreLevel::None => "已发送自动粘贴".to_string(),
-                },
-                target_restored: outcome.target_restore_level != FocusRestoreLevel::None,
-                target_restore_level: outcome.target_restore_level,
-                clipboard_restored: outcome.clipboard_restored,
-                used_fallback: false,
-            }),
-            true,
-        ),
+        Ok(outcome) => {
+            eprintln!(
+                "[文本投递] 自动粘贴成功：restore_level={:?}, clipboard_restored={}",
+                outcome.target_restore_level, outcome.clipboard_restored
+            );
+            finish_delivery(
+                &app,
+                &sessions,
+                &session_id,
+                Ok(OutputResult {
+                    method: OutputMethod::Paste,
+                    success: true,
+                    message: match outcome.target_restore_level {
+                        FocusRestoreLevel::Window => "已输入到录音开始时的窗口".to_string(),
+                        FocusRestoreLevel::Application => {
+                            "未能精确定位原窗口，已输入到录音开始时的应用".to_string()
+                        }
+                        FocusRestoreLevel::None => "已发送自动粘贴".to_string(),
+                    },
+                    target_restored: outcome.target_restore_level != FocusRestoreLevel::None,
+                    target_restore_level: outcome.target_restore_level,
+                    clipboard_restored: outcome.clipboard_restored,
+                    used_fallback: false,
+                }),
+                true,
+            )
+        }
         Err(paste_error) => {
+            eprintln!("[文本投递] 自动粘贴失败，降级为剪贴板：{paste_error}");
             let fallback = clipboard_copy(&text).await.map(|_| OutputResult {
                 method: OutputMethod::Manual,
                 success: false,
@@ -246,15 +260,36 @@ fn send_paste_shortcut() -> Result<(), String> {
     enigo
         .key(modifier, Direction::Press)
         .map_err(|error| format!("按下粘贴修饰键失败：{error}"))?;
-    let click_result = enigo
-        .key(Key::Unicode('v'), Direction::Click)
-        .map_err(|error| format!("触发粘贴快捷键失败：{error}"));
+    let click_result = click_paste_key(&mut enigo);
     let release_result = enigo
         .key(modifier, Direction::Release)
         .map_err(|error| format!("释放粘贴修饰键失败：{error}"));
 
     click_result?;
     release_result
+}
+
+fn click_paste_key(enigo: &mut Enigo) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        // macOS ANSI V 的虚拟键码为 9。不要在 Tokio blocking worker 中使用
+        // Key::Unicode('v')：enigo 会查询 TSM 当前输入源，而该 API 要求主队列，
+        // 在后台线程调用会触发 dispatch_assert_queue 并以 SIGTRAP 终止整个进程。
+        enigo
+            .raw(9, Direction::Click)
+            .map_err(|error| format!("触发粘贴快捷键失败：{error}"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        enigo
+            .key(Key::Unicode('v'), Direction::Click)
+            .map_err(|error| format!("触发粘贴快捷键失败：{error}"))
+    }
+}
+
+#[cfg(test)]
+fn macos_paste_key_code() -> u16 {
+    9
 }
 
 async fn clipboard_copy(text: &str) -> Result<(), String> {
@@ -267,4 +302,13 @@ async fn clipboard_copy(text: &str) -> Result<(), String> {
     })
     .await
     .map_err(|error| format!("剪贴板任务失败：{error}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_paste_uses_ansi_v_keycode_without_layout_lookup() {
+        assert_eq!(super::macos_paste_key_code(), 9);
+    }
 }

@@ -8,6 +8,7 @@
 
 - `YYYY-MM-DD-*.md`：按时间记录的历史任务和阶段决策。
 - [`2026-07-20-t036-macos-voice-pipeline-reliability.md`](./2026-07-20-t036-macos-voice-pipeline-reliability.md)：macOS 真实语音输入链路集中排查和修复记录。
+- [`2026-07-20-t037-recording-overlay-and-ui-feedback.md`](./2026-07-20-t037-recording-overlay-and-ui-feedback.md)：录音悬浮状态条、透明窗口、交互反馈和开发服务器清理实施记录。
 - [`task-tracker.md`](./task-tracker.md)：旧任务状态快照，不再是当前工作的唯一事实源。
 - [`task-doc-template.md`](./task-doc-template.md)：旧任务复盘模板，仅在需要补录历史记录时参考。
 - [`archive/fixes/`](./archive/fixes/)：已完成或已被当前排查指南替代的修复记录。

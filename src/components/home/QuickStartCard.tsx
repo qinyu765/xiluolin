@@ -1,5 +1,11 @@
 import React from "react";
-import { CopyIcon, FileAudioIcon, Loader2Icon, Mic2Icon, SaveIcon } from "lucide-react";
+import {
+  CopyIcon,
+  FileAudioIcon,
+  Loader2Icon,
+  Mic2Icon,
+  SaveIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -107,7 +113,8 @@ export function QuickStartCard({
             <SelectContent>
               {personas.map((persona) => (
                 <SelectItem key={persona.id} value={persona.id}>
-                  {persona.name}{persona.id === "general" ? "（推荐）" : ""}
+                  {persona.name}
+                  {persona.id === "general" ? "（推荐）" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -153,7 +160,9 @@ export function QuickStartCard({
           {/* 或上传音频文件 */}
           <div className="flex items-center gap-3 border-t pt-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">或上传音频文件</span>
+            <span className="text-xs text-muted-foreground">
+              或上传音频文件
+            </span>
             <div className="h-px flex-1 bg-border" />
           </div>
 
@@ -172,7 +181,10 @@ export function QuickStartCard({
             >
               <Label htmlFor="voice-audio-file" className="cursor-pointer">
                 {isVoiceProcessing ? (
-                  <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                  <Loader2Icon
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <FileAudioIcon className="size-4" aria-hidden="true" />
                 )}
@@ -215,11 +227,7 @@ export function QuickStartCard({
                     <CopyIcon className="size-4" aria-hidden="true" />
                     复制
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={onOutputText}
-                  >
+                  <Button type="button" size="sm" onClick={onOutputText}>
                     <SaveIcon className="size-4" aria-hidden="true" />
                     输出
                   </Button>

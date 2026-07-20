@@ -1,15 +1,6 @@
-export type Hotword = {
-  id: string;
-  text: string;
-  category: string;
-  enabled: boolean;
-};
+import type { Hotword, HotwordDraft } from "@/generated/tauri-bindings";
 
-export type HotwordDraft = {
-  text: string;
-  category: string;
-  enabled: boolean;
-};
+export type { Hotword, HotwordDraft };
 
 export const emptyHotwordDraft: HotwordDraft = {
   text: "",

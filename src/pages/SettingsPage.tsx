@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Loader2Icon, SaveIcon } from "lucide-react";
 import { toast } from "sonner";
-import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -23,8 +21,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShortcutInput } from "@/components/ui/shortcut-input";
 import { InputReadinessCard } from "@/components/settings/InputReadinessCard";
+import { ModelSettings } from "@/components/settings/ModelSettings";
 import { RecordingStorageCard } from "@/components/settings/RecordingStorageCard";
-import { LocalAsrSettings } from "@/components/settings/LocalAsrSettings";
 import type { AppConfig, AudioDevice } from "@/types";
 
 type SettingsPageProps = {
@@ -37,7 +35,9 @@ type SettingsPageProps = {
   onSaveAsrConfig: (event: React.FormEvent<HTMLFormElement>) => void;
   onSaveTextProcessingConfig: (event: React.FormEvent<HTMLFormElement>) => void;
   onConfigChange: (config: AppConfig) => void;
-  onConfigSaved: (config: AppConfig) => void;
+  onSaveConfig: (config: AppConfig) => Promise<AppConfig>;
+  configRevision: number;
+  historyRevision: number;
 };
 
 export function SettingsPage({
@@ -50,10 +50,17 @@ export function SettingsPage({
   onSaveAsrConfig,
   onSaveTextProcessingConfig,
   onConfigChange,
-  onConfigSaved,
+  onSaveConfig,
+  configRevision,
+  historyRevision,
 }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState("general");
   const [isGeneralSaving, setIsGeneralSaving] = useState(false);
+  const [modelRevision, setModelRevision] = useState(0);
+
+  const updateConfig = (patch: Partial<AppConfig>) => {
+    if (appConfig) onConfigChange({ ...appConfig, ...patch });
+  };
 
   const handleGeneralSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -66,10 +73,8 @@ export function SettingsPage({
     };
 
     setIsGeneralSaving(true);
-    invoke<AppConfig>("update_app_config", { config: nextConfig })
-      .then((savedConfig) => {
-        onConfigSaved(savedConfig);
-        window.dispatchEvent(new Event("xiluolin-config-saved"));
+    onSaveConfig(nextConfig)
+      .then(() => {
         toast.success("通用设置已保存，快捷键已生效");
       })
       .catch((error) => {
@@ -89,9 +94,13 @@ export function SettingsPage({
         </p>
       </div>
 
-      <InputReadinessCard />
+      <InputReadinessCard refreshRevision={configRevision + modelRevision} />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="general">通用</TabsTrigger>
           <TabsTrigger value="models">模型配置</TabsTrigger>
@@ -113,11 +122,7 @@ export function SettingsPage({
                     value={appConfig?.longpress_shortcut ?? ""}
                     defaultValue="CommandOrControl+Shift+R"
                     onChange={(value) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, longpress_shortcut: value }
-                          : appConfig!,
-                      )
+                      updateConfig({ longpress_shortcut: value })
                     }
                     placeholder="点击后按下快捷键"
                   />
@@ -132,11 +137,7 @@ export function SettingsPage({
                     value={appConfig?.toggle_shortcut ?? ""}
                     defaultValue="Alt+Space"
                     onChange={(value) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, toggle_shortcut: value }
-                          : appConfig!,
-                      )
+                      updateConfig({ toggle_shortcut: value })
                     }
                     placeholder="点击后按下快捷键"
                   />
@@ -150,18 +151,19 @@ export function SettingsPage({
                   <Select
                     value={appConfig?.selected_microphone || "__default__"}
                     onValueChange={(value) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, selected_microphone: value === "__default__" ? "" : value }
-                          : appConfig!,
-                      )
+                      updateConfig({
+                        selected_microphone:
+                          value === "__default__" ? "" : value,
+                      })
                     }
                   >
                     <SelectTrigger id="app-microphone" className="h-10">
                       <SelectValue placeholder="使用默认麦克风" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__default__">使用默认麦克风</SelectItem>
+                      <SelectItem value="__default__">
+                        使用默认麦克风
+                      </SelectItem>
                       {audioDevices.map((device) => (
                         <SelectItem key={device.name} value={device.name}>
                           {device.name} {device.is_default ? "(默认)" : ""}
@@ -185,11 +187,7 @@ export function SettingsPage({
                     id="app-mute-audio"
                     checked={appConfig?.mute_system_audio ?? false}
                     onCheckedChange={(checked) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, mute_system_audio: checked }
-                          : appConfig!,
-                      )
+                      updateConfig({ mute_system_audio: checked })
                     }
                   />
                 </div>
@@ -205,17 +203,12 @@ export function SettingsPage({
                     id="app-auto-save"
                     checked={appConfig?.auto_save_history ?? true}
                     onCheckedChange={(checked) =>
-                      onConfigChange(
-                        appConfig
-                          ? {
-                              ...appConfig,
-                              auto_save_history: checked,
-                              retain_recordings: checked
-                                ? appConfig.retain_recordings
-                                : false,
-                            }
-                          : appConfig!,
-                      )
+                      updateConfig({
+                        auto_save_history: checked,
+                        retain_recordings: checked
+                          ? (appConfig?.retain_recordings ?? false)
+                          : false,
+                      })
                     }
                   />
                 </div>
@@ -232,19 +225,22 @@ export function SettingsPage({
                     checked={appConfig?.retain_recordings ?? false}
                     disabled={!appConfig?.auto_save_history}
                     onCheckedChange={(checked) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, retain_recordings: checked }
-                          : appConfig!,
-                      )
+                      updateConfig({ retain_recordings: checked })
                     }
                   />
                 </div>
 
                 <div className="flex justify-end border-t pt-4">
-                  <Button type="submit" size="sm" disabled={!appConfig || isGeneralSaving}>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={!appConfig || isGeneralSaving}
+                  >
                     {isGeneralSaving ? (
-                      <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                      <Loader2Icon
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
                     ) : (
                       <SaveIcon className="size-4" aria-hidden="true" />
                     )}
@@ -254,342 +250,21 @@ export function SettingsPage({
               </form>
             </CardContent>
           </Card>
-          <RecordingStorageCard />
+          <RecordingStorageCard revision={historyRevision} />
         </TabsContent>
 
         <TabsContent value="models" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>语音识别服务</CardTitle>
-              <CardDescription>
-                配置 ASR 服务，用于把短音频转换为原始识别文本
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent>
-              <form className="grid gap-4" onSubmit={onSaveAsrConfig}>
-                <div className="grid gap-2">
-                  <Label htmlFor="asr-provider">服务商</Label>
-                  <Select
-                    value={appConfig?.asr_provider ?? "zhipu"}
-                    onValueChange={(value) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, asr_provider: value }
-                          : appConfig!,
-                      )
-                    }
-                  >
-                    <SelectTrigger id="asr-provider" className="h-10">
-                      <SelectValue placeholder="选择服务商" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="zhipu">智谱 AI</SelectItem>
-                      <SelectItem value="openai">OpenAI 兼容</SelectItem>
-                      <SelectItem value="local">本地（离线）</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    模型名可在下方自行配置；应用不会根据服务商选择覆盖模型名
-                  </p>
-                </div>
-
-                {appConfig?.asr_provider === "local" ? (
-                  appConfig ? (
-                    <LocalAsrSettings config={appConfig} onChange={onConfigChange} />
-                  ) : null
-                ) : appConfig?.asr_provider === "openai" ? (
-                  <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="openai-asr-api-key">
-                        OpenAI API Key <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="openai-asr-api-key"
-                        type="password"
-                        value={appConfig?.openai_api_key ?? ""}
-                        onChange={(event) =>
-                          onConfigChange(
-                            appConfig
-                              ? { ...appConfig, openai_api_key: event.target.value }
-                              : appConfig!,
-                          )
-                        }
-                        placeholder="本地保存，不写入仓库"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-                      <div className="grid gap-2">
-                        <Label htmlFor="openai-asr-base-url">Base URL</Label>
-                        <Input
-                          id="openai-asr-base-url"
-                          value={appConfig?.openai_base_url ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, openai_base_url: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="openai-asr-model">模型</Label>
-                        <Input
-                          id="openai-asr-model"
-                          value={appConfig?.openai_asr_model ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, openai_asr_model: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="asr-api-key">
-                        智谱 API Key <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="asr-api-key"
-                        type="password"
-                        value={appConfig?.asr_api_key ?? ""}
-                        onChange={(event) =>
-                          onConfigChange(
-                            appConfig
-                              ? { ...appConfig, asr_api_key: event.target.value }
-                              : appConfig!,
-                          )
-                        }
-                        placeholder="本地保存，不写入仓库"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-                      <div className="grid gap-2">
-                        <Label htmlFor="asr-base-url">Base URL</Label>
-                        <Input
-                          id="asr-base-url"
-                          value={appConfig?.asr_base_url ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, asr_base_url: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="asr-model">模型</Label>
-                        <Input
-                          id="asr-model"
-                          value={appConfig?.asr_model ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, asr_model: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {asrStatus}
-                  </p>
-                  <Button type="submit" size="sm" disabled={!appConfig || isAsrSaving}>
-                    {isAsrSaving ? (
-                      <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <SaveIcon className="size-4" aria-hidden="true" />
-                    )}
-                    保存 ASR 配置
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>文本整理服务</CardTitle>
-              <CardDescription>
-                配置文本处理 API，用于把原始识别文本整理成可直接使用的结果
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent>
-              <form className="grid gap-4" onSubmit={onSaveTextProcessingConfig}>
-                <div className="grid gap-2">
-                  <Label htmlFor="text-provider">服务商</Label>
-                  <Select
-                    value={appConfig?.text_provider ?? "zhipu"}
-                    onValueChange={(value) =>
-                      onConfigChange(
-                        appConfig
-                          ? { ...appConfig, text_provider: value }
-                          : appConfig!,
-                      )
-                    }
-                  >
-                    <SelectTrigger id="text-provider" className="h-10">
-                      <SelectValue placeholder="选择服务商" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="zhipu">智谱 AI</SelectItem>
-                      <SelectItem value="openai">OpenAI 兼容</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    模型名可在下方自行配置；应用不会根据服务商选择覆盖模型名
-                  </p>
-                </div>
-
-                {appConfig?.text_provider === "zhipu" ? (
-                  <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="zhipu-api-key">
-                        智谱 API Key <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="zhipu-api-key"
-                        type="password"
-                        value={appConfig?.zhipu_api_key ?? ""}
-                        onChange={(event) =>
-                          onConfigChange(
-                            appConfig
-                              ? { ...appConfig, zhipu_api_key: event.target.value }
-                              : appConfig!,
-                          )
-                        }
-                        placeholder="本地保存，不写入仓库"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-                      <div className="grid gap-2">
-                        <Label htmlFor="zhipu-base-url">Base URL</Label>
-                        <Input
-                          id="zhipu-base-url"
-                          value={appConfig?.zhipu_base_url ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, zhipu_base_url: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="zhipu-model">模型</Label>
-                        <Input
-                          id="zhipu-model"
-                          value={appConfig?.zhipu_model ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, zhipu_model: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="openai-api-key">
-                        OpenAI API Key <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="openai-api-key"
-                        type="password"
-                        value={appConfig?.openai_api_key ?? ""}
-                        onChange={(event) =>
-                          onConfigChange(
-                            appConfig
-                              ? { ...appConfig, openai_api_key: event.target.value }
-                              : appConfig!,
-                          )
-                        }
-                        placeholder="本地保存，不写入仓库"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-                      <div className="grid gap-2">
-                        <Label htmlFor="openai-base-url">Base URL</Label>
-                        <Input
-                          id="openai-base-url"
-                          value={appConfig?.openai_base_url ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, openai_base_url: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="openai-model">模型</Label>
-                        <Input
-                          id="openai-model"
-                          value={appConfig?.openai_model ?? ""}
-                          onChange={(event) =>
-                            onConfigChange(
-                              appConfig
-                                ? { ...appConfig, openai_model: event.target.value }
-                                : appConfig!,
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {textProcessingStatus}
-                  </p>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={!appConfig || isTextProcessingSaving}
-                  >
-                    {isTextProcessingSaving ? (
-                      <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <SaveIcon className="size-4" aria-hidden="true" />
-                    )}
-                    保存文本处理配置
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          <ModelSettings
+            appConfig={appConfig}
+            asrStatus={asrStatus}
+            textProcessingStatus={textProcessingStatus}
+            isAsrSaving={isAsrSaving}
+            isTextProcessingSaving={isTextProcessingSaving}
+            onSaveAsrConfig={onSaveAsrConfig}
+            onSaveTextProcessingConfig={onSaveTextProcessingConfig}
+            updateConfig={updateConfig}
+            onModelChanged={() => setModelRevision((value) => value + 1)}
+          />
         </TabsContent>
       </Tabs>
     </div>

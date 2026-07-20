@@ -1,5 +1,4 @@
 import React from "react";
-import { QuickStartCard } from "@/components/home/QuickStartCard";
 import { VoiceInputStatsCard } from "@/components/home/VoiceInputStatsCard";
 import type {
   Persona,
@@ -39,25 +38,11 @@ type HomePageProps = {
 };
 
 export function HomePage({
-  personas,
-  selectedPersonaId,
   selectedPersona,
-  isRecording,
-  isVoiceProcessing,
-  recordingDuration,
-  voiceStatus,
-  selectedAudioName,
-  voiceResult,
   historyStats,
   historyRecords,
   historyStatus,
   appConfig,
-  onPersonaChange,
-  onStartRecording,
-  onStopRecording,
-  onProcessAudio,
-  onCopyFinalText,
-  onOutputText,
   onCopyHistoryText,
   onDeleteHistoryRecord,
   onPlayHistoryRecording,

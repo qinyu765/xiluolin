@@ -39,9 +39,7 @@ export function PersonaDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <form onSubmit={onSave} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "编辑人格" : "新建人格"}
-            </DialogTitle>
+            <DialogTitle>{isEditing ? "编辑人格" : "新建人格"}</DialogTitle>
             <DialogDescription>
               定义人格的名称、风格描述和图标。必填字段标记为 *。
             </DialogDescription>
@@ -109,7 +107,10 @@ export function PersonaDialog({
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? (
-                <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                <Loader2Icon
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
               ) : null}
               保存
             </Button>

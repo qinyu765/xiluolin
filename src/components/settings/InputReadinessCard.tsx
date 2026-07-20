@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { commands } from "@/generated/tauri-bindings";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -19,11 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type {
-  InputReadiness,
-  ReadinessAction,
-  ReadinessCheck,
-} from "@/types";
+import type { InputReadiness, ReadinessAction, ReadinessCheck } from "@/types";
 
 const CHECK_LABELS: Array<{
   key: keyof Pick<
@@ -48,28 +44,43 @@ const ACTION_LABELS: Record<ReadinessAction, string> = {
 
 function StatusIcon({ check }: { check: ReadinessCheck }) {
   if (check.ready) {
-    return <CheckCircle2Icon className="size-5 text-emerald-600" aria-hidden="true" />;
+    return (
+      <CheckCircle2Icon
+        className="size-5 text-emerald-600"
+        aria-hidden="true"
+      />
+    );
   }
   if (check.blocking) {
-    return <XCircleIcon className="size-5 text-destructive" aria-hidden="true" />;
+    return (
+      <XCircleIcon className="size-5 text-destructive" aria-hidden="true" />
+    );
   }
-  return <AlertTriangleIcon className="size-5 text-amber-500" aria-hidden="true" />;
+  return (
+    <AlertTriangleIcon className="size-5 text-amber-500" aria-hidden="true" />
+  );
 }
 
 function actionPermission(action: ReadinessAction) {
   return action.includes("microphone") ? "microphone" : "accessibility";
 }
 
-export function InputReadinessCard() {
+export function InputReadinessCard({
+  refreshRevision = 0,
+}: {
+  refreshRevision?: number;
+}) {
   const [readiness, setReadiness] = useState<InputReadiness | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingAction, setPendingAction] = useState<ReadinessAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<ReadinessAction | null>(
+    null,
+  );
 
   const refresh = useCallback(async (showLoading = false) => {
     if (showLoading) setIsLoading(true);
     try {
-      const result = await invoke<InputReadiness>("read_input_readiness");
+      const result = await commands.readInputReadiness();
       setReadiness(result);
       setError(null);
     } catch (readinessError) {
@@ -82,13 +93,11 @@ export function InputReadinessCard() {
   useEffect(() => {
     const handleRefresh = () => void refresh();
     void refresh(true);
-    window.addEventListener("xiluolin-config-saved", handleRefresh);
     window.addEventListener("focus", handleRefresh);
     return () => {
-      window.removeEventListener("xiluolin-config-saved", handleRefresh);
       window.removeEventListener("focus", handleRefresh);
     };
-  }, [refresh]);
+  }, [refresh, refreshRevision]);
 
   const runAction = useCallback(
     async (action: ReadinessAction) => {
@@ -97,10 +106,10 @@ export function InputReadinessCard() {
       try {
         const permission = actionPermission(action);
         if (action.startsWith("request_")) {
-          await invoke("request_macos_permission", { permission });
+          await commands.requestMacosPermission(permission);
           await refresh();
         } else {
-          await invoke("open_macos_privacy_settings", { permission });
+          await commands.openMacosPrivacySettings(permission);
         }
       } catch (actionError) {
         setError(String(actionError));
@@ -174,11 +183,20 @@ export function InputReadinessCard() {
                             onClick={() => void runAction(action)}
                           >
                             {pendingAction === action ? (
-                              <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+                              <Loader2Icon
+                                className="size-3.5 animate-spin"
+                                aria-hidden="true"
+                              />
                             ) : action.startsWith("request_") ? (
-                              <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
+                              <ShieldCheckIcon
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
                             ) : (
-                              <ExternalLinkIcon className="size-3.5" aria-hidden="true" />
+                              <ExternalLinkIcon
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
                             )}
                             {ACTION_LABELS[action]}
                           </Button>

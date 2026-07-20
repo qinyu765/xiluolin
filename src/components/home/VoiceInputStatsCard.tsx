@@ -16,7 +16,6 @@ import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -89,28 +88,40 @@ export function VoiceInputStatsCard({
       <CardContent className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <section className="rounded-lg border bg-muted/30 p-4">
-            <BarChart3Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <BarChart3Icon
+              className="mb-3 size-4 text-primary"
+              aria-hidden="true"
+            />
             <p className="text-xs text-muted-foreground">语音协作次数</p>
             <p className="mt-1 text-2xl font-semibold">
               {historyStats?.total_count ?? 0}
             </p>
           </section>
           <section className="rounded-lg border bg-muted/30 p-4">
-            <Clock3Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <Clock3Icon
+              className="mb-3 size-4 text-primary"
+              aria-hidden="true"
+            />
             <p className="text-xs text-muted-foreground">累计口述时间</p>
             <p className="mt-1 text-2xl font-semibold">
               {formatDuration(historyStats?.total_duration_ms ?? 0)}
             </p>
           </section>
           <section className="rounded-lg border bg-muted/30 p-4">
-            <PencilIcon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <PencilIcon
+              className="mb-3 size-4 text-primary"
+              aria-hidden="true"
+            />
             <p className="text-xs text-muted-foreground">口述生成字数</p>
             <p className="mt-1 text-2xl font-semibold">
               {historyStats?.total_output_chars ?? 0}
             </p>
           </section>
           <section className="rounded-lg border bg-muted/30 p-4">
-            <HistoryIcon className="mb-3 size-4 text-primary" aria-hidden="true" />
+            <HistoryIcon
+              className="mb-3 size-4 text-primary"
+              aria-hidden="true"
+            />
             <p className="text-xs text-muted-foreground">预计节省时间</p>
             <p className="mt-1 text-2xl font-semibold">
               {formatDuration(historyStats?.estimated_saved_ms ?? 0)}
@@ -142,12 +153,15 @@ export function VoiceInputStatsCard({
 
           {historyRecords.length > 0 ? (
             (() => {
-              const { todayRecords, yesterdayRecords, olderRecords } = groupHistoryByDate(historyRecords);
+              const { todayRecords, yesterdayRecords, olderRecords } =
+                groupHistoryByDate(historyRecords);
               return (
                 <div className="grid gap-4">
                   {todayRecords.length > 0 && (
                     <div className="grid gap-3">
-                      <h3 className="text-sm font-semibold text-foreground">今天</h3>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        今天
+                      </h3>
                       {todayRecords.map((record) => (
                         <HistoryRecordItem
                           key={record.id}
@@ -166,7 +180,9 @@ export function VoiceInputStatsCard({
 
                   {yesterdayRecords.length > 0 && (
                     <div className="grid gap-3">
-                      <h3 className="text-sm font-semibold text-foreground">昨天</h3>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        昨天
+                      </h3>
                       {yesterdayRecords.map((record) => (
                         <HistoryRecordItem
                           key={record.id}
@@ -183,24 +199,28 @@ export function VoiceInputStatsCard({
                     </div>
                   )}
 
-                  {Array.from(olderRecords.entries()).map(([dateKey, records]) => (
-                    <div key={dateKey} className="grid gap-3">
-                      <h3 className="text-sm font-semibold text-foreground">{dateKey}</h3>
-                      {records.map((record) => (
-                        <HistoryRecordItem
-                          key={record.id}
-                          record={record}
-                          onCopy={onCopyHistoryText}
-                          onDelete={onDeleteHistoryRecord}
-                          onPlay={onPlayHistoryRecording}
-                          onReprocess={onReprocessHistoryAudio}
-                          onRefine={onRefineHistoryText}
-                          formatCreatedAt={formatCreatedAt}
-                          formatDuration={formatDuration}
-                        />
-                      ))}
-                    </div>
-                  ))}
+                  {Array.from(olderRecords.entries()).map(
+                    ([dateKey, records]) => (
+                      <div key={dateKey} className="grid gap-3">
+                        <h3 className="text-sm font-semibold text-foreground">
+                          {dateKey}
+                        </h3>
+                        {records.map((record) => (
+                          <HistoryRecordItem
+                            key={record.id}
+                            record={record}
+                            onCopy={onCopyHistoryText}
+                            onDelete={onDeleteHistoryRecord}
+                            onPlay={onPlayHistoryRecording}
+                            onReprocess={onReprocessHistoryAudio}
+                            onRefine={onRefineHistoryText}
+                            formatCreatedAt={formatCreatedAt}
+                            formatDuration={formatDuration}
+                          />
+                        ))}
+                      </div>
+                    ),
+                  )}
                 </div>
               );
             })()
@@ -240,13 +260,11 @@ function HistoryRecordItem({
     <section className="grid gap-3 rounded-lg border bg-background p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">
-            {record.persona_name}
-          </p>
+          <p className="text-sm font-semibold">{record.persona_name}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {formatCreatedAt(record.created_at)} ·{" "}
-            {formatDuration(record.duration_ms)} ·{" "}
-            {record.output_chars} 字 · {record.source === "upload" ? "上传" : "录音"}
+            {formatDuration(record.duration_ms)} · {record.output_chars} 字 ·{" "}
+            {record.source === "upload" ? "上传" : "录音"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {record.asr_provider || "未知 ASR"}/{record.asr_model || "未知模型"}

@@ -38,11 +38,10 @@ export function HotwordDialog({
       <DialogContent>
         <form onSubmit={onSave} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "编辑热词" : "新增热词"}
-            </DialogTitle>
+            <DialogTitle>{isEditing ? "编辑热词" : "新增热词"}</DialogTitle>
             <DialogDescription>
-              定义需要 AI 准确识别的专业术语、技术词汇或特定表达。必填字段标记为 *。
+              定义需要 AI 准确识别的专业术语、技术词汇或特定表达。必填字段标记为
+              *。
             </DialogDescription>
           </DialogHeader>
 
@@ -102,7 +101,10 @@ export function HotwordDialog({
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? (
-                <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                <Loader2Icon
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
               ) : null}
               保存
             </Button>

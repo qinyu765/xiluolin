@@ -1,18 +1,6 @@
-export type Persona = {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-};
+import type { Persona, PersonaDraft } from "@/generated/tauri-bindings";
 
-export type PersonaDraft = {
-  name: string;
-  description: string;
-  icon: string;
-};
+export type { Persona, PersonaDraft };
 
 export const emptyPersonaDraft: PersonaDraft = {
   name: "",

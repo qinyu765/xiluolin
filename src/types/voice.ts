@@ -1,30 +1,10 @@
-import type { HistoryRecord } from "./history";
+import type {
+  CaptureSessionStart,
+  OutputResult,
+  RecordingResult,
+  VoiceInputResult,
+} from "@/generated/tauri-bindings";
 
-export type VoiceInputResult = {
-  raw_text: string;
-  final_text: string;
-  actual_asr_provider: string;
-  actual_asr_model: string;
-  used_asr_fallback: boolean;
-  used_text_fallback: boolean;
-  history_record: HistoryRecord | null;
-};
-
-export type RecordingStartResult = {
-  session_id: string;
-};
-
-export type RecordingResult = RecordingStartResult & {
-  file_path: string;
-  duration_ms: number;
-};
-
-export type DeliveryResult = {
-  method: "paste" | "clipboard" | "manual";
-  success: boolean;
-  message: string;
-  target_restored: boolean;
-  target_restore_level: "window" | "application" | "none";
-  clipboard_restored: boolean;
-  used_fallback: boolean;
-};
+export type RecordingStartResult = CaptureSessionStart;
+export type DeliveryResult = OutputResult;
+export type { RecordingResult, VoiceInputResult };

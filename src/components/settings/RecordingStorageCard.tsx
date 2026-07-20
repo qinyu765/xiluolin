@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { FolderOpenIcon, Loader2Icon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { commands } from "@/generated/tauri-bindings";
 import {
   Card,
   CardContent,
@@ -19,14 +19,14 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function RecordingStorageCard() {
+export function RecordingStorageCard({ revision = 0 }: { revision?: number }) {
   const [info, setInfo] = useState<RecordingStorageInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      setInfo(await invoke<RecordingStorageInfo>("recording_storage_info"));
+      setInfo(await commands.recordingStorageInfo());
     } catch (error) {
       toast.error(`读取录音存储失败：${String(error)}`);
     } finally {
@@ -36,19 +36,14 @@ export function RecordingStorageCard() {
 
   useEffect(() => {
     void refresh();
-    const handleHistoryChanged = () => void refresh();
-    window.addEventListener("xiluolin-history-changed", handleHistoryChanged);
-    return () =>
-      window.removeEventListener("xiluolin-history-changed", handleHistoryChanged);
-  }, [refresh]);
+  }, [refresh, revision]);
 
   const clearRecordings = async () => {
     if (!window.confirm("确定删除全部保留录音吗？历史文本不会被删除。")) return;
     setIsClearing(true);
     try {
-      const next = await invoke<RecordingStorageInfo>("clear_retained_recordings");
+      const next = await commands.clearRetainedRecordings();
       setInfo(next);
-      window.dispatchEvent(new Event("xiluolin-history-changed"));
       toast.success("保留录音已清理");
     } catch (error) {
       toast.error(`清理录音失败：${String(error)}`);
@@ -82,9 +77,9 @@ export function RecordingStorageCard() {
             variant="outline"
             size="sm"
             onClick={() =>
-              void invoke("open_recordings_directory").catch((error) =>
-                toast.error(`打开目录失败：${String(error)}`),
-              )
+              void commands
+                .openRecordingsDirectory()
+                .catch((error) => toast.error(`打开目录失败：${String(error)}`))
             }
           >
             <FolderOpenIcon className="size-4" aria-hidden="true" />

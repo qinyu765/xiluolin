@@ -129,7 +129,9 @@ export function PersonaPage({
                           onClick={() => onEditPersona(persona)}
                           disabled={isGeneralPersona}
                           title={
-                            isGeneralPersona ? "系统内置人格不可编辑" : undefined
+                            isGeneralPersona
+                              ? "系统内置人格不可编辑"
+                              : undefined
                           }
                           aria-label={`编辑 ${persona.name}`}
                         >
@@ -142,7 +144,9 @@ export function PersonaPage({
                           onClick={() => onDeletePersona(persona.id)}
                           disabled={isGeneralPersona}
                           title={
-                            isGeneralPersona ? "系统内置人格不可删除" : undefined
+                            isGeneralPersona
+                              ? "系统内置人格不可删除"
+                              : undefined
                           }
                           aria-label={`删除 ${persona.name}`}
                         >
@@ -161,9 +165,7 @@ export function PersonaPage({
           </div>
 
           <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted-foreground">
-              {status}
-            </p>
+            <p className="text-sm leading-6 text-muted-foreground">{status}</p>
             <span className="inline-flex h-8 w-fit items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
               共 {personas.length} 个人格
             </span>

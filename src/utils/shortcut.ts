@@ -15,30 +15,30 @@ export function formatShortcutDisplay(shortcut: string): string {
 
 function formatSingleShortcut(shortcut: string): string {
   const keyMap: Record<string, string> = {
-    "Control": "Ctrl",
-    "CommandOrControl": "Ctrl",
-    "Shift": "Shift",
-    "Alt": "Alt",
-    "Meta": "Win",
-    "Super": "Win",
-    "Space": "空格",
-    "Enter": "回车",
-    "Backspace": "退格",
-    "Tab": "Tab",
-    "Escape": "Esc",
-    "Up": "↑",
-    "Down": "↓",
-    "Left": "←",
-    "Right": "→",
-    "Delete": "Delete",
-    "Home": "Home",
-    "End": "End",
-    "PageUp": "PageUp",
-    "PageDown": "PageDown",
+    Control: "Ctrl",
+    CommandOrControl: "Ctrl",
+    Shift: "Shift",
+    Alt: "Alt",
+    Meta: "Win",
+    Super: "Win",
+    Space: "空格",
+    Enter: "回车",
+    Backspace: "退格",
+    Tab: "Tab",
+    Escape: "Esc",
+    Up: "↑",
+    Down: "↓",
+    Left: "←",
+    Right: "→",
+    Delete: "Delete",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
   };
 
   return shortcut
     .split("+")
-    .map(key => keyMap[key] || key)
+    .map((key) => keyMap[key] || key)
     .join(" + ");
 }

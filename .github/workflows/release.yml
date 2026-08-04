@@ -56,8 +56,8 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
 
-      - name: Run complete quality checks
-        run: pnpm check
+      - name: Run frontend quality checks
+        run: pnpm check:frontend
 
       - name: Audit npm dependencies
         run: pnpm audit --audit-level=high
@@ -127,6 +127,15 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+
+      - name: Verify generated bindings
+        run: pnpm bindings:check
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target "${{ matrix.target }}"
 
       - name: Build installer
         run: pnpm tauri build --target "${{ matrix.target }}" --bundles "${{ matrix.bundles }}"

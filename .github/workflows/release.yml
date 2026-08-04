@@ -31,7 +31,11 @@ jobs:
         shell: bash
         run: |
           git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          tag_ref="refs/tags/$GITHUB_REF_NAME"
+          test "$(git cat-file -t "$tag_ref")" = "tag"
+          tag_commit="$(git rev-list -n 1 "$tag_ref")"
+          test "$tag_commit" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$tag_commit" origin/main
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6

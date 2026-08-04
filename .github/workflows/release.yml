@@ -129,6 +129,7 @@ jobs:
           workspaces: src-tauri -> target
 
       - name: Verify generated bindings
+        if: runner.os == 'macOS'
         run: pnpm bindings:check
 
       - name: Check Rust formatting

@@ -1,6 +1,6 @@
 [package]
 name = "xiluolin"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 description = "Open-source AI voice input assistant for office work, writing, and programming."
 authors = ["XiLuoLin Contributors"]
 license = "MIT"

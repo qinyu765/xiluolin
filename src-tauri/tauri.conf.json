@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "XiLuoLin",
-  "version": "0.1.0",
+  "mainBinaryName": "xiluolin",
+  "version": "0.1.0-beta.1",
   "identifier": "com.xiluolin.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -40,6 +41,7 @@
     ],
     "macOS": {
       "minimumSystemVersion": "13.0",
+      "signingIdentity": "-",
       "infoPlist": "Info.plist",
       "dmg": {
         "appPosition": {

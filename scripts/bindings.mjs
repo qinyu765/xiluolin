@@ -17,7 +17,7 @@ const result = spawnSync(
     "--quiet",
     "--manifest-path",
     "src-tauri/Cargo.toml",
-    "--bin",
+    "--example",
     "export_bindings",
     "--",
     output,

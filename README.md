@@ -15,9 +15,19 @@ XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入�
 
 XiLuoLin 由个人发起并持续维护，欢迎社区通过 Issue、Discussion 和 Pull Request 参与。
 
+## 技术预览下载
+
+`v0.1.0-beta.1` 是首个面向技术用户的公开预览版本：
+
+- macOS 13+ Apple Silicon：提供 ad-hoc 签名、未经 Apple 公证的 DMG，首次启动需要手动允许。
+- Windows 10/11 x64：提供未签名 NSIS 安装包，可能触发 Microsoft Defender SmartScreen。
+- Intel Mac、Windows ARM64、Linux、应用商店和应用内自动更新不在本次范围内。
+
+只从项目 [GitHub Releases](https://github.com/qinyu765/xiluolin/releases) 下载，并使用同一 Release 的 `SHA256SUMS.txt` 校验文件。安装前请阅读 [macOS 安装说明](docs/macos-build.md)、[Windows 安装说明](docs/windows-build.md)和[版本变更](CHANGELOG.md)。
+
 ## 产品方向
 
-- 当前阶段：核心模块、质量门禁、凭据安全、可靠投递、输入就绪检查和可追溯 Capture 历史已实现，继续进行 Windows 与 macOS 桌面端真实场景验证
+- 当前阶段：核心模块、质量门禁、凭据安全、可靠投递、输入就绪检查和可追溯 Capture 历史已实现，准备 `v0.1.0-beta.1` 双平台技术预览并继续真实场景验证
 - 开发基线：`main`（常规任务直接在 `main` 上完成验证、提交和推送）
 - 已完成代码层能力：Tauri v2 + React 基础骨架、本地数据层、内置人格与自定义人格、热词词典、智谱 ASR Provider、可配置文本整理 Provider、短音频处理流程、历史记录、统计卡片、录音模块、全局快捷键注册、复制与自动粘贴模块、错误提示、左侧导航、人格管理页、热词页和设置页、快捷键录音事件监听和自动输出
 - 当前界面：采用左侧导航结构，包含首页、人格、热词、设置四个页面；首页当前聚焦当前人格问候、快捷键提示、统计卡片和时间分段历史记录
@@ -55,7 +65,7 @@ XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
 
 - 验证不同操作系统上的麦克风、快捷键、凭据库和跨应用输出行为
 - 完善首页语音入口与录音状态体验
-- 建立稳定的版本发布、安装包和兼容性说明
+- 验证技术预览安装包并迭代版本发布和兼容性说明
 - 增强 Provider 可配置性、失败恢复和自动化测试
 - 持续改善贡献者文档、Issue 管理和技术决策记录
 
@@ -67,6 +77,8 @@ XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
 - [使用与验证指南](docs/usage-guide.md)
 - [故障排查](docs/troubleshooting.md)
 - [macOS Apple Silicon 构建与安装](docs/macos-build.md)
+- [Windows x64 构建与安装](docs/windows-build.md)
+- [版本变更](CHANGELOG.md)
 - [项目路线图](docs/roadmap.md)
 
 ## 技术栈
@@ -113,9 +125,11 @@ pnpm tauri dev
 | `pnpm check:rust` | 执行 Rust 格式、编译和测试检查 |
 | `pnpm check` | 执行完整前端与 Rust 质量检查 |
 | `pnpm tauri dev` | 启动桌面应用开发模式 |
+| `pnpm release:check` | 检查前端、Cargo、Tauri 与可选发布标签版本一致性 |
 | `pnpm tauri:build:macos:arm64` | 构建 macOS 13+ Apple Silicon `.app` 和 `.dmg` |
+| `pnpm tauri:build:windows:x64` | 在 Windows 上构建 Windows 10/11 x64 NSIS 安装包 |
 
-GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行 Ubuntu 前端检查，以及 Windows/macOS Rust 检查。涉及录音、快捷键、凭据或输出能力的变更仍需在桌面环境中手动验证。
+GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前端、Windows/macOS Rust、依赖安全与敏感信息检查；发布 PR 还会实际构建 macOS DMG 和 Windows NSIS 安装包。涉及录音、快捷键、凭据或输出能力的变更仍需在桌面环境中手动验证。
 
 ## 配置与使用
 
@@ -172,20 +186,12 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行 Ub
 
 ## 许可证
 
-- 音频发送给用户配置的智谱 GLM-ASR-2512 服务
-- 原始识别文本发送给用户配置的文本处理 Provider
-- API Key 保存在 Windows Credential Manager 或 macOS Keychain；`settings.json` 只保存非敏感配置
-- 旧版 `settings.json` 中的明文 API Key 会在首次成功写入系统凭据库后自动清理
-- 应用生成的录音默认在处理后删除；只有用户开启“保留原始录音”、自动历史开启且历史写入成功时才保留
-- 用户自行选择的外部音频不会被录音清理逻辑删除；删除历史或执行“清理全部录音”会同步解除应用录音关联
-- 日志不记录 API Key 片段、用户文本或完整录音路径
-- 历史记录、人格、热词和统计数据保存在本地 SQLite，不上传云端
+本项目基于 [MIT License](LICENSE) 开源。
 
-## 说明
+## 第三方依赖
 
-- 当前仓库不包含 `.env`、真实 API Key 或录音临时文件。
-- 本项目为七牛云 2026 黑客松参赛作品，选题为"语音输入法"。
-- 第三方依赖用途：
+当前仓库不包含 `.env`、真实 API Key 或录音临时文件。主要第三方依赖用途：
+
   - `@radix-ui/react-dialog`：为 shadcn/ui 弹窗组件提供无障碍交互基础。
   - `@radix-ui/react-label`：为 shadcn/ui 表单标签组件提供无障碍交互基础。
   - `@radix-ui/react-select`：为 shadcn/ui 选择器组件提供键盘操作和弹层交互。
@@ -253,4 +259,3 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行 Ub
 ## 项目资源说明
 
 - `public/indicator.html`：录音状态窗口资源，由 Vite 在开发和生产构建中统一提供；窗口在应用启动时预创建并保持不可聚焦。
-本项目基于 [MIT License](LICENSE) 开源。

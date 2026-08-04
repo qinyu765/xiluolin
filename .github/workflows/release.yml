@@ -84,7 +84,7 @@ jobs:
           - name: macOS Apple Silicon DMG
             runner: macos-latest
             target: aarch64-apple-darwin
-            bundles: dmg
+            bundles: app,dmg
             artifact: xiluolin-macos-arm64
             path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             macos_deployment_target: "13.0"

@@ -122,7 +122,7 @@ jobs:
           - name: macOS Apple Silicon DMG
             runner: macos-latest
             target: aarch64-apple-darwin
-            bundles: dmg
+            bundles: app,dmg
             macos_deployment_target: "13.0"
           - name: Windows x64 NSIS
             runner: windows-latest

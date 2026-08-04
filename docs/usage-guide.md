@@ -12,7 +12,8 @@
 - pnpm 10+
 - Rust stable 工具链
 - Windows：Microsoft Visual Studio C++ Build Tools、WebView2 Runtime
-- macOS：macOS 13+；当前本地安装包仅支持 Apple Silicon
+- macOS：macOS 13+；当前技术预览包仅支持 Apple Silicon
+- Windows：Windows 10/11 x64；当前技术预览包未签名，可能触发 SmartScreen
 - 可用的麦克风及系统麦克风权限
 - 智谱 GLM-ASR-2512 API Key
 - OpenAI Responses API 或兼容文本处理服务的 API Key
@@ -115,7 +116,7 @@ API Key 通过操作系统凭据库保存；普通配置保存在本地应用数
 
 - 项目当前聚焦短语音到可用文本的桌面输入工作流，不是系统输入法内核。
 - 首页可见录音 / 上传入口仍需结合当前 UI 状态确认；全局快捷键是主要输入入口。
-- 真实 Provider、麦克风和跨应用输出必须在目标操作系统上手动验证；macOS 构建与安装见 [`macos-build.md`](./macos-build.md)。
+- 真实 Provider、麦克风和跨应用输出必须在目标操作系统上手动验证；安装说明见 [`macos-build.md`](./macos-build.md) 和 [`windows-build.md`](./windows-build.md)。
 - 长音频转写、会议纪要和多人协作不是当前核心范围，但可通过 Issue 提交具体使用场景和设计建议。
 
 ## 反馈问题

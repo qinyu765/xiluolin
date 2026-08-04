@@ -6,6 +6,16 @@ XiLuoLin is an open-source AI voice input assistant for office work, writing, an
 
 XiLuoLin is independently initiated and actively maintained. Community participation through Issues, Discussions, and Pull Requests is welcome.
 
+## Technical Preview Downloads
+
+`v0.1.0-beta.1` is the first public preview intended for technical users:
+
+- macOS 13+ on Apple Silicon: an ad-hoc-signed, non-notarized DMG that requires manual approval on first launch.
+- Windows 10/11 x64: an unsigned NSIS installer that may trigger Microsoft Defender SmartScreen.
+- Intel Macs, Windows ARM64, Linux, app stores, and in-app updates are out of scope for this preview.
+
+Download only from [GitHub Releases](https://github.com/qinyu765/xiluolin/releases) and verify the file against `SHA256SUMS.txt` from the same release. See the [macOS installation guide](docs/macos-build.md), [Windows installation guide](docs/windows-build.md), and [changelog](CHANGELOG.md) before installing.
+
 ## Product Direction
 
 XiLuoLin focuses on the complete workflow from speaking an idea to getting text that can be used immediately:
@@ -39,7 +49,7 @@ Current priorities:
 
 - Verify microphone, shortcut, credential-store, and cross-application delivery behavior across operating systems
 - Improve the home-page voice entry point and recording-state experience
-- Establish reliable versioning, installers, releases, and compatibility documentation
+- Validate the technical-preview installers and iterate on release and compatibility documentation
 - Improve Provider configuration, failure recovery, and automated testing
 - Continue improving contributor documentation, Issue management, and technical decision records
 
@@ -52,6 +62,9 @@ The detailed product and engineering documents are currently maintained in Chine
 - [Technical design](docs/solution-design.md)
 - [Usage and verification guide](docs/usage-guide.md)
 - [Troubleshooting guide](docs/troubleshooting.md)
+- [macOS Apple Silicon build and installation](docs/macos-build.md)
+- [Windows x64 build and installation](docs/windows-build.md)
+- [Changelog](CHANGELOG.md)
 - [Project roadmap](docs/roadmap.md)
 - [Contribution guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
@@ -95,8 +108,11 @@ Common commands:
 | `pnpm check:rust` | Run Rust formatting, compilation, and tests |
 | `pnpm check` | Run the complete frontend and Rust quality checks |
 | `pnpm tauri dev` | Start the desktop application in development mode |
+| `pnpm release:check` | Verify frontend, Cargo, Tauri, and optional release-tag versions |
+| `pnpm tauri:build:macos:arm64` | Build the macOS 13+ Apple Silicon app and DMG |
+| `pnpm tauri:build:windows:x64` | Build the Windows 10/11 x64 NSIS installer on Windows |
 
-GitHub Actions runs quality checks for pushes to `main` and Pull Requests targeting `main`. Changes involving recording, global shortcuts, credentials, or text delivery still require manual verification in a desktop environment.
+GitHub Actions runs frontend, Windows/macOS Rust, dependency-security, and secret checks for pushes to `main` and Pull Requests targeting `main`; release Pull Requests also build the macOS DMG and Windows NSIS installer. Changes involving recording, global shortcuts, credentials, or text delivery still require manual verification in a desktop environment.
 
 ## Configuration and Usage
 

@@ -58,6 +58,7 @@ pub enum VoiceInputStage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VoiceInputError {
     EmptyAudio,
+    AudioTooLong,
     UnsupportedAudioExtension(String),
     MissingDefaultPersona,
     EmptyTranscription,
@@ -68,10 +69,22 @@ pub fn normalize_verbatim_text(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+pub fn validate_voice_input_duration(duration_ms: i64) -> Result<(), VoiceInputError> {
+    if duration_ms > 30_000 {
+        Err(VoiceInputError::AudioTooLong)
+    } else {
+        Ok(())
+    }
+}
+
 impl fmt::Display for VoiceInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyAudio => write!(formatter, "音频文件不能为空"),
+            Self::AudioTooLong => write!(
+                formatter,
+                "短音频最长支持 30 秒，请缩短后重试（应用录音会在 28 秒自动结束）"
+            ),
             Self::UnsupportedAudioExtension(extension) => {
                 write!(
                     formatter,
@@ -228,6 +241,8 @@ pub fn process_voice_input_with_progress(
 ) -> Result<VoiceInputResult, VoiceInputError> {
     let start_time = std::time::Instant::now();
     eprintln!("[⏱️ 性能] process_voice_input 开始");
+
+    validate_voice_input_duration(request.duration_ms)?;
 
     // 1. 准备音频文件
     let step1_start = std::time::Instant::now();

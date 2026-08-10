@@ -55,6 +55,7 @@ export const events = {
 	localAsrDownloadProgress: makeEvent<LocalAsrDownloadProgressEvent>("local-asr-download-progress"),
 	recordingCompleted: makeEvent<RecordingCompletedEvent>("recording-completed"),
 	recordingError: makeEvent<RecordingErrorEvent>("recording-error"),
+	recordingLimitWarning: makeEvent<RecordingLimitWarningEvent>("recording-limit-warning"),
 };
 
 /* Types */
@@ -250,6 +251,11 @@ export type ReadinessCheck = {
 export type RecordingCompletedEvent = RecordingResult;
 
 export type RecordingErrorEvent = string;
+
+export type RecordingLimitWarningEvent = {
+	session_id: string,
+	remaining_ms: number,
+};
 
 export type RecordingResult = {
 	session_id: string,

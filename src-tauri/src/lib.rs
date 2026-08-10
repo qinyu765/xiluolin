@@ -18,6 +18,7 @@ pub mod pipeline;
 pub mod readiness;
 pub mod recording;
 pub mod recording_storage;
+mod recording_worker;
 pub mod text_polish;
 
 use std::sync::Arc;

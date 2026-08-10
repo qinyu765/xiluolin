@@ -20,7 +20,8 @@ type RecordingState = {
 
 type RecordingAction =
   | { type: "patch"; patch: Partial<RecordingState> }
-  | { type: "tick"; duration: number };
+  | { type: "tick"; duration: number }
+  | { type: "limit_warning"; sessionId: string; remainingMs: number };
 
 const initialState: RecordingState = {
   phase: "idle",
@@ -36,12 +37,50 @@ function reducer(
   state: RecordingState,
   action: RecordingAction,
 ): RecordingState {
-  return action.type === "tick"
-    ? { ...state, duration: action.duration }
-    : { ...state, ...action.patch };
+  if (action.type === "tick") return { ...state, duration: action.duration };
+  if (action.type === "limit_warning") {
+    if (
+      state.phase !== "recording" ||
+      state.activeSessionId !== action.sessionId
+    ) {
+      return state;
+    }
+    return {
+      ...state,
+      status: `录音将在 ${Math.ceil(action.remainingMs / 1000)} 秒后自动结束...`,
+    };
+  }
+  return { ...state, ...action.patch };
 }
 
 type HistoryReloader = (status: string) => Promise<void>;
+
+const MAX_EXTERNAL_AUDIO_DURATION_MS = 30_000;
+
+async function readAudioDurationMs(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = document.createElement("audio");
+    let finished = false;
+    const finish = (durationMs: number) => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timeout);
+      URL.revokeObjectURL(url);
+      resolve(durationMs);
+    };
+    const timeout = window.setTimeout(() => finish(0), 5000);
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      const durationMs = Number.isFinite(audio.duration)
+        ? Math.round(audio.duration * 1000)
+        : 0;
+      finish(durationMs);
+    };
+    audio.onerror = () => finish(0);
+    audio.src = url;
+  });
+}
 
 function showRecordingStartError(message: string) {
   if (message.includes("麦克风权限")) {
@@ -184,6 +223,13 @@ export function useRecordingController(reloadHistory: HistoryReloader) {
         });
         showRecordingStartError(message);
       }),
+      events.recordingLimitWarning.listen((event) => {
+        dispatch({
+          type: "limit_warning",
+          sessionId: event.payload.session_id,
+          remainingMs: event.payload.remaining_ms,
+        });
+      }),
     ]).then((listeners) => {
       if (disposed) listeners.forEach((dispose) => dispose());
       else disposeListeners = listeners;
@@ -262,6 +308,17 @@ export function useRecordingController(reloadHistory: HistoryReloader) {
       await processCompletedRecording(recording, expectedSessionId);
     } catch (error) {
       const message = toErrorMessage(error);
+      if (message.includes("当前没有正在进行的录音")) {
+        dispatch({
+          type: "patch",
+          patch: {
+            phase: "processing",
+            startedAt: null,
+            status: "录音已自动结束，正在处理...",
+          },
+        });
+        return;
+      }
       if (expectedSessionId) {
         await commands
           .abortCaptureSession(expectedSessionId)
@@ -294,6 +351,14 @@ export function useRecordingController(reloadHistory: HistoryReloader) {
       return;
     }
 
+    const durationMs = await readAudioDurationMs(file);
+    if (durationMs > MAX_EXTERNAL_AUDIO_DURATION_MS) {
+      const message = "短音频最长支持 30 秒，请缩短后重试";
+      toast.error(message);
+      dispatch({ type: "patch", patch: { status: `${message}。` } });
+      return;
+    }
+
     try {
       const readiness = await commands.readInputReadiness();
       if (!readiness.models_ready) {
@@ -323,7 +388,7 @@ export function useRecordingController(reloadHistory: HistoryReloader) {
       const result = await commands.processUploadedAudio({
         audio_bytes: bytes,
         audio_extension: extension,
-        duration_ms: 0,
+        duration_ms: durationMs,
       });
       await reloadHistory(
         result.history_record

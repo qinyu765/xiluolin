@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
     ((event: { payload: RecordingPayload }) => void) | undefined,
   errorListener: undefined as
     ((event: { payload: string }) => void) | undefined,
+  limitWarningListener: undefined as
+    | ((event: {
+        payload: { session_id: string; remaining_ms: number };
+      }) => void)
+    | undefined,
   commands: {
     readInputReadiness: vi.fn(),
     startRecording: vi.fn(),
@@ -36,6 +41,12 @@ vi.mock("@/generated/tauri-bindings", () => ({
     recordingError: {
       listen: vi.fn(async (listener) => {
         mocks.errorListener = listener;
+        return vi.fn();
+      }),
+    },
+    recordingLimitWarning: {
+      listen: vi.fn(async (listener) => {
+        mocks.limitWarningListener = listener;
         return vi.fn();
       }),
     },
@@ -73,6 +84,7 @@ describe("useRecordingController", () => {
     vi.clearAllMocks();
     mocks.completedListener = undefined;
     mocks.errorListener = undefined;
+    mocks.limitWarningListener = undefined;
     mocks.commands.readInputReadiness.mockResolvedValue({ can_process: true });
     mocks.commands.startRecording.mockResolvedValue({
       session_id: "session-1",
@@ -128,6 +140,49 @@ describe("useRecordingController", () => {
 
     expect(mocks.commands.processRecordingFile).toHaveBeenCalledTimes(1);
     await act(async () => resolveProcessing?.(voiceResult));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+  });
+
+  it("shows the matching 25-second warning and ignores stale sessions", async () => {
+    const { result } = renderHook(() =>
+      useRecordingController(vi.fn().mockResolvedValue(undefined)),
+    );
+
+    await act(() => result.current.startRecording());
+    await waitFor(() =>
+      expect(mocks.limitWarningListener).toBeTypeOf("function"),
+    );
+    act(() => {
+      mocks.limitWarningListener?.({
+        payload: { session_id: "stale-session", remaining_ms: 3000 },
+      });
+    });
+    expect(result.current.status).toBe("正在录音中...");
+
+    act(() => {
+      mocks.limitWarningListener?.({
+        payload: { session_id: "session-1", remaining_ms: 3000 },
+      });
+    });
+    expect(result.current.status).toBe("录音将在 3 秒后自动结束...");
+  });
+
+  it("waits for the completion event when auto-stop wins a manual stop race", async () => {
+    mocks.commands.stopRecording.mockRejectedValue(
+      new Error("当前没有正在进行的录音"),
+    );
+    const { result } = renderHook(() =>
+      useRecordingController(vi.fn().mockResolvedValue(undefined)),
+    );
+
+    await act(() => result.current.startRecording());
+    await act(() => result.current.stopRecording());
+    expect(result.current.phase).toBe("processing");
+    expect(result.current.status).toBe("录音已自动结束，正在处理...");
+    expect(mocks.commands.abortCaptureSession).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(mocks.completedListener).toBeTypeOf("function"));
+    act(() => mocks.completedListener?.({ payload: recording }));
     await waitFor(() => expect(result.current.phase).toBe("ready"));
   });
 });

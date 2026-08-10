@@ -1,5 +1,4 @@
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use hound::{WavSpec, WavWriter};
+use cpal::traits::{DeviceTrait, HostTrait};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
@@ -7,12 +6,18 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::{Manager, State};
+use tauri_specta::Event;
 
 use crate::audio_control::windows_audio;
 use crate::capture_session::{
     CaptureSessionStart, CaptureSessionState, CaptureSource, CaptureStatus,
 };
 use crate::data;
+use crate::events::{RecordingCompletedEvent, RecordingErrorEvent, RecordingLimitWarningEvent};
+use crate::recording_worker::AudioWorker;
+
+const RECORDING_WARNING_MS: u64 = 25_000;
+const RECORDING_AUTO_STOP_MS: u64 = 28_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AudioDevice {
@@ -75,24 +80,80 @@ impl From<RecordingError> for String {
     }
 }
 
+struct ActiveRecording {
+    start_time: Instant,
+    output_path: PathBuf,
+    session_id: String,
+    worker: AudioWorker,
+}
+
 pub struct RecordingState {
-    is_recording: Arc<Mutex<bool>>,
-    start_time: Arc<Mutex<Option<Instant>>>,
-    output_path: Arc<Mutex<Option<PathBuf>>>,
-    session_id: Arc<Mutex<Option<String>>>,
-    writer: Arc<Mutex<Option<Arc<Mutex<Option<WavWriter<std::io::BufWriter<std::fs::File>>>>>>>>,
+    active: Mutex<Option<ActiveRecording>>,
 }
 
 impl RecordingState {
     pub fn new() -> Self {
-        RecordingState {
-            is_recording: Arc::new(Mutex::new(false)),
-            start_time: Arc::new(Mutex::new(None)),
-            output_path: Arc::new(Mutex::new(None)),
-            session_id: Arc::new(Mutex::new(None)),
-            writer: Arc::new(Mutex::new(None)),
+        Self {
+            active: Mutex::new(None),
         }
     }
+
+    fn session_id(&self) -> Option<String> {
+        self.active.lock().ok().and_then(|active| {
+            active
+                .as_ref()
+                .map(|recording| recording.session_id.clone())
+        })
+    }
+
+    fn take(&self, expected_session_id: Option<&str>) -> Result<ActiveRecording, RecordingError> {
+        let mut active = self
+            .active
+            .lock()
+            .map_err(|error| RecordingError::StateLockFailed(error.to_string()))?;
+        let recording = active
+            .as_ref()
+            .ok_or(RecordingError::NoRecordingInProgress)?;
+        if expected_session_id.is_some_and(|expected| recording.session_id != expected) {
+            return Err(RecordingError::NoRecordingInProgress);
+        }
+        active.take().ok_or(RecordingError::NoRecordingInProgress)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeadlineAction {
+    None,
+    Warn,
+    Stop,
+}
+
+enum StopRecordingFailure {
+    StaleSession,
+    Failed(String),
+}
+
+impl StopRecordingFailure {
+    fn into_message(self) -> String {
+        match self {
+            Self::StaleSession => RecordingError::NoRecordingInProgress.to_string(),
+            Self::Failed(message) => message,
+        }
+    }
+}
+
+fn deadline_action(elapsed_ms: u64, warning_sent: bool) -> DeadlineAction {
+    if elapsed_ms >= RECORDING_AUTO_STOP_MS {
+        DeadlineAction::Stop
+    } else if elapsed_ms >= RECORDING_WARNING_MS && !warning_sent {
+        DeadlineAction::Warn
+    } else {
+        DeadlineAction::None
+    }
+}
+
+fn recording_session_matches(active_session_id: Option<&str>, expected_session_id: &str) -> bool {
+    active_session_id == Some(expected_session_id)
 }
 
 #[tauri::command]
@@ -132,23 +193,13 @@ fn start_audio_capture(
         return Err(RecordingError::MicrophonePermissionDenied.into());
     }
 
-    let mut is_recording = state
-        .is_recording
+    let mut active = state
+        .active
         .lock()
         .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?;
 
-    if *is_recording {
+    if active.is_some() {
         return Err(RecordingError::AlreadyRecording.into());
-    }
-
-    if let Ok(mut writer_state) = state.writer.lock() {
-        if let Some(writer_arc) = writer_state.take() {
-            if let Ok(mut writer_guard) = writer_arc.try_lock() {
-                if let Some(writer) = writer_guard.take() {
-                    let _ = writer.finalize();
-                }
-            }
-        }
     }
 
     let app_data_dir = app_handle
@@ -162,125 +213,78 @@ fn start_audio_capture(
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S_%3f").to_string();
     let output_path = recordings_dir.join(format!("recording_{timestamp}.wav"));
 
-    let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or(RecordingError::NoInputDeviceAvailable)?;
-    let config = device.default_input_config().map_err(|e| {
-        let error_msg = e.to_string().to_lowercase();
-        if error_msg.contains("permission") || error_msg.contains("access") {
-            RecordingError::MicrophonePermissionDenied
-        } else {
-            RecordingError::DeviceConfigFailed(e.to_string())
-        }
-    })?;
+    let config = data::read_app_config(app_handle.clone()).ok();
+    let selected_microphone = config
+        .as_ref()
+        .map(|config| config.selected_microphone.clone())
+        .unwrap_or_default();
+    let worker = AudioWorker::start(output_path.clone(), selected_microphone)?;
 
-    let sample_rate = config.sample_rate().0;
-    let channels = config.channels();
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let writer = WavWriter::create(&output_path, spec)
-        .map_err(|e| RecordingError::FileCreationFailed(e.to_string()))?;
-    let writer = Arc::new(Mutex::new(Some(writer)));
-    *state
-        .writer
-        .lock()
-        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(Arc::clone(&writer));
+    *active = Some(ActiveRecording {
+        start_time: Instant::now(),
+        output_path,
+        session_id: session_id.to_string(),
+        worker,
+    });
+    drop(active);
 
-    let writer_clone = Arc::clone(&writer);
-    let stream = match config.sample_format() {
-        cpal::SampleFormat::F32 => device.build_input_stream(
-            &config.clone().into(),
-            move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                if let Ok(mut writer_guard) = writer_clone.lock() {
-                    if let Some(writer) = writer_guard.as_mut() {
-                        for (i, &sample) in data.iter().enumerate() {
-                            if i % channels as usize == 0 {
-                                let amplitude = (sample * i16::MAX as f32) as i16;
-                                let _ = writer.write_sample(amplitude);
-                            }
-                        }
-                    }
-                }
-            },
-            move |err| eprintln!("录音流错误: {err}"),
-            None,
-        ),
-        cpal::SampleFormat::I16 => device.build_input_stream(
-            &config.clone().into(),
-            move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                if let Ok(mut writer_guard) = writer_clone.lock() {
-                    if let Some(writer) = writer_guard.as_mut() {
-                        for (i, &sample) in data.iter().enumerate() {
-                            if i % channels as usize == 0 {
-                                let _ = writer.write_sample(sample);
-                            }
-                        }
-                    }
-                }
-            },
-            move |err| eprintln!("录音流错误: {err}"),
-            None,
-        ),
-        cpal::SampleFormat::U16 => device.build_input_stream(
-            &config.clone().into(),
-            move |data: &[u16], _: &cpal::InputCallbackInfo| {
-                if let Ok(mut writer_guard) = writer_clone.lock() {
-                    if let Some(writer) = writer_guard.as_mut() {
-                        for (i, &sample) in data.iter().enumerate() {
-                            if i % channels as usize == 0 {
-                                let amplitude = (sample as i32 - 32768) as i16;
-                                let _ = writer.write_sample(amplitude);
-                            }
-                        }
-                    }
-                }
-            },
-            move |err| eprintln!("录音流错误: {err}"),
-            None,
-        ),
-        _ => {
-            return Err(RecordingError::UnsupportedSampleFormat(format!(
-                "{:?}",
-                config.sample_format()
-            ))
-            .into())
-        }
-    }
-    .map_err(|e| RecordingError::StreamBuildFailed(e.to_string()))?;
-
-    stream
-        .play()
-        .map_err(|e| RecordingError::StreamStartFailed(e.to_string()))?;
-
-    *is_recording = true;
-    *state
-        .start_time
-        .lock()
-        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(Instant::now());
-    *state
-        .output_path
-        .lock()
-        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = Some(output_path);
-    *state
-        .session_id
-        .lock()
-        .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? =
-        Some(session_id.to_string());
-
-    std::mem::forget(stream);
-
-    if let Ok(config) = data::read_app_config(app_handle.clone()) {
+    if let Some(config) = config {
         if config.mute_system_audio {
             let _ = windows_audio::mute_all_sessions();
         }
     }
 
+    schedule_recording_deadlines(app_handle.clone(), session_id.to_string());
+
     Ok(())
+}
+
+fn schedule_recording_deadlines(app: tauri::AppHandle, session_id: String) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(RECORDING_WARNING_MS)).await;
+        let recording_state = app.state::<RecordingState>();
+        let active_session_id = recording_state.session_id();
+        if !recording_session_matches(active_session_id.as_deref(), &session_id) {
+            return;
+        }
+        if deadline_action(RECORDING_WARNING_MS, false) == DeadlineAction::Warn {
+            let _ = RecordingLimitWarningEvent {
+                session_id: session_id.clone(),
+                remaining_ms: RECORDING_AUTO_STOP_MS - RECORDING_WARNING_MS,
+            }
+            .emit(&app);
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(
+            RECORDING_AUTO_STOP_MS - RECORDING_WARNING_MS,
+        ))
+        .await;
+        let active_session_id = recording_state.session_id();
+        if !recording_session_matches(active_session_id.as_deref(), &session_id) {
+            return;
+        }
+        if deadline_action(RECORDING_AUTO_STOP_MS, true) != DeadlineAction::Stop {
+            return;
+        }
+
+        if let Some(hotkey_state) =
+            app.try_state::<Arc<tokio::sync::Mutex<crate::hotkey::HotkeyState>>>()
+        {
+            hotkey_state.lock().await.is_recording_via_hotkey = false;
+        }
+        match stop_recording_for_session_id(&recording_state, &app, Some(&session_id)).await {
+            Ok(result) => {
+                let _ = crate::indicator::update_indicator(&app, "transcribing");
+                let _ = RecordingCompletedEvent(result).emit(&app);
+            }
+            Err(StopRecordingFailure::StaleSession) => {}
+            Err(StopRecordingFailure::Failed(error)) => {
+                app.state::<CaptureSessionState>().cancel(&session_id);
+                let _ = crate::indicator::finish_indicator(&app, "failed");
+                let _ = RecordingErrorEvent(error).emit(&app);
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -296,83 +300,63 @@ pub async fn stop_recording_for_session(
     state: &RecordingState,
     app_handle: &tauri::AppHandle,
 ) -> Result<RecordingResult, String> {
-    let (session_id, duration_ms, output_path) = {
-        let mut is_recording = state
-            .is_recording
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?;
+    stop_recording_for_session_id(state, app_handle, None)
+        .await
+        .map_err(StopRecordingFailure::into_message)
+}
 
-        if !*is_recording {
-            return Err(RecordingError::NoRecordingInProgress.into());
+async fn stop_recording_for_session_id(
+    state: &RecordingState,
+    app_handle: &tauri::AppHandle,
+    expected_session_id: Option<&str>,
+) -> Result<RecordingResult, StopRecordingFailure> {
+    let recording = match state.take(expected_session_id) {
+        Ok(recording) => recording,
+        Err(RecordingError::NoRecordingInProgress) => {
+            return Err(StopRecordingFailure::StaleSession)
         }
-
-        // 计算录音时长
-        let start_time = state
-            .start_time
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
-            .ok_or_else(|| RecordingError::StateLockFailed("开始时间未找到".to_string()))?;
-        let duration_ms = start_time.elapsed().as_millis() as u64;
-
-        // 获取输出路径
-        let output_path = state
-            .output_path
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
-            .clone()
-            .ok_or_else(|| RecordingError::StateLockFailed("输出路径未找到".to_string()))?;
-        let session_id = state
-            .session_id
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))?
-            .clone()
-            .ok_or_else(|| RecordingError::StateLockFailed("CaptureSession 未找到".to_string()))?;
-
-        // 重置状态
-        *is_recording = false;
-        *state
-            .start_time
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = None;
-        *state
-            .output_path
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = None;
-        *state
-            .session_id
-            .lock()
-            .map_err(|e| RecordingError::StateLockFailed(e.to_string()))? = None;
-
-        (session_id, duration_ms, output_path)
-    }; // MutexGuard 在这里被释放
-
-    // 等待一小段时间确保所有音频数据已写入
-    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-
-    // 尝试关闭 writer（非阻塞）
-    if let Ok(mut writer_state) = state.writer.lock() {
-        if let Some(writer_arc) = writer_state.take() {
-            // 尝试获取 writer 锁，如果失败就放弃（避免死锁）
-            if let Ok(mut writer_guard) = writer_arc.try_lock() {
-                if let Some(writer) = writer_guard.take() {
-                    let _ = writer.finalize();
-                }
-            }
-        }
+        Err(error) => return Err(StopRecordingFailure::Failed(error.to_string())),
+    };
+    let duration_ms = recording.start_time.elapsed().as_millis() as u64;
+    let session_id = recording.session_id;
+    let output_path = recording.output_path;
+    // cpal::Stream 由创建它的工作线程持有；Stop 命令会先释放流，再 finalize WAV。
+    if let Err(error) = recording.worker.stop() {
+        let _ = fs::remove_file(&output_path);
+        let _ = windows_audio::unmute_all_sessions();
+        return Err(StopRecordingFailure::Failed(error));
     }
 
-    // 恢复其他应用的音频
     let _ = windows_audio::unmute_all_sessions();
-
     app_handle
         .state::<CaptureSessionState>()
-        .update_status(&session_id, CaptureStatus::Transcribing)?;
+        .update_status(&session_id, CaptureStatus::Transcribing)
+        .map_err(StopRecordingFailure::Failed)?;
 
     Ok(RecordingResult {
         session_id,
         file_path: output_path.to_string_lossy().to_string(),
         duration_ms,
     })
+}
+
+pub async fn cancel_recording_for_session(
+    state: &RecordingState,
+    app_handle: &tauri::AppHandle,
+    expected_session_id: &str,
+) -> Result<(), String> {
+    let recording = state
+        .take(Some(expected_session_id))
+        .map_err(String::from)?;
+    let session_id = recording.session_id;
+    let output_path = recording.output_path;
+    recording.worker.cancel()?;
+    let _ = fs::remove_file(&output_path);
+    let _ = windows_audio::unmute_all_sessions();
+    app_handle
+        .state::<CaptureSessionState>()
+        .cancel(&session_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -395,4 +379,25 @@ pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recording_deadline_warns_once_then_stops_at_twenty_eight_seconds() {
+        assert_eq!(deadline_action(24_999, false), DeadlineAction::None);
+        assert_eq!(deadline_action(25_000, false), DeadlineAction::Warn);
+        assert_eq!(deadline_action(27_999, true), DeadlineAction::None);
+        assert_eq!(deadline_action(28_000, false), DeadlineAction::Stop);
+        assert_eq!(deadline_action(30_000, true), DeadlineAction::Stop);
+    }
+
+    #[test]
+    fn stale_deadline_cannot_stop_a_new_recording_session() {
+        assert!(recording_session_matches(Some("session-a"), "session-a"));
+        assert!(!recording_session_matches(Some("session-b"), "session-a"));
+        assert!(!recording_session_matches(None, "session-a"));
+    }
 }

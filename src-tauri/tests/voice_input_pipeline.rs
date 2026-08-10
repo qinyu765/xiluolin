@@ -10,7 +10,8 @@ use xiluolin_lib::{
     history_reprocessing::persist_reprocessed_history,
     pipeline::{
         normalize_verbatim_text, prepare_uploaded_audio_file, process_voice_input_with_progress,
-        HistoryContext, VoiceInputError, VoiceInputRequest, VoiceInputStage,
+        validate_voice_input_duration, HistoryContext, VoiceInputError, VoiceInputRequest,
+        VoiceInputStage,
     },
     text_polish::TextPolishConfig,
 };
@@ -25,6 +26,18 @@ fn rejects_empty_uploaded_audio_before_provider_request() {
         .expect_err("empty uploaded audio should fail before provider request");
 
     assert_eq!(error, VoiceInputError::EmptyAudio);
+}
+
+#[test]
+fn rejects_external_audio_longer_than_the_cloud_short_input_limit() {
+    assert_eq!(validate_voice_input_duration(30_000), Ok(()));
+    assert_eq!(
+        validate_voice_input_duration(30_001),
+        Err(VoiceInputError::AudioTooLong)
+    );
+    assert!(VoiceInputError::AudioTooLong
+        .to_string()
+        .contains("最长支持 30 秒"));
 }
 
 #[test]

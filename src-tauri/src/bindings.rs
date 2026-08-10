@@ -56,6 +56,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         .events(collect_events![
             events::RecordingCompletedEvent,
             events::RecordingErrorEvent,
+            events::RecordingLimitWarningEvent,
             events::LocalAsrDownloadProgressEvent,
         ])
 }

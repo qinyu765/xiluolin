@@ -9,21 +9,14 @@ use super::{
 
 impl LocalDatabase {
     pub fn list_personas(&self) -> rusqlite::Result<Vec<Persona>> {
-        let mut statement = self.connection.prepare(
-            r#"
-            SELECT id, name, description, icon, is_default, processing_mode, created_at, updated_at
-            FROM personas
-            ORDER BY CASE WHEN id = 'general' THEN 0 ELSE 1 END,
-                     created_at ASC,
-                     rowid ASC
-            "#,
-        )?;
-
-        let rows = statement.query_map([], persona_from_row)?;
-        rows.collect()
+        list_personas_from_connection(&self.connection)
     }
 
     pub fn set_default_persona(&self, persona_id: &str) -> rusqlite::Result<()> {
+        self.set_default_persona_and_list(persona_id).map(|_| ())
+    }
+
+    pub fn set_default_persona_and_list(&self, persona_id: &str) -> rusqlite::Result<Vec<Persona>> {
         let transaction = self.connection.unchecked_transaction()?;
         transaction.execute("UPDATE personas SET is_default = 0", [])?;
         let updated = transaction.execute(
@@ -33,8 +26,9 @@ impl LocalDatabase {
         if updated == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
+        let personas = list_personas_from_connection(&transaction)?;
         transaction.commit()?;
-        Ok(())
+        Ok(personas)
     }
 
     pub fn create_persona(&self, draft: PersonaDraft) -> rusqlite::Result<Persona> {
@@ -253,6 +247,22 @@ struct PersonaSeed {
     description: &'static str,
     icon: &'static str,
     processing_mode: &'static str,
+}
+
+fn list_personas_from_connection(
+    connection: &rusqlite::Connection,
+) -> rusqlite::Result<Vec<Persona>> {
+    let mut statement = connection.prepare(
+        r#"
+        SELECT id, name, description, icon, is_default, processing_mode, created_at, updated_at
+        FROM personas
+        ORDER BY CASE WHEN id = 'general' THEN 0 ELSE 1 END,
+                 created_at ASC,
+                 rowid ASC
+        "#,
+    )?;
+    let rows = statement.query_map([], persona_from_row)?;
+    rows.collect()
 }
 
 fn persona_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Persona> {

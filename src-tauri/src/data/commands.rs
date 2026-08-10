@@ -54,7 +54,7 @@ fn set_default_persona_with_persistence(
     persona_id: &str,
     persist_config: impl FnOnce(AppConfig) -> Result<(), String>,
 ) -> Result<DefaultPersonaUpdate, String> {
-    let mut personas = database
+    let personas = database
         .list_personas()
         .map_err(|error| error.to_string())?;
     let previous_persona_id = personas
@@ -62,8 +62,8 @@ fn set_default_persona_with_persistence(
         .find(|persona| persona.is_default)
         .map(|persona| persona.id.clone())
         .ok_or_else(|| "默认人格不存在".to_string())?;
-    database
-        .set_default_persona(persona_id)
+    let personas = database
+        .set_default_persona_and_list(persona_id)
         .map_err(|error| error.to_string())?;
     let mut config = previous_config;
     config.default_persona_id = persona_id.to_string();
@@ -74,9 +74,6 @@ fn set_default_persona_with_persistence(
                 "默认人格配置保存失败且数据库回滚失败，需要重新初始化修复：{error}; {rollback_error}"
             )),
         };
-    }
-    for persona in &mut personas {
-        persona.is_default = persona.id == persona_id;
     }
     Ok(DefaultPersonaUpdate { personas, config })
 }
@@ -420,8 +417,61 @@ mod tests {
     }
 
     #[test]
+    fn failed_first_store_save_removes_a_new_cache_entry() {
+        let value = RefCell::new(None::<String>);
+        let save_count = Cell::new(0);
+
+        let error = save_store_value_transactionally(
+            None,
+            "new-default".to_string(),
+            |next| *value.borrow_mut() = Some(next),
+            || *value.borrow_mut() = None,
+            || {
+                let attempt = save_count.get();
+                save_count.set(attempt + 1);
+                if attempt == 0 {
+                    Err("injected disk save failure".to_string())
+                } else {
+                    Ok(())
+                }
+            },
+        )
+        .expect_err("a failed first save should remove a newly inserted cache entry");
+
+        assert_eq!(error, "injected disk save failure");
+        assert_eq!(*value.borrow(), None);
+        assert_eq!(save_count.get(), 2);
+    }
+
+    #[test]
+    fn failed_restore_save_reports_both_errors_after_restoring_cache() {
+        let value = RefCell::new(Some("old-default".to_string()));
+        let previous = value.borrow().clone();
+
+        let error = save_store_value_transactionally(
+            previous,
+            "new-default".to_string(),
+            |next| *value.borrow_mut() = Some(next),
+            || *value.borrow_mut() = None,
+            || Err("disk unavailable".to_string()),
+        )
+        .expect_err("both the primary and restore save failures should be reported");
+
+        assert!(error.contains("配置保存失败且磁盘恢复失败"));
+        assert!(error.matches("disk unavailable").count() >= 2);
+        assert_eq!(value.borrow().as_deref(), Some("old-default"));
+    }
+
+    #[test]
     fn successful_default_persona_update_returns_prepared_personas_and_config() {
         let database = test_database("set-default-success");
+        let connection = rusqlite::Connection::open(database.path()).unwrap();
+        connection
+            .execute(
+                "UPDATE personas SET updated_at = '2000-01-01 00:00:00' WHERE id = ?1",
+                [VERBATIM_PERSONA_ID],
+            )
+            .unwrap();
         let update = set_default_persona_with_persistence(
             &database,
             default_app_config(),
@@ -439,6 +489,17 @@ mod tests {
                 .unwrap()
                 .id,
             VERBATIM_PERSONA_ID
+        );
+        let authoritative_personas = database.list_personas().unwrap();
+        assert_eq!(update.personas, authoritative_personas);
+        assert_ne!(
+            update
+                .personas
+                .iter()
+                .find(|persona| persona.id == VERBATIM_PERSONA_ID)
+                .unwrap()
+                .updated_at,
+            "2000-01-01 00:00:00"
         );
     }
 

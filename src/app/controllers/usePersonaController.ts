@@ -94,11 +94,10 @@ export function usePersonaController(
   const setDefault = async (personaId: string) => {
     setStatus("正在设置默认人格...");
     try {
-      const nextPersonas = await commands.setDefaultPersona(personaId);
-      const config = await commands.readAppConfig();
-      setPersonas(nextPersonas);
+      const update = await commands.setDefaultPersona(personaId);
+      setPersonas(update.personas);
       setSelectedId(personaId);
-      onConfigLoaded(config as AppConfig);
+      onConfigLoaded(update.config as AppConfig);
       setStatus("默认人格已设置。");
     } catch (error) {
       setStatus(`设置默认人格失败：${toErrorMessage(error)}`);

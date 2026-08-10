@@ -115,11 +115,18 @@ fn verbatim_pipeline_sends_hotwords_to_asr_without_persona_prompt_or_text_provid
     assert_eq!(result.actual_text_model, "");
     assert_eq!(result.text_processing_mode, "verbatim");
 
+    database
+        .set_default_persona("general")
+        .expect("test setup should switch the current default after processing");
     let reprocessed = persist_reprocessed_history(&database, &history.id, &result)
         .expect("verbatim reprocessing should preserve actual processing metadata");
+    assert_eq!(reprocessed.persona_id, "verbatim");
+    assert_eq!(reprocessed.persona_name, "原文听写");
     assert_eq!(reprocessed.text_processing_mode, "verbatim");
     assert_eq!(reprocessed.text_provider, "");
     assert_eq!(reprocessed.text_model, "");
+    assert_eq!(reprocessed.asr_provider, result.actual_asr_provider);
+    assert_eq!(reprocessed.asr_model, result.actual_asr_model);
 }
 
 #[test]
@@ -234,6 +241,65 @@ fn polish_pipeline_keeps_all_hotwords_for_asr_and_text_processing() {
     );
 }
 
+#[test]
+fn pipeline_uses_the_asr_hotword_snapshot_for_later_text_polishing() {
+    let database = open_test_database(&temp_db_path("pipeline-hotword-single-snapshot"));
+    database
+        .create_hotword(HotwordDraft {
+            text: "识别前热词".to_string(),
+            category: "初始".to_string(),
+            enabled: true,
+        })
+        .unwrap();
+    let database_path = database.path().to_path_buf();
+    let (asr_base_url, asr_handle) = spawn_mock_asr_server_after_request(
+        r#"{"text":"原始识别文本"}"#,
+        move || {
+            rusqlite::Connection::open(database_path)
+                .unwrap()
+                .execute(
+                    "INSERT INTO hotwords (id, text, category, enabled) VALUES ('late-hotword', '识别后热词', '晚到', 1)",
+                    [],
+                )
+                .unwrap();
+        },
+    );
+    let (text_base_url, text_handle) = spawn_mock_asr_server(
+        r#"{"choices":[{"message":{"role":"assistant","content":"润色结果"}}]}"#,
+    );
+
+    process_voice_input_with_progress(
+        VoiceInputRequest {
+            audio_bytes: b"fixture audio".to_vec(),
+            audio_extension: "wav".to_string(),
+            duration_ms: 600,
+        },
+        openai_asr_config(asr_base_url),
+        TextPolishConfig {
+            provider: "openai".to_string(),
+            api_key: "text-key".to_string(),
+            base_url: text_base_url,
+            model: "gpt-4o-mini".to_string(),
+        },
+        &database,
+        false,
+        HistoryContext {
+            source: "test".to_string(),
+            text_provider: "openai".to_string(),
+            text_model: "gpt-4o-mini".to_string(),
+            audio_path: None,
+        },
+        |_| {},
+    )
+    .unwrap();
+
+    let asr_request = String::from_utf8_lossy(&asr_handle.join().unwrap()).into_owned();
+    let text_request = String::from_utf8_lossy(&text_handle.join().unwrap()).into_owned();
+    assert!(asr_request.contains("识别前热词"));
+    assert!(text_request.contains("识别前热词"));
+    assert!(!text_request.contains("识别后热词"));
+}
+
 fn zhipu_asr_config(base_url: String) -> AsrConfig {
     AsrConfig {
         provider: "zhipu".to_string(),
@@ -265,6 +331,13 @@ fn openai_asr_config(base_url: String) -> AsrConfig {
 }
 
 fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHandle<Vec<u8>>) {
+    spawn_mock_asr_server_after_request(response_body, || {})
+}
+
+fn spawn_mock_asr_server_after_request(
+    response_body: &'static str,
+    after_request: impl FnOnce() + Send + 'static,
+) -> (String, thread::JoinHandle<Vec<u8>>) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("mock server should bind");
     let base_url = format!(
         "http://{}",
@@ -277,6 +350,7 @@ fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHa
             .accept()
             .expect("mock server should accept request");
         let request = read_request(&mut stream);
+        after_request();
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             response_body.len(),

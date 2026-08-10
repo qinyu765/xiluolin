@@ -41,10 +41,11 @@ describe("usePersonaController", () => {
     mocks.commands.listPersonas.mockResolvedValue([verbatimPersona]);
   });
 
-  it("waits for the default-persona mutation before reloading config", async () => {
-    let resolveSetDefault: ((personas: Persona[]) => void) | undefined;
+  it("uses the authoritative default-persona update without rereading config", async () => {
+    let resolveSetDefault:
+      ((value: { personas: Persona[]; config: AppConfig }) => void) | undefined;
     mocks.commands.setDefaultPersona.mockReturnValue(
-      new Promise<Persona[]>((resolve) => {
+      new Promise<{ personas: Persona[]; config: AppConfig }>((resolve) => {
         resolveSetDefault = resolve;
       }),
     );
@@ -64,11 +65,38 @@ describe("usePersonaController", () => {
     expect(mocks.commands.readAppConfig).not.toHaveBeenCalled();
 
     await act(async () => {
-      resolveSetDefault?.([verbatimPersona]);
+      resolveSetDefault?.({
+        personas: [verbatimPersona],
+        config: refreshedConfig,
+      });
       await pending!;
     });
 
-    expect(mocks.commands.readAppConfig).toHaveBeenCalledTimes(1);
+    expect(mocks.commands.readAppConfig).not.toHaveBeenCalled();
     expect(onConfigLoaded).toHaveBeenCalledWith(refreshedConfig);
+  });
+
+  it("keeps the current UI configuration when setting the default persona fails", async () => {
+    const generalPersona = {
+      ...verbatimPersona,
+      id: "general",
+      is_default: true,
+    };
+    mocks.commands.listPersonas.mockResolvedValue([
+      generalPersona,
+      verbatimPersona,
+    ]);
+    mocks.commands.setDefaultPersona.mockRejectedValue(
+      new Error("默认人格配置保存失败，已回滚"),
+    );
+    const onConfigLoaded = vi.fn();
+    const { result } = renderHook(() => usePersonaController(onConfigLoaded));
+    await waitFor(() => expect(result.current.selectedId).toBe("general"));
+
+    await act(() => result.current.setDefault("verbatim"));
+
+    expect(result.current.selectedId).toBe("general");
+    expect(onConfigLoaded).not.toHaveBeenCalled();
+    expect(mocks.commands.readAppConfig).not.toHaveBeenCalled();
   });
 });

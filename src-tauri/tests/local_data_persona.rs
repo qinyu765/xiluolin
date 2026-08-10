@@ -218,13 +218,10 @@ fn conditional_delete_cannot_remove_a_persona_made_default_by_another_connection
         )
         .unwrap();
 
-    let affected = connection
-        .execute(
-            "DELETE FROM personas WHERE id = 'verbatim' AND is_default = 0",
-            [],
-        )
-        .unwrap();
-    assert_eq!(affected, 0);
+    let error = database
+        .delete_persona("verbatim")
+        .expect_err("production deletion must reject a persona made default by another connection");
+    assert!(error.contains("默认人格不可删除"));
     assert!(database
         .list_personas()
         .unwrap()

@@ -12,7 +12,7 @@ export const commands = {
 	abortCaptureSession: (sessionId: string) => __TAURI_INVOKE<null>("abort_capture_session", { sessionId }),
 	initializeLocalData: () => __TAURI_INVOKE<AppConfig>("initialize_local_data"),
 	listPersonas: () => __TAURI_INVOKE<Persona[]>("list_personas"),
-	setDefaultPersona: (personaId: string) => __TAURI_INVOKE<Persona[]>("set_default_persona", { personaId }),
+	setDefaultPersona: (personaId: string) => __TAURI_INVOKE<DefaultPersonaUpdate>("set_default_persona", { personaId }),
 	createPersona: (draft: PersonaDraft) => __TAURI_INVOKE<Persona>("create_persona", { draft }),
 	updatePersona: (id: string, draft: PersonaDraft) => __TAURI_INVOKE<Persona>("update_persona", { id, draft }),
 	deletePersona: (id: string) => __TAURI_INVOKE<Persona[]>("delete_persona", { id }),
@@ -97,6 +97,11 @@ export type AudioDevice = {
 
 export type CaptureSessionStart = {
 	session_id: string,
+};
+
+export type DefaultPersonaUpdate = {
+	personas: Persona[],
+	config: AppConfig,
 };
 
 export type FocusRestoreLevel = "window" | "application" | "none";

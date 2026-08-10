@@ -101,6 +101,12 @@ pub struct PersonaDraft {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct DefaultPersonaUpdate {
+    pub personas: Vec<Persona>,
+    pub config: AppConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct Hotword {
     pub id: String,
     pub text: String,

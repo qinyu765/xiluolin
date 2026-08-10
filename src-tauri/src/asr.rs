@@ -21,6 +21,87 @@ pub struct AsrConfig {
     pub fallback_model: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AsrRequest {
+    pub audio_path: PathBuf,
+    pub hotwords: Vec<String>,
+    pub context_prompt: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AsrCapabilities {
+    pub native_hotwords: bool,
+    pub max_hotwords: Option<usize>,
+    pub supports_prompt: bool,
+    pub max_duration_ms: Option<u64>,
+    pub live_audio: bool,
+}
+
+impl AsrConfig {
+    pub fn capabilities(&self) -> AsrCapabilities {
+        match self.provider.as_str() {
+            "zhipu" => AsrCapabilities {
+                native_hotwords: true,
+                max_hotwords: Some(100),
+                supports_prompt: true,
+                max_duration_ms: Some(30_000),
+                live_audio: false,
+            },
+            "openai" => AsrCapabilities {
+                native_hotwords: false,
+                max_hotwords: None,
+                supports_prompt: true,
+                max_duration_ms: None,
+                live_audio: false,
+            },
+            "local" => AsrCapabilities {
+                native_hotwords: false,
+                max_hotwords: None,
+                supports_prompt: true,
+                max_duration_ms: None,
+                live_audio: false,
+            },
+            _ => AsrCapabilities {
+                native_hotwords: false,
+                max_hotwords: None,
+                supports_prompt: false,
+                max_duration_ms: None,
+                live_audio: false,
+            },
+        }
+    }
+}
+
+pub fn build_soft_prompt(context_prompt: Option<&str>, hotwords: &[String]) -> Option<String> {
+    let normalized_hotwords = normalize_hotwords(hotwords);
+    let context_prompt = context_prompt
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    match (context_prompt, normalized_hotwords.is_empty()) {
+        (None, true) => None,
+        (Some(context_prompt), true) => Some(context_prompt.to_string()),
+        (None, false) => Some(format!(
+            "可能出现的专有词：{}",
+            normalized_hotwords.join("，")
+        )),
+        (Some(context_prompt), false) => Some(format!(
+            "{context_prompt}\n可能出现的专有词：{}",
+            normalized_hotwords.join("，")
+        )),
+    }
+}
+
+fn normalize_hotwords(hotwords: &[String]) -> Vec<String> {
+    let mut normalized = Vec::new();
+    for hotword in hotwords {
+        let hotword = hotword.trim();
+        if !hotword.is_empty() && !normalized.iter().any(|value| value == hotword) {
+            normalized.push(hotword.to_string());
+        }
+    }
+    normalized
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct AsrTranscription {
     pub text: String,
@@ -78,9 +159,10 @@ struct OpenAITranscriptionResponse {
 }
 
 pub fn transcribe_audio_file(
-    audio_path: &Path,
+    request: &AsrRequest,
     config: &AsrConfig,
 ) -> Result<AsrTranscription, AsrError> {
+    let audio_path = &request.audio_path;
     let start_time = std::time::Instant::now();
     eprintln!("[⏱️ ASR] 开始音频转写");
 
@@ -89,7 +171,7 @@ pub fn transcribe_audio_file(
     eprintln!("[⏱️ ASR] 验证音频文件 - 耗时 {:?}", step1_start.elapsed());
 
     let result = match config.provider.as_str() {
-        "local" => match transcribe_with_local(audio_path, config) {
+        "local" => match transcribe_with_local(audio_path, request, config) {
             Ok(result) => Ok(result),
             Err(local_error) if config.allow_cloud_fallback => {
                 eprintln!("本地 ASR 失败，使用显式配置的云端降级：{local_error}");
@@ -107,8 +189,8 @@ pub fn transcribe_audio_file(
                 };
                 validate_audio_file(audio_path, &fallback)?;
                 let mut result = match fallback.provider.as_str() {
-                    "openai" => transcribe_with_openai(audio_path, &fallback),
-                    "zhipu" => transcribe_with_zhipu(audio_path, &fallback),
+                    "openai" => transcribe_with_openai(audio_path, request, &fallback),
+                    "zhipu" => transcribe_with_zhipu(audio_path, request, &fallback),
                     _ => Err(AsrError::RequestFailed(
                         "云端降级 Provider 无效".to_string(),
                     )),
@@ -118,8 +200,8 @@ pub fn transcribe_audio_file(
             }
             Err(error) => Err(error),
         },
-        "openai" => transcribe_with_openai(audio_path, config),
-        "zhipu" => transcribe_with_zhipu(audio_path, config),
+        "openai" => transcribe_with_openai(audio_path, request, config),
+        "zhipu" => transcribe_with_zhipu(audio_path, request, config),
         _ => Err(AsrError::RequestFailed("未知 ASR Provider".to_string())),
     };
 
@@ -129,6 +211,7 @@ pub fn transcribe_audio_file(
 
 fn transcribe_with_openai(
     audio_path: &Path,
+    request: &AsrRequest,
     config: &AsrConfig,
 ) -> Result<AsrTranscription, AsrError> {
     let start_time = std::time::Instant::now();
@@ -142,8 +225,12 @@ fn transcribe_with_openai(
 
     // 构建 multipart form
     let step1_start = std::time::Instant::now();
-    let form = ureq::unversioned::multipart::Form::new()
-        .text("model", config.model.trim())
+    let prompt = build_soft_prompt(request.context_prompt.as_deref(), &request.hotwords);
+    let mut form = ureq::unversioned::multipart::Form::new().text("model", config.model.trim());
+    if let Some(prompt) = prompt.as_deref() {
+        form = form.text("prompt", prompt);
+    }
+    let form = form
         .file("file", audio_path)
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
     eprintln!(
@@ -212,6 +299,7 @@ fn transcribe_with_openai(
 
 fn transcribe_with_zhipu(
     audio_path: &Path,
+    request: &AsrRequest,
     config: &AsrConfig,
 ) -> Result<AsrTranscription, AsrError> {
     let url = transcriptions_url(&config.base_url);
@@ -243,10 +331,21 @@ fn transcribe_with_zhipu(
         .file_name(file_name)
         .mime_str(audio_mime_type(audio_path))
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
-    let form = reqwest::blocking::multipart::Form::new()
+    let mut form = reqwest::blocking::multipart::Form::new()
         .text("model", config.model.trim().to_string())
-        .text("stream", "false")
-        .part("file", file_part);
+        .text("stream", "false");
+    if let Some(context_prompt) = request
+        .context_prompt
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        form = form.text("prompt", context_prompt.to_string());
+    }
+    for hotword in normalize_hotwords(&request.hotwords).into_iter().take(100) {
+        form = form.text("hotwords[]", hotword);
+    }
+    let form = form.part("file", file_part);
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()
@@ -296,14 +395,17 @@ fn audio_mime_type(audio_path: &Path) -> &'static str {
 
 fn transcribe_with_local(
     audio_path: &Path,
+    request: &AsrRequest,
     config: &AsrConfig,
 ) -> Result<AsrTranscription, AsrError> {
     let model_path = config
         .local_model_path
         .as_deref()
         .ok_or(AsrError::MissingLocalModel)?;
+    let prompt = build_soft_prompt(request.context_prompt.as_deref(), &request.hotwords);
     let text =
-        crate::local_asr::transcribe(audio_path, model_path).map_err(AsrError::RequestFailed)?;
+        crate::local_asr::transcribe_with_initial_prompt(audio_path, model_path, prompt.as_deref())
+            .map_err(AsrError::RequestFailed)?;
     Ok(AsrTranscription {
         text,
         provider: "local".to_string(),
@@ -406,5 +508,13 @@ pub fn transcribe_audio_path(
         fallback_model: String::new(),
     };
 
-    transcribe_audio_file(Path::new(&audio_path), &config).map_err(|error| error.to_string())
+    transcribe_audio_file(
+        &AsrRequest {
+            audio_path: PathBuf::from(audio_path),
+            hotwords: Vec::new(),
+            context_prompt: None,
+        },
+        &config,
+    )
+    .map_err(|error| error.to_string())
 }

@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use uuid::Uuid;
-use xiluolin_lib::asr::{transcribe_audio_file, AsrConfig};
+use xiluolin_lib::asr::{transcribe_audio_file, AsrConfig, AsrRequest};
 
 fn temp_path(extension: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
@@ -39,7 +39,15 @@ fn local_provider_requires_downloaded_model_without_cloud_request() {
     writer.write_sample(0_i16).unwrap();
     writer.finalize().unwrap();
 
-    let error = transcribe_audio_file(&audio, &local_config(temp_path("bin"))).unwrap_err();
+    let error = transcribe_audio_file(
+        &AsrRequest {
+            audio_path: audio.clone(),
+            hotwords: Vec::new(),
+            context_prompt: None,
+        },
+        &local_config(temp_path("bin")),
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("模型尚未下载"));
     fs::remove_file(audio).unwrap();
 }
@@ -49,7 +57,15 @@ fn local_provider_rejects_mp3_before_inference() {
     let audio = temp_path("mp3");
     fs::write(&audio, b"not-an-mp3").unwrap();
 
-    let error = transcribe_audio_file(&audio, &local_config(temp_path("bin"))).unwrap_err();
+    let error = transcribe_audio_file(
+        &AsrRequest {
+            audio_path: audio.clone(),
+            hotwords: Vec::new(),
+            context_prompt: None,
+        },
+        &local_config(temp_path("bin")),
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("本地 ASR 首版仅支持 WAV"));
     fs::remove_file(audio).unwrap();
 }
@@ -69,7 +85,29 @@ fn cloud_fallback_runs_only_when_explicitly_enabled() {
 
     let mut config = local_config(temp_path("bin"));
     config.allow_cloud_fallback = true;
-    let error = transcribe_audio_file(&audio, &config).unwrap_err();
+    let error = transcribe_audio_file(
+        &AsrRequest {
+            audio_path: audio.clone(),
+            hotwords: Vec::new(),
+            context_prompt: None,
+        },
+        &config,
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("API Key"));
     fs::remove_file(audio).unwrap();
+}
+
+#[test]
+fn local_provider_capabilities_describe_prompt_only_support() {
+    assert_eq!(
+        local_config(temp_path("bin")).capabilities(),
+        xiluolin_lib::asr::AsrCapabilities {
+            native_hotwords: false,
+            max_hotwords: None,
+            supports_prompt: true,
+            max_duration_ms: None,
+            live_audio: false,
+        }
+    );
 }

@@ -8,7 +8,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    asr::{build_asr_config, transcribe_audio_file, AsrConfig},
+    asr::{build_asr_config, transcribe_audio_file, AsrConfig, AsrRequest},
     capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
     data::{HistoryRecord, HistoryRecordDraft, LocalDatabase, Persona},
     indicator,
@@ -175,8 +175,15 @@ pub fn process_voice_input_with_progress(
     // 2. ASR 识别
     progress(VoiceInputStage::Transcribing);
     let step2_start = std::time::Instant::now();
-    let transcription = transcribe_audio_file(&audio_path, &asr_config)
-        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()));
+    let transcription = transcribe_audio_file(
+        &AsrRequest {
+            audio_path: audio_path.clone(),
+            hotwords: Vec::new(),
+            context_prompt: None,
+        },
+        &asr_config,
+    )
+    .map_err(|error| VoiceInputError::RequestFailed(error.to_string()));
     let _ = std::fs::remove_file(&audio_path);
     let transcription = transcription?;
     if transcription.text.trim().is_empty() {

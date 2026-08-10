@@ -139,12 +139,37 @@ fn resample_to_16khz(input: &[f32], source_rate: u32) -> Result<Vec<f32>, String
     if input.is_empty() || source_rate == 16_000 {
         return Ok(input.to_vec());
     }
-    let mut resampler = FftFixedInOut::<f32>::new(source_rate as usize, 16_000, input.len(), 1)
+    let target_frames = target_frame_count(input.len(), source_rate)?;
+    let mut resampler = FftFixedInOut::<f32>::new(source_rate as usize, 16_000, 1_024, 1)
         .map_err(|error| format!("初始化高质量重采样失败：{error}"))?;
+    let input_frames = resampler.input_frames_next();
+    let mut output = Vec::with_capacity(target_frames + resampler.output_frames_next());
+
+    for input_chunk in input.chunks(input_frames) {
+        let mut channels = resampler
+            .process_partial(Some(&[input_chunk]), None)
+            .map_err(|error| format!("高质量重采样失败：{error}"))?;
+        output.append(&mut channels.remove(0));
+    }
+
     let mut channels = resampler
-        .process(&[input.to_vec()], None)
-        .map_err(|error| format!("高质量重采样失败：{error}"))?;
-    Ok(channels.remove(0))
+        .process_partial::<&[f32]>(None, None)
+        .map_err(|error| format!("刷新高质量重采样缓冲区失败：{error}"))?;
+    output.append(&mut channels.remove(0));
+
+    Ok(output
+        .into_iter()
+        .skip(resampler.output_delay())
+        .take(target_frames)
+        .collect())
+}
+
+fn target_frame_count(input_frames: usize, source_rate: u32) -> Result<usize, String> {
+    if source_rate == 0 {
+        return Err("音频采样率必须大于 0".to_string());
+    }
+    let numerator = input_frames as u64 * 16_000;
+    Ok(((numerator + source_rate as u64 - 1) / source_rate as u64) as usize)
 }
 
 #[cfg(test)]
@@ -180,5 +205,27 @@ mod tests {
             peak < 0.25,
             "out-of-band signal should be attenuated, peak={peak}"
         );
+    }
+
+    #[test]
+    fn high_quality_resampling_handles_partial_final_blocks() {
+        for (source_rate, input_len, expected_len) in [
+            (48_000, 48_001, 16_001),
+            (44_100, 44_101, 16_001),
+            (48_000, 1, 1),
+        ] {
+            let input = vec![0.25; input_len];
+            let output = resample_to_16khz(&input, source_rate)
+                .expect("partial final block should be resampled");
+
+            assert_eq!(output.len(), expected_len);
+            assert!(output.iter().all(|sample| sample.is_finite()));
+            if input_len > 1_000 {
+                assert!(
+                    output.last().is_some_and(|sample| sample.abs() > 0.1),
+                    "尾部不应来自补齐的静音样本"
+                );
+            }
+        }
     }
 }

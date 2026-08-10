@@ -1,0 +1,80 @@
+{"id":"mandarin-01","audio_path":"audio/mandarin-01.wav","duration_ms":6000,"category":"mandarin","reference":"请把今天下午三点的产品评审改到四点半，并通知所有参会同事。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-02","audio_path":"audio/mandarin-02.wav","duration_ms":6500,"category":"mandarin","reference":"我先整理需求清单，再确认负责人，最后补充每一项的验收时间。","hotwords":[],"processing_mode":"polish"}
+{"id":"mandarin-03","audio_path":"audio/mandarin-03.wav","duration_ms":5500,"category":"mandarin","reference":"明天出门前提醒我带上电脑、电源适配器和会议资料。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-04","audio_path":"audio/mandarin-04.wav","duration_ms":7000,"category":"mandarin","reference":"这个问题不是接口超时，而是客户端重复提交造成的数据冲突。","hotwords":[],"processing_mode":"polish"}
+{"id":"mandarin-05","audio_path":"audio/mandarin-05.wav","duration_ms":5000,"category":"mandarin","reference":"请记录一下，本周最重要的目标是提升语音输入的稳定性。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-06","audio_path":"audio/mandarin-06.wav","duration_ms":7200,"category":"mandarin","reference":"如果测试结果没有达到标准，就先定位原因，不要急着更换模型。","hotwords":[],"processing_mode":"polish"}
+{"id":"mandarin-07","audio_path":"audio/mandarin-07.wav","duration_ms":6100,"category":"mandarin","reference":"会议结论有三点：缩小范围、补齐数据、下周再次复盘。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-08","audio_path":"audio/mandarin-08.wav","duration_ms":6800,"category":"mandarin","reference":"请用简洁的语气回复客户，说明问题已经确认，修复正在验证。","hotwords":[],"processing_mode":"polish"}
+{"id":"mandarin-09","audio_path":"audio/mandarin-09.wav","duration_ms":5300,"category":"mandarin","reference":"今天的天气有点冷，出门的时候记得多穿一件外套。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-10","audio_path":"audio/mandarin-10.wav","duration_ms":7600,"category":"mandarin","reference":"我希望这段文字保留原意，只需要修正明显的停顿和重复。","hotwords":[],"processing_mode":"polish"}
+{"id":"mandarin-11","audio_path":"audio/mandarin-11.wav","duration_ms":6400,"category":"mandarin","reference":"预算暂时不变，但需要重新评估服务器和存储的使用情况。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-12","audio_path":"audio/mandarin-12.wav","duration_ms":8000,"category":"mandarin","reference":"先把能够自动化的检查放进持续集成，再安排桌面端的人工验证。","hotwords":[],"processing_mode":"polish"}
+{"id":"mandarin-13","audio_path":"audio/mandarin-13.wav","duration_ms":5800,"category":"mandarin","reference":"这个周末我打算整理房间，然后去附近的公园散步。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-14","audio_path":"audio/mandarin-14.wav","duration_ms":6900,"category":"mandarin","reference":"请把风险、影响范围和回滚方案放在发布说明的最前面。","hotwords":[],"processing_mode":"polish"}
+{"id":"mandarin-15","audio_path":"audio/mandarin-15.wav","duration_ms":6200,"category":"mandarin","reference":"我们需要确认录音开始和结束时都不会丢失第一个或最后一个音节。","hotwords":[],"processing_mode":"verbatim"}
+{"id":"mandarin-16","audio_path":"audio/mandarin-16.wav","duration_ms":7400,"category":"mandarin","reference":"完成修改以后，请运行全部测试，并把仍需人工确认的事项单独列出。","hotwords":[],"processing_mode":"polish"}
+{"id":"mixed-01","audio_path":"audio/mixed-01.wav","duration_ms":6500,"category":"mixed_language","reference":"请把 pull request 的 review 意见整理成三个 action items。","hotwords":["pull request","review","action items"],"processing_mode":"verbatim"}
+{"id":"mixed-02","audio_path":"audio/mixed-02.wav","duration_ms":7000,"category":"mixed_language","reference":"今天先检查 API latency，再看 P95 有没有超过四秒。","hotwords":["API latency","P95"],"processing_mode":"polish"}
+{"id":"mixed-03","audio_path":"audio/mixed-03.wav","duration_ms":6200,"category":"mixed_language","reference":"这个 bug 只在 macOS 上出现，Windows 暂时无法复现。","hotwords":["bug","macOS","Windows"],"processing_mode":"verbatim"}
+{"id":"mixed-04","audio_path":"audio/mixed-04.wav","duration_ms":6800,"category":"mixed_language","reference":"请更新 README 和 changelog，然后运行 pnpm check。","hotwords":["README","changelog","pnpm check"],"processing_mode":"polish"}
+{"id":"mixed-05","audio_path":"audio/mixed-05.wav","duration_ms":5800,"category":"mixed_language","reference":"把这个 feature flag 默认设为 false，升级用户不要自动开启。","hotwords":["feature flag","false"],"processing_mode":"verbatim"}
+{"id":"mixed-06","audio_path":"audio/mixed-06.wav","duration_ms":7600,"category":"mixed_language","reference":"我们需要一个 streaming session，支持 start、push PCM、finish 和 cancel。","hotwords":["streaming session","push PCM","finish","cancel"],"processing_mode":"polish"}
+{"id":"mixed-07","audio_path":"audio/mixed-07.wav","duration_ms":7100,"category":"mixed_language","reference":"请确认 JSON schema 和 TypeScript binding 保持一致。","hotwords":["JSON schema","TypeScript binding"],"processing_mode":"verbatim"}
+{"id":"mixed-08","audio_path":"audio/mixed-08.wav","duration_ms":6600,"category":"mixed_language","reference":"这个 commit message 使用 feat，而补丁修复使用 fix。","hotwords":["commit message","feat","fix"],"processing_mode":"polish"}
+{"id":"mixed-09","audio_path":"audio/mixed-09.wav","duration_ms":6000,"category":"mixed_language","reference":"本地 Whisper 使用 initial prompt 作为 soft hint。","hotwords":["Whisper","initial prompt","soft hint"],"processing_mode":"verbatim"}
+{"id":"mixed-10","audio_path":"audio/mixed-10.wav","duration_ms":7200,"category":"mixed_language","reference":"把 WAV 文件保留原生 sample rate，本地推理前再 resample。","hotwords":["WAV","sample rate","resample"],"processing_mode":"polish"}
+{"id":"mixed-11","audio_path":"audio/mixed-11.wav","duration_ms":6400,"category":"mixed_language","reference":"这次 release candidate 先不要切换 default model。","hotwords":["release candidate","default model"],"processing_mode":"verbatim"}
+{"id":"mixed-12","audio_path":"audio/mixed-12.wav","duration_ms":6900,"category":"mixed_language","reference":"请记录 CER、hotword recall 和 punctuation F1。","hotwords":["CER","hotword recall","punctuation F1"],"processing_mode":"polish"}
+{"id":"mixed-13","audio_path":"audio/mixed-13.wav","duration_ms":6200,"category":"mixed_language","reference":"event tap 被 timeout 禁用以后需要自动 enable。","hotwords":["event tap","timeout","enable"],"processing_mode":"verbatim"}
+{"id":"mixed-14","audio_path":"audio/mixed-14.wav","duration_ms":7500,"category":"mixed_language","reference":"请把 mock provider 放进 integration test，不要访问真实 network。","hotwords":["mock provider","integration test","network"],"processing_mode":"polish"}
+{"id":"mixed-15","audio_path":"audio/mixed-15.wav","duration_ms":6700,"category":"mixed_language","reference":"这个 function 返回 Result，错误信息需要保留 context。","hotwords":["function","Result","context"],"processing_mode":"verbatim"}
+{"id":"mixed-16","audio_path":"audio/mixed-16.wav","duration_ms":7300,"category":"mixed_language","reference":"最后检查 git status，确保没有意外的 generated files。","hotwords":["git status","generated files"],"processing_mode":"polish"}
+{"id":"hotword-01","audio_path":"audio/hotword-01.wav","duration_ms":6000,"category":"hotword","reference":"XiLuoLin 的热词应该在语音识别之前加载。","hotwords":["XiLuoLin"],"processing_mode":"verbatim"}
+{"id":"hotword-02","audio_path":"audio/hotword-02.wav","duration_ms":6400,"category":"hotword","reference":"GLM-ASR-2512 支持原生 hotwords 参数。","hotwords":["GLM-ASR-2512","hotwords"],"processing_mode":"polish"}
+{"id":"hotword-03","audio_path":"audio/hotword-03.wav","duration_ms":5800,"category":"hotword","reference":"今天需要评估 sherpa-onnx 的流式识别能力。","hotwords":["sherpa-onnx"],"processing_mode":"verbatim"}
+{"id":"hotword-04","audio_path":"audio/hotword-04.wav","duration_ms":6900,"category":"hotword","reference":"rubato 重采样需要正确处理最后一个不完整音频块。","hotwords":["rubato"],"processing_mode":"polish"}
+{"id":"hotword-05","audio_path":"audio/hotword-05.wav","duration_ms":6200,"category":"hotword","reference":"CaptureSession 保存了录音开始时的目标窗口。","hotwords":["CaptureSession"],"processing_mode":"verbatim"}
+{"id":"hotword-06","audio_path":"audio/hotword-06.wav","duration_ms":7100,"category":"hotword","reference":"Handy 的音频设备设计可以作为实现参考。","hotwords":["Handy"],"processing_mode":"polish"}
+{"id":"hotword-07","audio_path":"audio/hotword-07.wav","duration_ms":5600,"category":"hotword","reference":"Inputalk 使用 CGEventTap 捕获独立 Fn。","hotwords":["Inputalk","CGEventTap","Fn"],"processing_mode":"verbatim"}
+{"id":"hotword-08","audio_path":"audio/hotword-08.wav","duration_ms":6800,"category":"hotword","reference":"WhisperKit 不是当前默认的本地推理后端。","hotwords":["WhisperKit"],"processing_mode":"polish"}
+{"id":"hotword-09","audio_path":"audio/hotword-09.wav","duration_ms":6100,"category":"hotword","reference":"Tauri Specta 会生成前端调用所需的类型绑定。","hotwords":["Tauri Specta"],"processing_mode":"verbatim"}
+{"id":"hotword-10","audio_path":"audio/hotword-10.wav","duration_ms":7000,"category":"hotword","reference":"cpal 的 Stream 必须由创建它的工作线程释放。","hotwords":["cpal","Stream"],"processing_mode":"polish"}
+{"id":"hotword-11","audio_path":"audio/hotword-11.wav","duration_ms":5900,"category":"hotword","reference":"智谱 BigModel 接口允许重复传递 hotwords 数组字段。","hotwords":["BigModel","hotwords"],"processing_mode":"verbatim"}
+{"id":"hotword-12","audio_path":"audio/hotword-12.wav","duration_ms":7200,"category":"hotword","reference":"OpenAI Whisper 的 prompt 只属于软提示，不是原生热词。","hotwords":["OpenAI Whisper","prompt"],"processing_mode":"polish"}
+{"id":"hotword-13","audio_path":"audio/hotword-13.wav","duration_ms":6300,"category":"hotword","reference":"Keychain 只保存密钥，不保存用户的语音正文。","hotwords":["Keychain"],"processing_mode":"verbatim"}
+{"id":"hotword-14","audio_path":"audio/hotword-14.wav","duration_ms":6700,"category":"hotword","reference":"SQLite 中的默认人格必须保持唯一。","hotwords":["SQLite"],"processing_mode":"polish"}
+{"id":"hotword-15","audio_path":"audio/hotword-15.wav","duration_ms":6100,"category":"hotword","reference":"FnHoldManager 负责独立 Fn 监听器的生命周期。","hotwords":["FnHoldManager","Fn"],"processing_mode":"verbatim"}
+{"id":"hotword-16","audio_path":"audio/hotword-16.wav","duration_ms":7400,"category":"hotword","reference":"RecordingCompletedEvent 会启动后续识别和投递流程。","hotwords":["RecordingCompletedEvent"],"processing_mode":"polish"}
+{"id":"noise-01","audio_path":"audio/noise-01.wav","duration_ms":7000,"category":"noise","reference":"背景有空调声音，但这句话仍然需要完整识别。","hotwords":[],"processing_mode":"verbatim","notes":"稳定空调噪声"}
+{"id":"noise-02","audio_path":"audio/noise-02.wav","duration_ms":7600,"category":"noise","reference":"请在咖啡店环境下记录明天上午的会议安排。","hotwords":[],"processing_mode":"polish","notes":"咖啡店人声噪声"}
+{"id":"noise-03","audio_path":"audio/noise-03.wav","duration_ms":6800,"category":"noise","reference":"窗外有车辆经过，请不要漏掉最后一个验收标准。","hotwords":[],"processing_mode":"verbatim","notes":"道路噪声"}
+{"id":"noise-04","audio_path":"audio/noise-04.wav","duration_ms":7300,"category":"noise","reference":"键盘敲击期间继续口述，结果应该保持正确断句。","hotwords":[],"processing_mode":"polish","notes":"键盘敲击"}
+{"id":"noise-05","audio_path":"audio/noise-05.wav","duration_ms":6500,"category":"noise","reference":"风扇正在运行，现在测试专有名词 XiLuoLin。","hotwords":["XiLuoLin"],"processing_mode":"verbatim","notes":"风扇噪声"}
+{"id":"noise-06","audio_path":"audio/noise-06.wav","duration_ms":8000,"category":"noise","reference":"旁边有人说话时，请把当前任务拆分成设计、实现和验证。","hotwords":[],"processing_mode":"polish","notes":"旁人说话"}
+{"id":"noise-07","audio_path":"audio/noise-07.wav","duration_ms":6200,"category":"noise","reference":"音乐音量较低，主要内容是检查热词召回率。","hotwords":["热词召回率"],"processing_mode":"verbatim","notes":"低音量音乐"}
+{"id":"noise-08","audio_path":"audio/noise-08.wav","duration_ms":7700,"category":"noise","reference":"开门和关门的声音不应该导致整段语音识别中断。","hotwords":[],"processing_mode":"polish","notes":"瞬态噪声"}
+{"id":"noise-09","audio_path":"audio/noise-09.wav","duration_ms":6900,"category":"noise","reference":"在轻微回声环境中测试数字二十八秒和三十秒。","hotwords":[],"processing_mode":"verbatim","notes":"轻微回声"}
+{"id":"noise-10","audio_path":"audio/noise-10.wav","duration_ms":7400,"category":"noise","reference":"请忽略桌面震动声，继续记录模型替换的判断门槛。","hotwords":[],"processing_mode":"polish","notes":"桌面振动"}
+{"id":"noise-11","audio_path":"audio/noise-11.wav","duration_ms":6300,"category":"noise","reference":"雨声背景下测试中英文混合短语 API Key。","hotwords":["API Key"],"processing_mode":"verbatim","notes":"雨声"}
+{"id":"noise-12","audio_path":"audio/noise-12.wav","duration_ms":7900,"category":"noise","reference":"地铁广播出现时，仍然需要识别当前说话人的完整句子。","hotwords":[],"processing_mode":"polish","notes":"公共广播"}
+{"id":"noise-13","audio_path":"audio/noise-13.wav","duration_ms":6600,"category":"noise","reference":"纸张翻动不会改变这句话原本的标点和语义。","hotwords":[],"processing_mode":"verbatim","notes":"纸张摩擦"}
+{"id":"noise-14","audio_path":"audio/noise-14.wav","duration_ms":7200,"category":"noise","reference":"有人咳嗽以后，继续说明本地 Whisper 的隐私优势。","hotwords":["Whisper"],"processing_mode":"polish","notes":"咳嗽干扰"}
+{"id":"noise-15","audio_path":"audio/noise-15.wav","duration_ms":6800,"category":"noise","reference":"远处电话铃响了，请保留冒号、逗号和问号。","hotwords":[],"processing_mode":"verbatim","notes":"电话铃声"}
+{"id":"noise-16","audio_path":"audio/noise-16.wav","duration_ms":7500,"category":"noise","reference":"多人办公室环境下，记录这条发布前的回归检查。","hotwords":[],"processing_mode":"polish","notes":"开放办公室"}
+{"id":"far-field-01","audio_path":"audio/far-field-01.wav","duration_ms":7000,"category":"far_field","reference":"麦克风距离一米，请确认普通话短句能够完整识别。","hotwords":[],"processing_mode":"verbatim","notes":"距离一米"}
+{"id":"far-field-02","audio_path":"audio/far-field-02.wav","duration_ms":7600,"category":"far_field","reference":"从房间另一侧口述一条包含日期和时间的提醒。","hotwords":[],"processing_mode":"polish","notes":"房间另一侧"}
+{"id":"far-field-03","audio_path":"audio/far-field-03.wav","duration_ms":6800,"category":"far_field","reference":"现在测试远场环境中的项目名称 XiLuoLin。","hotwords":["XiLuoLin"],"processing_mode":"verbatim","notes":"距离两米"}
+{"id":"far-field-04","audio_path":"audio/far-field-04.wav","duration_ms":7300,"category":"far_field","reference":"说话声音比较轻，但不要省略句子末尾的内容。","hotwords":[],"processing_mode":"polish","notes":"轻声远场"}
+{"id":"far-field-05","audio_path":"audio/far-field-05.wav","duration_ms":6500,"category":"far_field","reference":"面向侧面说话时，识别结果应该保持原来的词序。","hotwords":[],"processing_mode":"verbatim","notes":"侧向说话"}
+{"id":"far-field-06","audio_path":"audio/far-field-06.wav","duration_ms":8000,"category":"far_field","reference":"站在门口说明今天完成的三项工作和两项风险。","hotwords":[],"processing_mode":"polish","notes":"门口远场"}
+{"id":"far-field-07","audio_path":"audio/far-field-07.wav","duration_ms":6200,"category":"far_field","reference":"请在远场条件下准确识别 GLM-ASR-2512。","hotwords":["GLM-ASR-2512"],"processing_mode":"verbatim","notes":"远场热词"}
+{"id":"far-field-08","audio_path":"audio/far-field-08.wav","duration_ms":7700,"category":"far_field","reference":"隔着一张会议桌，记录下一轮评测的验收指标。","hotwords":[],"processing_mode":"polish","notes":"会议桌对面"}
+{"id":"far-field-09","audio_path":"audio/far-field-09.wav","duration_ms":6900,"category":"far_field","reference":"使用笔记本内置麦克风，测试连续说话和自然停顿。","hotwords":[],"processing_mode":"verbatim","notes":"笔记本内置麦克风"}
+{"id":"far-field-10","audio_path":"audio/far-field-10.wav","duration_ms":7400,"category":"far_field","reference":"距离变远以后，请继续保持数字、英文和标点准确。","hotwords":[],"processing_mode":"polish","notes":"移动远离麦克风"}
+{"id":"far-field-11","audio_path":"audio/far-field-11.wav","duration_ms":6300,"category":"far_field","reference":"房间有轻微混响，现在测试 CaptureSession。","hotwords":["CaptureSession"],"processing_mode":"verbatim","notes":"混响远场"}
+{"id":"far-field-12","audio_path":"audio/far-field-12.wav","duration_ms":7900,"category":"far_field","reference":"保持正常音量，完整描述问题原因、影响和解决方案。","hotwords":[],"processing_mode":"polish","notes":"正常音量远场"}
+{"id":"far-field-13","audio_path":"audio/far-field-13.wav","duration_ms":6600,"category":"far_field","reference":"从两米外说出 macOS、Windows 和 Whisper。","hotwords":["macOS","Windows","Whisper"],"processing_mode":"verbatim","notes":"远场中英混合"}
+{"id":"far-field-14","audio_path":"audio/far-field-14.wav","duration_ms":7200,"category":"far_field","reference":"背对麦克风说话时，检查首尾音节是否被截断。","hotwords":[],"processing_mode":"polish","notes":"背向说话"}
+{"id":"far-field-15","audio_path":"audio/far-field-15.wav","duration_ms":6800,"category":"far_field","reference":"远距离快速口述，随后留出一秒安静时间。","hotwords":[],"processing_mode":"verbatim","notes":"快速远场"}
+{"id":"far-field-16","audio_path":"audio/far-field-16.wav","duration_ms":7500,"category":"far_field","reference":"最后一条远场样本用于确认结果稳定且可以重复。","hotwords":[],"processing_mode":"polish","notes":"远场重复性"}

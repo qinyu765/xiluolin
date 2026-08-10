@@ -59,6 +59,9 @@ temp-recordings/
 *.mp3.tmp
 *.m4a.tmp
 
+# ASR 基准集包含真人录音、转写结果和可能敏感的业务文本，仅保留公开模板
+evals/asr/private/
+
 # 仓库协作规范必须提交
 !AGENTS.md
 

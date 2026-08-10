@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "XiLuoLin ASR benchmark prediction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "transcript",
+    "processing_mode",
+    "fn_released_at_ms",
+    "pasted_at_ms"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "transcript": { "type": "string" },
+    "processing_mode": { "enum": ["verbatim", "polish"] },
+    "fn_released_at_ms": { "type": "number", "minimum": 0 },
+    "pasted_at_ms": { "type": "number", "minimum": 0 }
+  }
+}

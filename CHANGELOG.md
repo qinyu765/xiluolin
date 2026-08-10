@@ -9,6 +9,9 @@ XiLuoLin 遵循 [Semantic Versioning](https://semver.org/)，本文件记录面�
 - 提供 macOS 13+ Apple Silicon ad-hoc 签名 DMG 和 Windows 10/11 x64 NSIS 安装包。
 - 建立 Git tag 驱动的双平台构建、依赖安全审计、校验和与 Draft Pre-release 流程。
 - 提供智谱、OpenAI-compatible 和本地 Whisper ASR，支持人格整理、热词、历史、统计和跨应用文本投递。
+- 智谱原生接收前 100 个启用热词；OpenAI 与本地 Whisper 使用软提示，并新增跳过文本模型的“原文听写”。
+- macOS 可显式开启按住 Fn 录音；录音在 25 秒提示、28 秒自动停止，短按 Fn 会取消暂存录音。
+- 提供 80 条 ASR 基准录制模板和 CER、热词召回、标点 F1、端到端延迟评测工具。
 
 ### 安全
 
@@ -21,5 +24,6 @@ XiLuoLin 遵循 [Semantic Versioning](https://semver.org/)，本文件记录面�
 - Windows 安装包未签名，可能触发 Microsoft Defender SmartScreen。
 - 不支持 Intel Mac、Windows ARM64、Linux、应用商店和应用内自动更新。
 - 首页录音/上传入口暂未开放，全局快捷键是主要输入入口。
+- 第一阶段仅支持停止录音后的完整结果，不支持实时麦克风流或边说边出字。
 
 [0.1.0-beta.1]: https://github.com/qinyu765/xiluolin/releases/tag/v0.1.0-beta.1

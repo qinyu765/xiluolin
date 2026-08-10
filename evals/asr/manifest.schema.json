@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "XiLuoLin ASR benchmark manifest sample",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "audio_path",
+    "duration_ms",
+    "category",
+    "reference",
+    "hotwords",
+    "processing_mode"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "audio_path": { "type": "string", "minLength": 1 },
+    "duration_ms": { "type": "integer", "minimum": 3000, "maximum": 20000 },
+    "category": {
+      "enum": ["mandarin", "mixed_language", "hotword", "noise", "far_field"]
+    },
+    "reference": { "type": "string", "minLength": 1 },
+    "hotwords": { "type": "array", "items": { "type": "string" } },
+    "processing_mode": { "enum": ["verbatim", "polish"] },
+    "speaker_id": { "type": "string" },
+    "notes": { "type": "string" }
+  }
+}

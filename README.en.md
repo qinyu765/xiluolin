@@ -21,9 +21,9 @@ Download only from [GitHub Releases](https://github.com/qinyu765/xiluolin/releas
 XiLuoLin focuses on the complete workflow from speaking an idea to getting text that can be used immediately:
 
 - **Voice capture**: microphone recording, short-audio processing, global shortcuts, and recording status feedback.
-- **Speech recognition**: configurable ASR Providers that convert audio into raw text.
-- **Persona-based rewriting**: restructure tone and content with built-in personas such as Prompt Engineer, Task Collaborator, Idea Organizer, and Formal Message Assistant, or with custom personas.
-- **Hotword dictionary**: manage project names, personal names, and technical terms to reduce correction work caused by recognition errors.
+- **Speech recognition**: Zhipu GLM-ASR-2512, OpenAI Whisper, and an offline local Whisper model; macOS can explicitly enable hold-Fn recording with short-tap cancellation.
+- **Persona-based rewriting**: use polished built-in or custom personas, or select Verbatim Dictation to skip the text model.
+- **Hotword dictionary**: Zhipu receives up to 100 native hotwords; OpenAI and local Whisper use soft prompts, while the complete dictionary remains available to downstream polishing.
 - **Desktop delivery**: clipboard and automatic paste output with fallback behavior when a preferred method is unavailable.
 - **Local data**: store history, personas, hotwords, settings, and personal productivity statistics locally.
 - **Open extensibility**: maintain clear Provider and business-module boundaries for additional cloud services, local models, and cross-platform integrations.
@@ -62,6 +62,7 @@ The detailed product and engineering documents are currently maintained in Chine
 - [Technical design](docs/solution-design.md)
 - [Usage and verification guide](docs/usage-guide.md)
 - [Troubleshooting guide](docs/troubleshooting.md)
+- [ASR quality evaluation and desktop acceptance](docs/asr-quality-evaluation.md)
 - [macOS Apple Silicon build and installation](docs/macos-build.md)
 - [Windows x64 build and installation](docs/windows-build.md)
 - [Changelog](CHANGELOG.md)
@@ -109,6 +110,7 @@ Common commands:
 | `pnpm check` | Run the complete frontend and Rust quality checks |
 | `pnpm tauri dev` | Start the desktop application in development mode |
 | `pnpm release:check` | Verify frontend, Cargo, Tauri, and optional release-tag versions |
+| `pnpm eval:asr` | Compute CER, hotword recall, punctuation F1, and latency for a private benchmark |
 | `pnpm tauri:build:macos:arm64` | Build the macOS 13+ Apple Silicon app and DMG |
 | `pnpm tauri:build:windows:x64` | Build the Windows 10/11 x64 NSIS installer on Windows |
 
@@ -119,8 +121,8 @@ GitHub Actions runs frontend, Windows/macOS Rust, dependency-security, and secre
 1. Start the application and open **Settings**.
 2. Configure Zhipu GLM-ASR-2512 or another supported ASR service.
 3. Configure the OpenAI Responses API or a compatible text-processing service.
-4. Select the microphone, shortcuts, and output method.
-5. Select a built-in persona or create a custom persona.
+4. Select the microphone, shortcuts, and output method. On macOS, hold-Fn recording can be enabled after Accessibility permission is granted.
+5. Select Verbatim Dictation when no text-model rewriting is wanted, or use a polished built-in/custom persona.
 6. Add project names, personal names, and technical terms that require more accurate recognition.
 7. Place the cursor in a target application and use a global shortcut to start voice input.
 

@@ -4,10 +4,10 @@
 
 XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入助手。它将短语音转换为可直接使用的文本，并通过人格化整理、热词、历史记录和桌面输出减少打字、编辑与润色成本。
 
-- **语音输入能力**：支持全局快捷键和应用内录音流程；快捷键开始时建立 CaptureSession，处理完成后向录音开始时的目标窗口投递文本
+- **语音输入能力**：支持全局组合快捷键和应用内录音流程；macOS 可显式开启独立 Fn 按住录音，短按取消，25 秒提示并于 28 秒自动停止
 - **智能识别**：支持智谱 GLM-ASR-2512、OpenAI Whisper 和本地 Whisper；本地模式使用官方 whisper.cpp `ggml-base-q5_1.bin`，可离线转写
-- **人格化整理**：默认使用不可修改的“通用人格”进行自然、精炼的轻量整理，也可切换 Prompt 工程师、任务协作者、灵感整理师、正式消息助手、翻译官或自定义人格
-- **热词词典**：支持自定义专有名词、技术词、项目名，减少误识别
+- **人格化整理**：默认使用不可修改的“通用人格”进行自然、精炼的轻量整理；“原文听写”会跳过文本模型，也可切换其他内置或自定义人格
+- **热词词典**：智谱原生接收前 100 个稳定去重热词；OpenAI 和本地 Whisper 使用软提示，完整词典仍参与后续整理
 - **Capture 历史**：保存原始文本、整理结果、人格、输入来源、实际 Provider/模型、降级和投递方式；保留录音可试听、重新转写，原始文本可用当前人格重新整理
 - **统计反馈**：展示语音协作次数、累计口述时间、生成字数、预计节省时间、常用人格
 - **输出方式**：Windows 和 macOS 保存并恢复录音开始时的目标窗口；macOS 需要辅助功能权限，自动粘贴失败时保留生成文本供手动粘贴
@@ -76,6 +76,7 @@ XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
 - [方案设计](docs/solution-design.md)
 - [使用与验证指南](docs/usage-guide.md)
 - [故障排查](docs/troubleshooting.md)
+- [ASR 质量评测与桌面验收](docs/asr-quality-evaluation.md)
 - [macOS Apple Silicon 构建与安装](docs/macos-build.md)
 - [Windows x64 构建与安装](docs/windows-build.md)
 - [版本变更](CHANGELOG.md)
@@ -126,6 +127,7 @@ pnpm tauri dev
 | `pnpm check` | 执行完整前端与 Rust 质量检查 |
 | `pnpm tauri dev` | 启动桌面应用开发模式 |
 | `pnpm release:check` | 检查前端、Cargo、Tauri 与可选发布标签版本一致性 |
+| `pnpm eval:asr` | 计算私有基准集的 CER、热词召回、标点 F1 和延迟 |
 | `pnpm tauri:build:macos:arm64` | 构建 macOS 13+ Apple Silicon `.app` 和 `.dmg` |
 | `pnpm tauri:build:windows:x64` | 在 Windows 上构建 Windows 10/11 x64 NSIS 安装包 |
 
@@ -136,8 +138,8 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 1. 启动应用并进入“设置”；macOS 用户先在就绪检查中授予麦克风和辅助功能权限。
 2. 选择智谱、OpenAI 或本地 Whisper ASR；本地模式需要先下载模型。
 3. 选择智谱或 OpenAI-compatible 文本处理服务，并配置对应的 API Key、Base URL 和模型名。
-4. 选择麦克风、快捷键和输出方式。
-5. 首次使用默认选择“通用人格”；如需结构化输出，可切换其他内置人格或创建自定义人格。
+4. 选择麦克风、快捷键和输出方式；macOS 可在授权辅助功能后手动开启独立 Fn。
+5. 首次使用默认选择“通用人格”；需要逐字保留时选择“原文听写”，如需结构化输出则切换其他内置人格或创建自定义人格。
 6. 添加需要重点识别的项目名、人名和技术词。
 7. 在目标输入框中使用全局快捷键完成语音输入。
 
@@ -225,7 +227,9 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
   - `reqwest`：为音频和模型服务调用保留 HTTP multipart / JSON 能力。
   - `cpal`：采集麦克风音频输入。
   - `hound`：写入并读取 WAV 录音文件。
+  - `core-graphics`：在 macOS 使用 `CGEventTap` 捕获独立 Fn 手势，不修改系统 Fn 偏好。
   - `whisper-rs` 0.16：whisper.cpp 的 Rust 绑定，用于本地离线 ASR；模型来自 `ggerganov/whisper.cpp` 官方 Hugging Face 仓库。
+  - `rubato`：在本地 Whisper 推理前执行高质量 16 kHz 重采样。
   - `chrono`：生成时间戳和处理本地记录时间。
   - `tokio`：支撑 Tauri 异步命令和后台任务。
   - `enigo`：模拟键盘输入，实现自动粘贴或直接输入能力。

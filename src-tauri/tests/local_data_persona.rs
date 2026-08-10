@@ -203,3 +203,31 @@ fn ensure_default_persona_repairs_missing_and_multiple_defaults() {
         1
     );
 }
+
+#[test]
+fn conditional_delete_cannot_remove_a_persona_made_default_by_another_connection() {
+    let database = open_test_database(&temp_db_path("conditional-default-delete"));
+    let connection = rusqlite::Connection::open(database.path()).unwrap();
+    connection
+        .execute("UPDATE personas SET is_default = 0", [])
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE personas SET is_default = 1 WHERE id = 'verbatim'",
+            [],
+        )
+        .unwrap();
+
+    let affected = connection
+        .execute(
+            "DELETE FROM personas WHERE id = 'verbatim' AND is_default = 0",
+            [],
+        )
+        .unwrap();
+    assert_eq!(affected, 0);
+    assert!(database
+        .list_personas()
+        .unwrap()
+        .iter()
+        .any(|persona| persona.id == "verbatim" && persona.is_default));
+}

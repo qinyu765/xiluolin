@@ -157,12 +157,45 @@ pub fn prepare_uploaded_audio_file(
         std::fs::create_dir_all(parent)
             .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
     }
-    let temporary_file = TemporaryAudioFile { path };
-    File::create(temporary_file.path())
-        .and_then(|mut file| file.write_all(&audio_bytes))
-        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+    prepare_temporary_audio_file(path, &audio_bytes, write_audio_bytes)
+}
 
+fn write_audio_bytes(writer: &mut impl Write, audio_bytes: &[u8]) -> std::io::Result<()> {
+    writer.write_all(audio_bytes)
+}
+
+fn prepare_temporary_audio_file<F>(
+    path: PathBuf,
+    audio_bytes: &[u8],
+    write: F,
+) -> Result<TemporaryAudioFile, VoiceInputError>
+where
+    F: FnOnce(&mut File, &[u8]) -> std::io::Result<()>,
+{
+    let mut file =
+        File::create(&path).map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+    let temporary_file = TemporaryAudioFile { path };
+    write(&mut file, audio_bytes)
+        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
     Ok(temporary_file)
+}
+
+#[cfg(test)]
+mod temporary_audio_tests {
+    use super::*;
+
+    #[test]
+    fn partial_write_failure_removes_created_temporary_audio() {
+        let path =
+            std::env::temp_dir().join(format!("xiluolin-partial-{}.wav", uuid::Uuid::new_v4()));
+        let result = prepare_temporary_audio_file(path.clone(), b"private audio", |file, bytes| {
+            file.write_all(&bytes[..2])?;
+            Err(std::io::Error::other("injected write failure"))
+        });
+
+        assert!(result.is_err());
+        assert!(!path.exists());
+    }
 }
 
 pub fn process_voice_input(

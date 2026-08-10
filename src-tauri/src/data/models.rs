@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub longpress_shortcut: String,
     #[serde(default)]
     pub toggle_shortcut: String,
+    #[serde(default)]
+    pub fn_hold_enabled: bool,
     pub auto_save_history: bool,
     #[serde(default)]
     pub mute_system_audio: bool,
@@ -237,6 +239,7 @@ pub fn default_app_config() -> AppConfig {
         zhipu_model: default_zhipu_model(),
         longpress_shortcut: "CommandOrControl+Shift+R".to_string(),
         toggle_shortcut: "Alt+Space".to_string(),
+        fn_hold_enabled: false,
         auto_save_history: true,
         mute_system_audio: false,
         selected_microphone: "".to_string(),

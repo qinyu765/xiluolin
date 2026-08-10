@@ -305,6 +305,18 @@ pub async fn stop_recording_for_session(
         .map_err(StopRecordingFailure::into_message)
 }
 
+pub async fn stop_recording_for_expected_session(
+    state: &RecordingState,
+    app_handle: &tauri::AppHandle,
+    expected_session_id: &str,
+) -> Result<Option<RecordingResult>, String> {
+    match stop_recording_for_session_id(state, app_handle, Some(expected_session_id)).await {
+        Ok(result) => Ok(Some(result)),
+        Err(StopRecordingFailure::StaleSession) => Ok(None),
+        Err(StopRecordingFailure::Failed(error)) => Err(error),
+    }
+}
+
 async fn stop_recording_for_session_id(
     state: &RecordingState,
     app_handle: &tauri::AppHandle,

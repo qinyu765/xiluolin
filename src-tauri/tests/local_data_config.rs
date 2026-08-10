@@ -64,6 +64,7 @@ fn default_config_contains_provider_and_output_defaults() {
             zhipu_model: "glm-4.7-flash".to_string(),
             longpress_shortcut: "CommandOrControl+Shift+R".to_string(),
             toggle_shortcut: "Alt+Space".to_string(),
+            fn_hold_enabled: false,
             auto_save_history: true,
             mute_system_audio: false,
             selected_microphone: "".to_string(),
@@ -73,4 +74,14 @@ fn default_config_contains_provider_and_output_defaults() {
             fallback_asr_provider: "zhipu".to_string(),
         }
     );
+}
+
+#[test]
+fn legacy_config_defaults_fn_hold_to_disabled() {
+    let mut value = serde_json::to_value(default_app_config()).unwrap();
+    value.as_object_mut().unwrap().remove("fn_hold_enabled");
+
+    let config: AppConfig = serde_json::from_value(value).unwrap();
+
+    assert!(!config.fn_hold_enabled);
 }

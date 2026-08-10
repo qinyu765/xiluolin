@@ -1,4 +1,6 @@
 use super::{database::LocalDatabase, models::*};
+use tauri::Manager;
+use tauri_specta::Event;
 
 #[tauri::command]
 #[specta::specta]
@@ -277,6 +279,15 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
         },
         || store.save().map_err(|error| error.to_string()),
     )?;
+
+    // Fn 监听按同步配置顺序更新，避免连续保存时较早的异步任务覆盖最新开关状态。
+    let fn_manager = app.state::<crate::macos_fn::FnHoldManager>();
+    if let Err(error) =
+        crate::macos_fn::configure_fn_hold(&app, &fn_manager, config.fn_hold_enabled)
+    {
+        eprintln!("独立 Fn 录音热更新失败：{error}");
+        let _ = crate::events::RecordingErrorEvent(error).emit(&app);
+    }
 
     // 热更新快捷键
     let app_clone = app.clone();

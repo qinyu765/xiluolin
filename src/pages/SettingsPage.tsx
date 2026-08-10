@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShortcutInput } from "@/components/ui/shortcut-input";
 import { InputReadinessCard } from "@/components/settings/InputReadinessCard";
+import { FnHoldSetting } from "@/components/settings/FnHoldSetting";
 import { ModelSettings } from "@/components/settings/ModelSettings";
 import { RecordingStorageCard } from "@/components/settings/RecordingStorageCard";
 import type { AppConfig, AudioDevice } from "@/types";
@@ -75,7 +76,7 @@ export function SettingsPage({
     setIsGeneralSaving(true);
     onSaveConfig(nextConfig)
       .then(() => {
-        toast.success("通用设置已保存，快捷键已生效");
+        toast.success("通用设置已保存");
       })
       .catch((error) => {
         toast.error(`保存通用设置失败：${String(error)}`);
@@ -130,6 +131,13 @@ export function SettingsPage({
                     按住快捷键录音，松开停止。默认：Ctrl+Shift+R
                   </p>
                 </div>
+
+                <FnHoldSetting
+                  enabled={appConfig?.fn_hold_enabled ?? false}
+                  onCheckedChange={(checked) =>
+                    updateConfig({ fn_hold_enabled: checked })
+                  }
+                />
 
                 <div className="grid gap-2">
                   <Label htmlFor="toggle-shortcut">切换模式快捷键</Label>

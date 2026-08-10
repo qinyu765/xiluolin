@@ -12,6 +12,7 @@ pub mod hotkey;
 pub mod indicator;
 pub mod local_asr;
 pub mod local_asr_model;
+pub mod macos_fn;
 pub mod macos_permissions;
 pub mod output;
 pub mod pipeline;
@@ -23,6 +24,7 @@ pub mod text_polish;
 
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_specta::Event;
 use tokio::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -38,6 +40,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(capture_session::CaptureSessionState::new())
         .manage(recording::RecordingState::new())
+        .manage(macos_fn::FnHoldManager::new())
         .setup(move |app| {
             event_bindings.mount_events(app);
             app_migration::migrate_legacy_app_data(app.handle())?;
@@ -66,9 +69,21 @@ pub fn run() {
                             Some(config.toggle_shortcut.clone())
                         };
 
-                        match hotkey::register_both_hotkeys(app_handle, longpress, toggle).await {
+                        match hotkey::register_both_hotkeys(app_handle.clone(), longpress, toggle)
+                            .await
+                        {
                             Ok(_) => println!("快捷键注册成功"),
                             Err(e) => eprintln!("快捷键注册失败: {}", e),
+                        }
+
+                        let fn_manager = app_handle.state::<macos_fn::FnHoldManager>();
+                        if let Err(error) = macos_fn::configure_fn_hold(
+                            &app_handle,
+                            &fn_manager,
+                            config.fn_hold_enabled,
+                        ) {
+                            eprintln!("独立 Fn 录音启用失败：{error}");
+                            let _ = events::RecordingErrorEvent(error).emit(&app_handle);
                         }
                     }
                     Err(e) => {

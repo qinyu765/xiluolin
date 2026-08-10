@@ -2,7 +2,7 @@ use tauri::Manager;
 
 use crate::{
     asr::build_asr_config,
-    data::{read_app_config, HistoryRecord, LocalDatabase, Persona, VERBATIM_PROCESSING_MODE},
+    data::{read_app_config, HistoryRecord, LocalDatabase, VERBATIM_PROCESSING_MODE},
     pipeline::{
         normalize_verbatim_text, process_voice_input, HistoryContext, VoiceInputRequest,
         VoiceInputResult,
@@ -39,7 +39,6 @@ fn default_persona(database: &LocalDatabase) -> Result<crate::data::Persona, Str
 pub fn persist_reprocessed_history(
     database: &LocalDatabase,
     history_id: &str,
-    persona: &Persona,
     result: &VoiceInputResult,
 ) -> Result<HistoryRecord, String> {
     database
@@ -47,8 +46,8 @@ pub fn persist_reprocessed_history(
             history_id,
             &result.raw_text,
             &result.final_text,
-            &persona.id,
-            &persona.name,
+            &result.actual_persona_id,
+            &result.actual_persona_name,
             &result.actual_asr_provider,
             &result.actual_asr_model,
             &result.actual_text_provider,
@@ -90,7 +89,6 @@ pub fn reprocess_history_audio(
         .ok_or_else(|| "该历史记录没有保留录音".to_string())?;
     let audio_bytes = read_managed_recording(&app, &audio_path)?;
     let config = read_app_config(app.clone())?;
-    let persona = default_persona(&database)?;
     let asr_config = build_asr_config(&app, &config)?;
     let (text_api_key, text_base_url, text_model) = selected_text_model(&config);
     let text_provider = config.text_provider.clone();
@@ -119,7 +117,7 @@ pub fn reprocess_history_audio(
     )
     .map_err(|error| error.to_string())?;
 
-    persist_reprocessed_history(&database, &history_id, &persona, &result)
+    persist_reprocessed_history(&database, &history_id, &result)
 }
 
 #[tauri::command]

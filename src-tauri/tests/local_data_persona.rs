@@ -169,3 +169,37 @@ fn default_persona_can_be_changed_and_persisted() {
     assert!(task_collaborator.is_default);
     assert_eq!(updated_order, initial_order);
 }
+
+#[test]
+fn ensure_default_persona_repairs_missing_and_multiple_defaults() {
+    let database = open_test_database(&temp_db_path("repair-default-persona"));
+    let connection = rusqlite::Connection::open(database.path()).unwrap();
+    connection
+        .execute("UPDATE personas SET is_default = 0", [])
+        .unwrap();
+
+    let repaired = database
+        .ensure_default_persona("missing-persona")
+        .expect("missing config persona should fall back to general");
+    assert_eq!(repaired.id, GENERAL_PERSONA_ID);
+
+    connection
+        .execute(
+            "UPDATE personas SET is_default = 1 WHERE id IN ('general', 'verbatim')",
+            [],
+        )
+        .unwrap();
+    let repaired = database
+        .ensure_default_persona("verbatim")
+        .expect("existing config persona should win");
+    assert_eq!(repaired.id, "verbatim");
+    assert_eq!(
+        database
+            .list_personas()
+            .unwrap()
+            .into_iter()
+            .filter(|persona| persona.is_default)
+            .count(),
+        1
+    );
+}

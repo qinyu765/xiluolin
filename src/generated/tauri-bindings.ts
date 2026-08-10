@@ -287,6 +287,8 @@ export type VoiceInputResult = {
 	actual_text_provider: string,
 	actual_text_model: string,
 	text_processing_mode: string,
+	actual_persona_id: string,
+	actual_persona_name: string,
 	history_record: HistoryRecord | null,
 };
 

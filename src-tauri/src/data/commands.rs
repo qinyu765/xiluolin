@@ -5,7 +5,15 @@ use super::{database::LocalDatabase, models::*};
 pub fn initialize_local_data(app: tauri::AppHandle) -> Result<AppConfig, String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
-    read_app_config(app)
+    let mut config = read_app_config(app.clone())?;
+    let default_persona = database
+        .ensure_default_persona(&config.default_persona_id)
+        .map_err(|error| error.to_string())?;
+    if config.default_persona_id != default_persona.id {
+        config.default_persona_id = default_persona.id;
+        update_app_config(app, config.clone())?;
+    }
+    Ok(config)
 }
 
 #[tauri::command]

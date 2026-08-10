@@ -1,5 +1,7 @@
 use std::{
     fmt,
+    fs::File,
+    io::Write,
     path::PathBuf,
     sync::OnceLock,
     time::{SystemTime, UNIX_EPOCH},
@@ -42,6 +44,8 @@ pub struct VoiceInputResult {
     pub actual_text_provider: String,
     pub actual_text_model: String,
     pub text_processing_mode: String,
+    pub actual_persona_id: String,
+    pub actual_persona_name: String,
     pub history_record: Option<HistoryRecord>,
 }
 
@@ -107,10 +111,29 @@ fn log_processing_result(
     }
 }
 
+#[derive(Debug)]
+pub struct TemporaryAudioFile {
+    path: PathBuf,
+}
+
+impl TemporaryAudioFile {
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+}
+
+impl Drop for TemporaryAudioFile {
+    fn drop(&mut self) {
+        if std::fs::remove_file(&self.path).is_err() {
+            eprintln!("[隐私] 临时音频文件清理失败");
+        }
+    }
+}
+
 pub fn prepare_uploaded_audio_file(
     audio_bytes: Vec<u8>,
     audio_extension: &str,
-) -> Result<PathBuf, VoiceInputError> {
+) -> Result<TemporaryAudioFile, VoiceInputError> {
     if audio_bytes.is_empty() {
         return Err(VoiceInputError::EmptyAudio);
     }
@@ -134,22 +157,12 @@ pub fn prepare_uploaded_audio_file(
         std::fs::create_dir_all(parent)
             .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
     }
-    std::fs::write(&path, audio_bytes)
+    let temporary_file = TemporaryAudioFile { path };
+    File::create(temporary_file.path())
+        .and_then(|mut file| file.write_all(&audio_bytes))
         .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
 
-    Ok(path)
-}
-
-struct TemporaryAudioCleanup {
-    path: PathBuf,
-}
-
-impl Drop for TemporaryAudioCleanup {
-    fn drop(&mut self) {
-        if std::fs::remove_file(&self.path).is_err() {
-            eprintln!("[隐私] 临时音频文件清理失败");
-        }
-    }
+    Ok(temporary_file)
 }
 
 pub fn process_voice_input(
@@ -185,10 +198,8 @@ pub fn process_voice_input_with_progress(
 
     // 1. 准备音频文件
     let step1_start = std::time::Instant::now();
-    let audio_path = prepare_uploaded_audio_file(request.audio_bytes, &request.audio_extension)?;
-    let _audio_cleanup = TemporaryAudioCleanup {
-        path: audio_path.clone(),
-    };
+    let audio_file = prepare_uploaded_audio_file(request.audio_bytes, &request.audio_extension)?;
+    let audio_path = audio_file.path();
     eprintln!(
         "[⏱️ 性能] 步骤1: 准备音频文件 - 耗时 {:?}",
         step1_start.elapsed()
@@ -210,7 +221,7 @@ pub fn process_voice_input_with_progress(
     let step3_start = std::time::Instant::now();
     let transcription = transcribe_audio_file(
         &AsrRequest {
-            audio_path: audio_path.clone(),
+            audio_path: audio_path.to_path_buf(),
             hotwords: hotword_snapshot.asr_hotwords,
             context_prompt: None,
         },
@@ -280,7 +291,7 @@ pub fn process_voice_input_with_progress(
         let draft = HistoryRecordDraft {
             raw_text: transcription.text.clone(),
             final_text: final_text.clone(),
-            persona_id: persona.id,
+            persona_id: persona.id.clone(),
             persona_name: persona.name.clone(),
             duration_ms: request.duration_ms.max(0),
             output_mode: "pending".to_string(),
@@ -319,6 +330,8 @@ pub fn process_voice_input_with_progress(
         actual_text_provider,
         actual_text_model,
         text_processing_mode,
+        actual_persona_id: persona.id,
+        actual_persona_name: persona.name,
         history_record,
     })
 }

@@ -32,13 +32,13 @@ fn writes_uploaded_audio_to_temporary_file_with_safe_extension() {
     let path = prepare_uploaded_audio_file(b"fixture audio".to_vec(), ".MP3")
         .expect("uploaded mp3 should be written to a temporary file");
 
-    assert!(path.exists());
+    assert!(path.path().exists());
     assert_eq!(
-        path.extension().and_then(|value| value.to_str()),
+        path.path().extension().and_then(|value| value.to_str()),
         Some("mp3")
     );
 
-    std::fs::remove_file(path).expect("temporary uploaded audio should be removed");
+    drop(path);
 }
 
 #[test]
@@ -115,15 +115,8 @@ fn verbatim_pipeline_sends_hotwords_to_asr_without_persona_prompt_or_text_provid
     assert_eq!(result.actual_text_model, "");
     assert_eq!(result.text_processing_mode, "verbatim");
 
-    let default_persona = database
-        .list_personas()
-        .expect("personas should load")
-        .into_iter()
-        .find(|persona| persona.is_default)
-        .expect("verbatim persona should remain default");
-    let reprocessed =
-        persist_reprocessed_history(&database, &history.id, &default_persona, &result)
-            .expect("verbatim reprocessing should preserve actual processing metadata");
+    let reprocessed = persist_reprocessed_history(&database, &history.id, &result)
+        .expect("verbatim reprocessing should preserve actual processing metadata");
     assert_eq!(reprocessed.text_processing_mode, "verbatim");
     assert_eq!(reprocessed.text_provider, "");
     assert_eq!(reprocessed.text_model, "");

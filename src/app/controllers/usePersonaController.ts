@@ -94,10 +94,8 @@ export function usePersonaController(
   const setDefault = async (personaId: string) => {
     setStatus("正在设置默认人格...");
     try {
-      const [nextPersonas, config] = await Promise.all([
-        commands.setDefaultPersona(personaId),
-        commands.readAppConfig(),
-      ]);
+      const nextPersonas = await commands.setDefaultPersona(personaId);
+      const config = await commands.readAppConfig();
       setPersonas(nextPersonas);
       setSelectedId(personaId);
       onConfigLoaded(config as AppConfig);

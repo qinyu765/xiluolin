@@ -98,21 +98,50 @@ impl LocalDatabase {
             return Err("通用人格是系统内置人格，不可删除".to_string());
         }
 
-        let persona = self.get_persona(id).map_err(|error| error.to_string())?;
-        if persona.is_default {
-            return Err("默认人格不可删除，请先设置其他人格为默认人格".to_string());
-        }
-
         let deleted = self
             .connection
-            .execute("DELETE FROM personas WHERE id = ?1", [id])
+            .execute(
+                "DELETE FROM personas WHERE id = ?1 AND is_default = 0",
+                [id],
+            )
             .map_err(|error| error.to_string())?;
 
         if deleted == 0 {
+            if self
+                .connection
+                .query_row(
+                    "SELECT is_default FROM personas WHERE id = ?1",
+                    [id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|error| error.to_string())?
+                != 0
+            {
+                return Err("默认人格不可删除，请先设置其他人格为默认人格".to_string());
+            }
             return Err("人格不存在".to_string());
         }
 
         Ok(())
+    }
+
+    pub fn ensure_default_persona(&self, preferred_id: &str) -> rusqlite::Result<Persona> {
+        let transaction = self.connection.unchecked_transaction()?;
+        let selected_id = transaction
+            .query_row(
+                "SELECT id FROM personas WHERE id = ?1",
+                [preferred_id],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+            .unwrap_or_else(|| GENERAL_PERSONA_ID.to_string());
+        transaction.execute("UPDATE personas SET is_default = 0", [])?;
+        transaction.execute(
+            "UPDATE personas SET is_default = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            [&selected_id],
+        )?;
+        transaction.commit()?;
+        self.get_persona(&selected_id)
     }
 
     fn get_persona(&self, id: &str) -> rusqlite::Result<Persona> {

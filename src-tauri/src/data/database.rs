@@ -30,6 +30,7 @@ impl LocalDatabase {
                 description TEXT NOT NULL,
                 icon TEXT NOT NULL DEFAULT 'Sparkles',
                 is_default INTEGER NOT NULL DEFAULT 0,
+                processing_mode TEXT NOT NULL DEFAULT 'polish',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
@@ -57,6 +58,7 @@ impl LocalDatabase {
                 asr_model TEXT NOT NULL DEFAULT '',
                 text_provider TEXT NOT NULL DEFAULT '',
                 text_model TEXT NOT NULL DEFAULT '',
+                text_processing_mode TEXT NOT NULL DEFAULT 'polish',
                 used_asr_fallback INTEGER NOT NULL DEFAULT 0,
                 used_fallback INTEGER NOT NULL DEFAULT 0,
                 delivery_method TEXT NOT NULL DEFAULT 'pending',
@@ -65,8 +67,23 @@ impl LocalDatabase {
             );
             "#,
         )?;
+        self.ensure_persona_columns()?;
         self.ensure_history_record_columns()?;
         self.seed_builtin_personas()?;
+        Ok(())
+    }
+
+    fn ensure_persona_columns(&self) -> rusqlite::Result<()> {
+        let mut statement = self.connection.prepare("PRAGMA table_info(personas)")?;
+        let existing = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<rusqlite::Result<std::collections::HashSet<_>>>()?;
+        if !existing.contains("processing_mode") {
+            self.connection.execute(
+                "ALTER TABLE personas ADD COLUMN processing_mode TEXT NOT NULL DEFAULT 'polish'",
+                [],
+            )?;
+        }
         Ok(())
     }
 
@@ -83,6 +100,7 @@ impl LocalDatabase {
             ("asr_model", "TEXT NOT NULL DEFAULT ''"),
             ("text_provider", "TEXT NOT NULL DEFAULT ''"),
             ("text_model", "TEXT NOT NULL DEFAULT ''"),
+            ("text_processing_mode", "TEXT NOT NULL DEFAULT 'polish'"),
             ("used_asr_fallback", "INTEGER NOT NULL DEFAULT 0"),
             ("used_fallback", "INTEGER NOT NULL DEFAULT 0"),
             ("delivery_method", "TEXT NOT NULL DEFAULT 'pending'"),

@@ -19,10 +19,10 @@ impl LocalDatabase {
             INSERT INTO history_records (
                 id, raw_text, final_text, persona_id, persona_name,
                 duration_ms, output_chars, output_mode, source,
-                asr_provider, asr_model, text_provider, text_model,
+                asr_provider, asr_model, text_provider, text_model, text_processing_mode,
                 used_asr_fallback, used_fallback, delivery_method, audio_path
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
             "#,
             params![
                 id,
@@ -38,6 +38,7 @@ impl LocalDatabase {
                 draft.asr_model,
                 draft.text_provider,
                 draft.text_model,
+                normalized_processing_mode(&draft.text_processing_mode),
                 bool_to_int(draft.used_asr_fallback),
                 bool_to_int(draft.used_fallback),
                 draft.delivery_method,
@@ -54,7 +55,7 @@ impl LocalDatabase {
             r#"
             SELECT id, raw_text, final_text, persona_id, persona_name,
                    duration_ms, output_chars, output_mode, source,
-                   asr_provider, asr_model, text_provider, text_model,
+                   asr_provider, asr_model, text_provider, text_model, text_processing_mode,
                    used_asr_fallback, used_fallback, delivery_method, audio_path, created_at
             FROM history_records
             ORDER BY datetime(created_at) DESC, rowid DESC
@@ -126,6 +127,7 @@ impl LocalDatabase {
         asr_model: &str,
         text_provider: &str,
         text_model: &str,
+        text_processing_mode: &str,
         used_asr_fallback: bool,
         used_fallback: bool,
     ) -> rusqlite::Result<HistoryRecord> {
@@ -135,8 +137,8 @@ impl LocalDatabase {
             UPDATE history_records
             SET raw_text = ?2, final_text = ?3, persona_id = ?4, persona_name = ?5,
                 output_chars = ?6, asr_provider = ?7, asr_model = ?8,
-                text_provider = ?9, text_model = ?10,
-                used_asr_fallback = ?11, used_fallback = ?12
+                text_provider = ?9, text_model = ?10, text_processing_mode = ?11,
+                used_asr_fallback = ?12, used_fallback = ?13
             WHERE id = ?1
             "#,
             params![
@@ -150,6 +152,7 @@ impl LocalDatabase {
                 asr_model,
                 text_provider,
                 text_model,
+                normalized_processing_mode(text_processing_mode),
                 bool_to_int(used_asr_fallback),
                 bool_to_int(used_fallback)
             ],
@@ -165,6 +168,7 @@ impl LocalDatabase {
         persona_name: &str,
         text_provider: &str,
         text_model: &str,
+        text_processing_mode: &str,
         used_fallback: bool,
     ) -> rusqlite::Result<HistoryRecord> {
         let output_chars = final_text.chars().count() as i64;
@@ -172,8 +176,8 @@ impl LocalDatabase {
             r#"
             UPDATE history_records
             SET final_text = ?2, persona_id = ?3, persona_name = ?4,
-                output_chars = ?5, text_provider = ?6, text_model = ?7,
-                used_fallback = ?8
+                output_chars = ?5, text_provider = ?6, text_model = ?7, text_processing_mode = ?8,
+                used_fallback = ?9
             WHERE id = ?1
             "#,
             params![
@@ -184,6 +188,7 @@ impl LocalDatabase {
                 output_chars,
                 text_provider,
                 text_model,
+                normalized_processing_mode(text_processing_mode),
                 bool_to_int(used_fallback)
             ],
         )?;
@@ -232,7 +237,7 @@ impl LocalDatabase {
             r#"
             SELECT id, raw_text, final_text, persona_id, persona_name,
                    duration_ms, output_chars, output_mode, source,
-                   asr_provider, asr_model, text_provider, text_model,
+                   asr_provider, asr_model, text_provider, text_model, text_processing_mode,
                    used_asr_fallback, used_fallback, delivery_method, audio_path, created_at
             FROM history_records
             WHERE id = ?1
@@ -258,10 +263,11 @@ fn history_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryR
         asr_model: row.get(10)?,
         text_provider: row.get(11)?,
         text_model: row.get(12)?,
-        used_asr_fallback: int_to_bool(row.get(13)?),
-        used_fallback: int_to_bool(row.get(14)?),
-        delivery_method: row.get(15)?,
-        audio_path: row.get(16)?,
-        created_at: row.get(17)?,
+        text_processing_mode: row.get(13)?,
+        used_asr_fallback: int_to_bool(row.get(14)?),
+        used_fallback: int_to_bool(row.get(15)?),
+        delivery_method: row.get(16)?,
+        audio_path: row.get(17)?,
+        created_at: row.get(18)?,
     })
 }

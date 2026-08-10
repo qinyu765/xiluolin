@@ -11,7 +11,7 @@ impl LocalDatabase {
     pub fn list_personas(&self) -> rusqlite::Result<Vec<Persona>> {
         let mut statement = self.connection.prepare(
             r#"
-            SELECT id, name, description, icon, is_default, created_at, updated_at
+            SELECT id, name, description, icon, is_default, processing_mode, created_at, updated_at
             FROM personas
             ORDER BY CASE WHEN id = 'general' THEN 0 ELSE 1 END,
                      created_at ASC,
@@ -42,16 +42,17 @@ impl LocalDatabase {
         self.connection.execute(
             r#"
             INSERT INTO personas (
-                id, name, description, icon, is_default
+                id, name, description, icon, is_default, processing_mode
             )
-            VALUES (?1, ?2, ?3, ?4, ?5)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
             "#,
             params![
                 id,
                 draft.name,
                 draft.description,
                 draft.icon,
-                0 // is_default = false
+                0, // is_default = false
+                normalized_processing_mode(&draft.processing_mode)
             ],
         )?;
 
@@ -71,10 +72,17 @@ impl LocalDatabase {
             SET name = ?2,
                 description = ?3,
                 icon = ?4,
+                processing_mode = ?5,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?1
             "#,
-                params![id, draft.name, draft.description, draft.icon],
+                params![
+                    id,
+                    draft.name,
+                    draft.description,
+                    draft.icon,
+                    normalized_processing_mode(&draft.processing_mode)
+                ],
             )
             .map_err(|error| error.to_string())?;
 
@@ -105,7 +113,7 @@ impl LocalDatabase {
     fn get_persona(&self, id: &str) -> rusqlite::Result<Persona> {
         self.connection.query_row(
             r#"
-            SELECT id, name, description, icon, is_default, created_at, updated_at
+            SELECT id, name, description, icon, is_default, processing_mode, created_at, updated_at
             FROM personas
             WHERE id = ?1
             "#,
@@ -121,16 +129,19 @@ impl LocalDatabase {
         let is_fresh_database = persona_count == 0;
 
         for persona in builtin_personas() {
-            if !is_fresh_database && persona.id != GENERAL_PERSONA_ID {
+            if !is_fresh_database
+                && persona.id != GENERAL_PERSONA_ID
+                && persona.id != VERBATIM_PERSONA_ID
+            {
                 continue;
             }
             let is_default = is_fresh_database && persona.id == GENERAL_PERSONA_ID;
             self.connection.execute(
                 r#"
                 INSERT INTO personas (
-                    id, name, description, icon, is_default
+                    id, name, description, icon, is_default, processing_mode
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                 ON CONFLICT(id) DO NOTHING
                 "#,
                 params![
@@ -138,7 +149,8 @@ impl LocalDatabase {
                     persona.name,
                     persona.description,
                     persona.icon,
-                    bool_to_int(is_default)
+                    bool_to_int(is_default),
+                    persona.processing_mode
                 ],
             )?;
         }
@@ -154,36 +166,49 @@ fn builtin_personas() -> Vec<PersonaSeed> {
             name: "通用人格",
             description: "让文本保持自然、清晰、口语化的语气，同时更精炼易读，要把句尾的句号去掉。",
             icon: "Sparkles",
+            processing_mode: POLISH_PROCESSING_MODE,
+        },
+        PersonaSeed {
+            id: VERBATIM_PERSONA_ID,
+            name: "原文听写",
+            description: "保留语音识别原文，仅清理首尾和连续空白，不进行文本润色。",
+            icon: "BookOpen",
+            processing_mode: VERBATIM_PROCESSING_MODE,
         },
         PersonaSeed {
             id: "prompt-engineer",
             name: "Prompt 工程师",
             description: "将语音转换为清晰、可执行的 AI Prompt。输出结构：目标、上下文、约束、期望结果。适合与 Agent 工具协作。",
             icon: "Bot",
+            processing_mode: POLISH_PROCESSING_MODE,
         },
         PersonaSeed {
             id: "task-collaborator",
             name: "任务协作者",
             description: "将口述任务整理为结构化的工作指令。包含：背景、要求、交付物、时间节点。语气温和明确。",
             icon: "ClipboardList",
+            processing_mode: POLISH_PROCESSING_MODE,
         },
         PersonaSeed {
             id: "idea-organizer",
             name: "灵感整理师",
             description: "将碎片化想法整理为可展开的创作素材。输出：标题候选、关键要点、后续待办。适合写作和创作场景。",
             icon: "Lightbulb",
+            processing_mode: POLISH_PROCESSING_MODE,
         },
         PersonaSeed {
             id: "formal-message",
             name: "正式消息助手",
             description: "将口语化表达转换为正式的办公消息或邮件。语气礼貌准确，可直接发送。",
             icon: "Mail",
+            processing_mode: POLISH_PROCESSING_MODE,
         },
         PersonaSeed {
             id: "translator",
             name: "翻译官",
             description: "如果文本为中文，翻译成自然流畅的英文；如已是英文则仅做清理润色，不改变语言。专有名词保持原样。",
             icon: "Languages",
+            processing_mode: POLISH_PROCESSING_MODE,
         },
     ]
 }
@@ -193,6 +218,7 @@ struct PersonaSeed {
     name: &'static str,
     description: &'static str,
     icon: &'static str,
+    processing_mode: &'static str,
 }
 
 fn persona_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Persona> {
@@ -202,7 +228,8 @@ fn persona_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Persona> {
         description: row.get(2)?,
         icon: row.get(3)?,
         is_default: int_to_bool(row.get(4)?),
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
+        processing_mode: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
     })
 }

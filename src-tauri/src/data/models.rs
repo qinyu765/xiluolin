@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 pub const GENERAL_PERSONA_ID: &str = "general";
+pub const VERBATIM_PERSONA_ID: &str = "verbatim";
+pub const POLISH_PROCESSING_MODE: &str = "polish";
+pub const VERBATIM_PROCESSING_MODE: &str = "verbatim";
 const DEFAULT_PERSONA_ID: &str = GENERAL_PERSONA_ID;
 pub(crate) const APP_CONFIG_STORE: &str = "settings.json";
 pub(crate) const APP_CONFIG_KEY: &str = "app_config";
@@ -84,6 +87,7 @@ pub struct Persona {
     pub description: String,
     pub icon: String,
     pub is_default: bool,
+    pub processing_mode: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -93,6 +97,7 @@ pub struct PersonaDraft {
     pub name: String,
     pub description: String,
     pub icon: String,
+    pub processing_mode: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -129,6 +134,7 @@ pub struct HistoryRecord {
     pub asr_model: String,
     pub text_provider: String,
     pub text_model: String,
+    pub text_processing_mode: String,
     pub used_asr_fallback: bool,
     pub used_fallback: bool,
     pub delivery_method: String,
@@ -150,6 +156,7 @@ pub struct HistoryRecordDraft {
     pub asr_model: String,
     pub text_provider: String,
     pub text_model: String,
+    pub text_processing_mode: String,
     pub used_asr_fallback: bool,
     pub used_fallback: bool,
     pub delivery_method: String,
@@ -173,6 +180,14 @@ pub struct HistoryStatistics {
 
 fn default_asr_provider() -> String {
     "zhipu".to_string()
+}
+
+pub fn normalized_processing_mode(mode: &str) -> &'static str {
+    if mode == VERBATIM_PROCESSING_MODE {
+        VERBATIM_PROCESSING_MODE
+    } else {
+        POLISH_PROCESSING_MODE
+    }
 }
 
 fn default_openai_asr_model() -> String {

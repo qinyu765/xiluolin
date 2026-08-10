@@ -6,4 +6,5 @@ export const emptyPersonaDraft: PersonaDraft = {
   name: "",
   description: "",
   icon: "Sparkles",
+  processing_mode: "polish",
 };

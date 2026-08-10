@@ -96,3 +96,37 @@ fn disabled_hotwords_are_excluded_from_context() {
 
     assert_eq!(context, "");
 }
+
+#[test]
+fn enabled_hotword_texts_keep_dictionary_order_for_asr() {
+    let database = open_test_database(&temp_db_path("hotword-asr-order"));
+    for (text, enabled) in [
+        (" 第一 ", true),
+        ("第二", false),
+        ("第三", true),
+        ("第一", true),
+    ] {
+        database
+            .create_hotword(HotwordDraft {
+                text: text.to_string(),
+                category: "".to_string(),
+                enabled,
+            })
+            .expect("hotword should be created");
+    }
+
+    let dictionary_order = database
+        .list_hotwords()
+        .expect("dictionary should load")
+        .into_iter()
+        .filter(|hotword| hotword.enabled)
+        .map(|hotword| hotword.text)
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        database
+            .enabled_hotword_texts()
+            .expect("enabled texts should load"),
+        dictionary_order
+    );
+}

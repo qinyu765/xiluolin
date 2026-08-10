@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     asr::{build_asr_config, transcribe_audio_file, AsrConfig, AsrRequest},
     capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
-    data::{HistoryRecord, HistoryRecordDraft, LocalDatabase, Persona},
+    data::{HistoryRecord, HistoryRecordDraft, LocalDatabase, Persona, VERBATIM_PROCESSING_MODE},
     indicator,
     text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
 };
@@ -55,6 +55,10 @@ pub enum VoiceInputError {
     MissingDefaultPersona,
     EmptyTranscription,
     RequestFailed(String),
+}
+
+pub fn normalize_verbatim_text(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 impl fmt::Display for VoiceInputError {
@@ -172,13 +176,27 @@ pub fn process_voice_input_with_progress(
         step1_start.elapsed()
     );
 
-    // 2. ASR 识别
-    progress(VoiceInputStage::Transcribing);
+    // 2. 先读取人格与热词，保证 ASR 与文本处理使用同一批热词。
     let step2_start = std::time::Instant::now();
+    let persona = default_persona(database)?;
+    let hotwords = database
+        .enabled_hotword_texts()
+        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+    let hotword_context = database
+        .enabled_hotword_context()
+        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+    eprintln!(
+        "[⏱️ 性能] 步骤2: 获取人格和热词 - 耗时 {:?}",
+        step2_start.elapsed()
+    );
+
+    // 3. ASR 识别。人格描述属于文本处理提示词，绝不发送给 ASR。
+    progress(VoiceInputStage::Transcribing);
+    let step3_start = std::time::Instant::now();
     let transcription = transcribe_audio_file(
         &AsrRequest {
             audio_path: audio_path.clone(),
-            hotwords: Vec::new(),
+            hotwords,
             context_prompt: None,
         },
         &asr_config,
@@ -197,43 +215,44 @@ pub fn process_voice_input_with_progress(
         transcription.used_fallback,
     );
     eprintln!(
-        "[⏱️ 性能] 步骤2: ASR 识别 - 耗时 {:?}",
-        step2_start.elapsed()
-    );
-
-    // 3. 获取人格和热词
-    let step3_start = std::time::Instant::now();
-    let persona = default_persona(database)?;
-    let hotword_context = database
-        .enabled_hotword_context()
-        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
-    eprintln!(
-        "[⏱️ 性能] 步骤3: 获取人格和热词 - 耗时 {:?}",
+        "[⏱️ 性能] 步骤3: ASR 识别 - 耗时 {:?}",
         step3_start.elapsed()
     );
 
-    // 4. 文本润色
-    progress(VoiceInputStage::Refining);
+    // 4. 原文模式只做保守空白规范化；润色模式才调用文本 Provider。
     let step4_start = std::time::Instant::now();
-    let polish_result = polish_text_with_provider(
-        &TextPolishRequest {
-            raw_text: transcription.text.clone(),
-            persona_id: persona.id.clone(),
-            persona_description: persona.description.clone(),
-            hotword_context,
-        },
-        &text_config,
-    )
-    .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
-    log_processing_result(
-        "文本润色",
-        &text_config.provider,
-        &text_config.model,
-        &polish_result.final_text,
-        polish_result.used_fallback,
-    );
+    let text_processing_mode = persona.processing_mode.clone();
+    let (final_text, used_text_fallback, text_provider, text_model) =
+        if text_processing_mode == VERBATIM_PROCESSING_MODE {
+            (normalize_verbatim_text(&transcription.text), false, "", "")
+        } else {
+            progress(VoiceInputStage::Refining);
+            let polish_result = polish_text_with_provider(
+                &TextPolishRequest {
+                    raw_text: transcription.text.clone(),
+                    persona_id: persona.id.clone(),
+                    persona_description: persona.description.clone(),
+                    hotword_context,
+                },
+                &text_config,
+            )
+            .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+            log_processing_result(
+                "文本润色",
+                &text_config.provider,
+                &text_config.model,
+                &polish_result.final_text,
+                polish_result.used_fallback,
+            );
+            (
+                polish_result.final_text,
+                polish_result.used_fallback,
+                history_context.text_provider.as_str(),
+                history_context.text_model.as_str(),
+            )
+        };
     eprintln!(
-        "[⏱️ 性能] 步骤4: 文本润色 - 耗时 {:?}",
+        "[⏱️ 性能] 步骤4: 文本处理 - 耗时 {:?}",
         step4_start.elapsed()
     );
 
@@ -241,7 +260,7 @@ pub fn process_voice_input_with_progress(
     let history_record = if auto_save_history {
         let draft = HistoryRecordDraft {
             raw_text: transcription.text.clone(),
-            final_text: polish_result.final_text.clone(),
+            final_text: final_text.clone(),
             persona_id: persona.id,
             persona_name: persona.name.clone(),
             duration_ms: request.duration_ms.max(0),
@@ -249,10 +268,11 @@ pub fn process_voice_input_with_progress(
             source: history_context.source,
             asr_provider: transcription.provider.clone(),
             asr_model: transcription.model.clone(),
-            text_provider: history_context.text_provider,
-            text_model: history_context.text_model,
+            text_provider: text_provider.to_string(),
+            text_model: text_model.to_string(),
+            text_processing_mode,
             used_asr_fallback: transcription.used_fallback,
-            used_fallback: polish_result.used_fallback,
+            used_fallback: used_text_fallback,
             delivery_method: "pending".to_string(),
             audio_path: history_context.audio_path,
         };
@@ -272,11 +292,11 @@ pub fn process_voice_input_with_progress(
 
     Ok(VoiceInputResult {
         raw_text: transcription.text,
-        final_text: polish_result.final_text,
+        final_text,
         actual_asr_provider: transcription.provider,
         actual_asr_model: transcription.model,
         used_asr_fallback: transcription.used_fallback,
-        used_text_fallback: polish_result.used_fallback,
+        used_text_fallback,
         history_record,
     })
 }

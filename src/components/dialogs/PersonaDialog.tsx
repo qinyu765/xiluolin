@@ -84,6 +84,24 @@ export function PersonaDialog({
             </div>
 
             <div className="grid gap-2">
+              <Label htmlFor="persona-processing-mode">文本处理方式</Label>
+              <select
+                id="persona-processing-mode"
+                value={draft.processing_mode}
+                onChange={(event) =>
+                  onDraftChange({
+                    ...draft,
+                    processing_mode: event.target.value,
+                  })
+                }
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <option value="polish">文本润色</option>
+                <option value="verbatim">原文听写（不调用文本模型）</option>
+              </select>
+            </div>
+
+            <div className="grid gap-2">
               <Label>图标</Label>
               <IconPicker
                 value={draft.icon}

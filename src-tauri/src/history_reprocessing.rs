@@ -2,8 +2,8 @@ use tauri::Manager;
 
 use crate::{
     asr::build_asr_config,
-    data::{read_app_config, HistoryRecord, LocalDatabase},
-    pipeline::{process_voice_input, HistoryContext, VoiceInputRequest},
+    data::{read_app_config, HistoryRecord, LocalDatabase, VERBATIM_PROCESSING_MODE},
+    pipeline::{normalize_verbatim_text, process_voice_input, HistoryContext, VoiceInputRequest},
     recording_storage::read_managed_recording,
     text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
 };
@@ -103,6 +103,7 @@ pub fn reprocess_history_audio(
             &result.actual_asr_model,
             &text_provider,
             &text_model,
+            &persona.processing_mode,
             result.used_asr_fallback,
             result.used_text_fallback,
         )
@@ -121,36 +122,48 @@ pub fn refine_history_text(
         .map_err(|error| error.to_string())?;
     let config = read_app_config(app)?;
     let persona = default_persona(&database)?;
-    let hotword_context = database
-        .enabled_hotword_context()
-        .map_err(|error| error.to_string())?;
     let (text_api_key, text_base_url, text_model) = selected_text_model(&config);
     let text_provider = config.text_provider.clone();
-    let result = polish_text_with_provider(
-        &TextPolishRequest {
-            raw_text: existing.raw_text,
-            persona_id: persona.id.clone(),
-            persona_description: persona.description.clone(),
-            hotword_context,
-        },
-        &TextPolishConfig {
-            provider: text_provider.clone(),
-            api_key: text_api_key,
-            base_url: text_base_url,
-            model: text_model.clone(),
-        },
-    )
-    .map_err(|error| error.to_string())?;
+    let (final_text, used_fallback, record_text_provider, record_text_model) =
+        if persona.processing_mode == VERBATIM_PROCESSING_MODE {
+            (normalize_verbatim_text(&existing.raw_text), false, "", "")
+        } else {
+            let hotword_context = database
+                .enabled_hotword_context()
+                .map_err(|error| error.to_string())?;
+            let result = polish_text_with_provider(
+                &TextPolishRequest {
+                    raw_text: existing.raw_text,
+                    persona_id: persona.id.clone(),
+                    persona_description: persona.description.clone(),
+                    hotword_context,
+                },
+                &TextPolishConfig {
+                    provider: text_provider.clone(),
+                    api_key: text_api_key,
+                    base_url: text_base_url,
+                    model: text_model.clone(),
+                },
+            )
+            .map_err(|error| error.to_string())?;
+            (
+                result.final_text,
+                result.used_fallback,
+                text_provider.as_str(),
+                text_model.as_str(),
+            )
+        };
 
     database
         .update_history_after_refinement(
             &history_id,
-            &result.final_text,
+            &final_text,
             &persona.id,
             &persona.name,
-            &text_provider,
-            &text_model,
-            result.used_fallback,
+            record_text_provider,
+            record_text_model,
+            &persona.processing_mode,
+            used_fallback,
         )
         .map_err(|error| error.to_string())
 }

@@ -109,6 +109,11 @@ export function PersonaPage({
                           <p className="mt-1 text-sm leading-6 text-muted-foreground">
                             {persona.description}
                           </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {persona.processing_mode === "verbatim"
+                              ? "原文听写：仅清理首尾和连续空白"
+                              : "文本润色"}
+                          </p>
                         </div>
                       </div>
                       <div className="pointer-events-auto flex items-center gap-2">

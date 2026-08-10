@@ -115,6 +115,7 @@ export type HistoryRecord = {
 	asr_model: string,
 	text_provider: string,
 	text_model: string,
+	text_processing_mode: string,
 	used_asr_fallback: boolean,
 	used_fallback: boolean,
 	delivery_method: string,
@@ -134,6 +135,7 @@ export type HistoryRecordDraft = {
 	asr_model: string,
 	text_provider: string,
 	text_model: string,
+	text_processing_mode: string,
 	used_asr_fallback: boolean,
 	used_fallback: boolean,
 	delivery_method: string,
@@ -219,6 +221,7 @@ export type Persona = {
 	description: string,
 	icon: string,
 	is_default: boolean,
+	processing_mode: string,
 	created_at: string,
 	updated_at: string,
 };
@@ -227,6 +230,7 @@ export type PersonaDraft = {
 	name: string,
 	description: string,
 	icon: string,
+	processing_mode: string,
 };
 
 export type ReadinessAction = "request_microphone" | "open_microphone_settings" | "request_accessibility" | "open_accessibility_settings";

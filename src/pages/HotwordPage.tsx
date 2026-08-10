@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { getEnabledHotwordAsrLimitNotice } from "@/lib/hotword-limit";
 import type { Hotword } from "@/types";
 
 type HotwordPageProps = {
@@ -34,6 +35,8 @@ export function HotwordPage({
   onDeleteHotword,
   onHotwordEnabledChange,
 }: HotwordPageProps) {
+  const asrLimitNotice = getEnabledHotwordAsrLimitNotice(hotwords);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -132,6 +135,11 @@ export function HotwordPage({
                 aria-label="启用热词上下文"
               />
             </div>
+            {asrLimitNotice ? (
+              <p className="text-sm leading-6 text-amber-700 dark:text-amber-400">
+                {asrLimitNotice}
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>

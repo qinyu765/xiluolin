@@ -24,6 +24,15 @@ fn fresh_database_uses_read_only_general_persona_by_default() {
         "让文本保持自然、清晰、口语化的语气，同时更精炼易读，要把句尾的句号去掉。"
     );
     assert!(general.is_default);
+    assert_eq!(general.processing_mode, "polish");
+
+    let verbatim = personas
+        .iter()
+        .find(|persona| persona.id == "verbatim")
+        .expect("verbatim persona should be seeded");
+    assert_eq!(verbatim.name, "原文听写");
+    assert_eq!(verbatim.processing_mode, "verbatim");
+    assert!(!verbatim.is_default);
 
     let update_error = database
         .update_persona(
@@ -32,6 +41,7 @@ fn fresh_database_uses_read_only_general_persona_by_default() {
                 name: "已修改".to_string(),
                 description: "已修改".to_string(),
                 icon: "Bot".to_string(),
+                processing_mode: "polish".to_string(),
             },
         )
         .expect_err("general persona should not be editable");
@@ -81,7 +91,39 @@ fn existing_database_adds_general_persona_without_changing_default() {
         .expect("existing persona should remain");
 
     assert!(!general.is_default);
+    assert_eq!(general.processing_mode, "polish");
     assert!(prompt_engineer.is_default);
+    assert_eq!(prompt_engineer.processing_mode, "polish");
+    assert!(personas
+        .iter()
+        .any(|persona| persona.id == "verbatim" && persona.processing_mode == "verbatim"));
+
+    database
+        .initialize()
+        .expect("migration should be idempotent");
+    let verbatim_count = database
+        .list_personas()
+        .expect("personas should reload")
+        .iter()
+        .filter(|persona| persona.id == "verbatim")
+        .count();
+    assert_eq!(verbatim_count, 1);
+}
+
+#[test]
+fn custom_personas_roundtrip_the_selected_processing_mode() {
+    let database = open_test_database(&temp_db_path("persona-processing-mode"));
+
+    let created = database
+        .create_persona(PersonaDraft {
+            name: "不润色".to_string(),
+            description: "保留识别结果".to_string(),
+            icon: "FileText".to_string(),
+            processing_mode: "verbatim".to_string(),
+        })
+        .expect("persona should be created");
+
+    assert_eq!(created.processing_mode, "verbatim");
 }
 
 #[test]

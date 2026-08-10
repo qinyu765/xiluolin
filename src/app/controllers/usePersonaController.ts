@@ -48,6 +48,7 @@ export function usePersonaController(
       name: persona.name,
       description: persona.description,
       icon: persona.icon,
+      processing_mode: persona.processing_mode,
     });
     setDialogOpen(true);
   };
@@ -58,6 +59,7 @@ export function usePersonaController(
       name: draft.name.trim(),
       description: draft.description.trim(),
       icon: draft.icon.trim(),
+      processing_mode: draft.processing_mode,
     };
     if (!nextDraft.name || !nextDraft.description) {
       setStatus("人格名称和描述不能为空。");

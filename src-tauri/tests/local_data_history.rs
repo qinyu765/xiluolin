@@ -26,6 +26,7 @@ fn history_records_are_returned_newest_first() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            text_processing_mode: "polish".to_string(),
             used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
@@ -46,6 +47,7 @@ fn history_records_are_returned_newest_first() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            text_processing_mode: "polish".to_string(),
             used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
@@ -80,6 +82,7 @@ fn history_statistics_are_calculated_from_saved_records() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            text_processing_mode: "polish".to_string(),
             used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
@@ -100,6 +103,7 @@ fn history_statistics_are_calculated_from_saved_records() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            text_processing_mode: "polish".to_string(),
             used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
@@ -120,6 +124,7 @@ fn history_statistics_are_calculated_from_saved_records() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            text_processing_mode: "polish".to_string(),
             used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "pending".to_string(),
@@ -198,7 +203,36 @@ fn legacy_history_schema_is_migrated_without_data_loss() {
     assert_eq!(records[0].id, "legacy");
     assert_eq!(records[0].source, "unknown");
     assert_eq!(records[0].delivery_method, "pending");
+    assert_eq!(records[0].text_processing_mode, "polish");
     assert!(records[0].audio_path.is_none());
+}
+
+#[test]
+fn history_records_roundtrip_text_processing_mode() {
+    let database = open_test_database(&temp_db_path("history-processing-mode"));
+
+    let created = database
+        .create_history_record(HistoryRecordDraft {
+            raw_text: " 原文\u{3000}\t保留 ".to_string(),
+            final_text: "原文 保留".to_string(),
+            persona_id: "verbatim".to_string(),
+            persona_name: "原文听写".to_string(),
+            duration_ms: 800,
+            output_mode: "copy".to_string(),
+            source: "recording".to_string(),
+            asr_provider: "zhipu".to_string(),
+            asr_model: "glm-asr-2512".to_string(),
+            text_provider: "".to_string(),
+            text_model: "".to_string(),
+            text_processing_mode: "verbatim".to_string(),
+            used_asr_fallback: false,
+            used_fallback: false,
+            delivery_method: "pending".to_string(),
+            audio_path: None,
+        })
+        .expect("history record should be created");
+
+    assert_eq!(created.text_processing_mode, "verbatim");
 }
 
 #[test]
@@ -217,6 +251,7 @@ fn history_metadata_and_delivery_method_roundtrip() {
             asr_model: "glm-asr-2512".to_string(),
             text_provider: "openai".to_string(),
             text_model: "gpt-4o-mini".to_string(),
+            text_processing_mode: "polish".to_string(),
             used_asr_fallback: false,
             used_fallback: true,
             delivery_method: "pending".to_string(),
@@ -254,6 +289,7 @@ fn history_can_be_reprocessed_without_losing_audio_link() {
             asr_model: "old-asr".to_string(),
             text_provider: "openai".to_string(),
             text_model: "old-text".to_string(),
+            text_processing_mode: "polish".to_string(),
             used_asr_fallback: false,
             used_fallback: false,
             delivery_method: "paste".to_string(),
@@ -272,6 +308,7 @@ fn history_can_be_reprocessed_without_losing_audio_link() {
             "whisper-1",
             "zhipu",
             "glm-4.7-flash",
+            "polish",
             false,
             true,
         )
@@ -292,6 +329,7 @@ fn history_can_be_reprocessed_without_losing_audio_link() {
             "Prompt 工程师",
             "openai",
             "gpt-4o-mini",
+            "polish",
             false,
         )
         .unwrap();

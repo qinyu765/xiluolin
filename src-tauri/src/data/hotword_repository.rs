@@ -79,6 +79,19 @@ impl LocalDatabase {
         Ok(format_hotword_context(&hotwords))
     }
 
+    pub fn enabled_hotword_texts(&self) -> rusqlite::Result<Vec<String>> {
+        let mut statement = self.connection.prepare(
+            r#"
+            SELECT text
+            FROM hotwords
+            WHERE enabled = 1
+            ORDER BY created_at ASC, id ASC
+            "#,
+        )?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        rows.collect()
+    }
+
     fn get_hotword(&self, id: &str) -> rusqlite::Result<Hotword> {
         self.connection.query_row(
             r#"

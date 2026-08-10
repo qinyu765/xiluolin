@@ -7,6 +7,7 @@ use std::{
 use xiluolin_lib::{
     asr::AsrConfig,
     data::HotwordDraft,
+    history_reprocessing::persist_reprocessed_history,
     pipeline::{
         normalize_verbatim_text, prepare_uploaded_audio_file, process_voice_input_with_progress,
         HistoryContext, VoiceInputError, VoiceInputRequest, VoiceInputStage,
@@ -54,6 +55,10 @@ fn verbatim_pipeline_sends_hotwords_to_asr_without_persona_prompt_or_text_provid
     database
         .set_default_persona("verbatim")
         .expect("verbatim persona should become default");
+    let delete_error = database
+        .delete_persona("verbatim")
+        .expect_err("the active verbatim persona should not be deletable");
+    assert!(delete_error.contains("默认人格不可删除"));
     for text in ["  XiLuoLin ", "智谱", "XiLuoLin"] {
         database
             .create_hotword(HotwordDraft {
@@ -99,10 +104,75 @@ fn verbatim_pipeline_sends_hotwords_to_asr_without_persona_prompt_or_text_provid
     assert!(request.contains("name=\"hotwords[]\"\r\n\r\nXiLuoLin"));
     assert!(request.contains("name=\"hotwords[]\"\r\n\r\n智谱"));
     assert!(!request.contains("保留语音识别原文"));
-    let history = result.history_record.expect("history should be saved");
+    let history = result
+        .history_record
+        .as_ref()
+        .expect("history should be saved");
     assert_eq!(history.text_processing_mode, "verbatim");
     assert_eq!(history.text_provider, "");
     assert_eq!(history.text_model, "");
+    assert_eq!(result.actual_text_provider, "");
+    assert_eq!(result.actual_text_model, "");
+    assert_eq!(result.text_processing_mode, "verbatim");
+
+    let default_persona = database
+        .list_personas()
+        .expect("personas should load")
+        .into_iter()
+        .find(|persona| persona.is_default)
+        .expect("verbatim persona should remain default");
+    let reprocessed =
+        persist_reprocessed_history(&database, &history.id, &default_persona, &result)
+            .expect("verbatim reprocessing should preserve actual processing metadata");
+    assert_eq!(reprocessed.text_processing_mode, "verbatim");
+    assert_eq!(reprocessed.text_provider, "");
+    assert_eq!(reprocessed.text_model, "");
+}
+
+#[test]
+fn missing_default_persona_cleans_up_uploaded_audio_before_asr() {
+    let database = open_test_database(&temp_db_path("pipeline-missing-default"));
+    let connection = rusqlite::Connection::open(database.path())
+        .expect("database connection should open for test setup");
+    connection
+        .execute("UPDATE personas SET is_default = 0", [])
+        .expect("test setup should clear default persona");
+    let private_audio = format!(
+        "private fixture audio {}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos()
+    )
+    .into_bytes();
+
+    let error = process_voice_input_with_progress(
+        VoiceInputRequest {
+            audio_bytes: private_audio.clone(),
+            audio_extension: "wav".to_string(),
+            duration_ms: 100,
+        },
+        zhipu_asr_config("http://127.0.0.1:9".to_string()),
+        TextPolishConfig {
+            provider: "openai".to_string(),
+            api_key: String::new(),
+            base_url: String::new(),
+            model: String::new(),
+        },
+        &database,
+        false,
+        HistoryContext {
+            source: "test".to_string(),
+            text_provider: String::new(),
+            text_model: String::new(),
+            audio_path: None,
+        },
+        |_| {},
+    )
+    .expect_err("missing default persona should stop before ASR");
+
+    assert_eq!(error, VoiceInputError::MissingDefaultPersona);
+    assert!(!temporary_audio_contents().contains(&private_audio));
 }
 
 #[test]
@@ -262,4 +332,14 @@ fn read_request(stream: &mut TcpStream) -> Vec<u8> {
         }
     }
     request
+}
+
+fn temporary_audio_contents() -> Vec<Vec<u8>> {
+    let directory = std::env::temp_dir().join("xiluolin-audio");
+    std::fs::read_dir(directory)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| std::fs::read(entry.path()).ok())
+        .collect()
 }

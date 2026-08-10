@@ -15,7 +15,7 @@ describe("getEnabledHotwordAsrLimitNotice", () => {
     ];
 
     expect(getEnabledHotwordAsrLimitNotice(hotwords)).toBe(
-      "已启用 101 个去重热词。语音识别仅使用前 100 个，其余热词仍会用于文本整理。",
+      "已启用 101 个去重热词。使用智谱 ASR 时仅前 100 个用于语音识别；全部热词仍会用于文本整理。",
     );
   });
 

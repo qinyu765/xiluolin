@@ -2,8 +2,11 @@ use tauri::Manager;
 
 use crate::{
     asr::build_asr_config,
-    data::{read_app_config, HistoryRecord, LocalDatabase, VERBATIM_PROCESSING_MODE},
-    pipeline::{normalize_verbatim_text, process_voice_input, HistoryContext, VoiceInputRequest},
+    data::{read_app_config, HistoryRecord, LocalDatabase, Persona, VERBATIM_PROCESSING_MODE},
+    pipeline::{
+        normalize_verbatim_text, process_voice_input, HistoryContext, VoiceInputRequest,
+        VoiceInputResult,
+    },
     recording_storage::read_managed_recording,
     text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
 };
@@ -31,6 +34,30 @@ fn default_persona(database: &LocalDatabase) -> Result<crate::data::Persona, Str
         .into_iter()
         .find(|persona| persona.is_default)
         .ok_or_else(|| "默认人格不存在".to_string())
+}
+
+pub fn persist_reprocessed_history(
+    database: &LocalDatabase,
+    history_id: &str,
+    persona: &Persona,
+    result: &VoiceInputResult,
+) -> Result<HistoryRecord, String> {
+    database
+        .update_history_after_transcription(
+            history_id,
+            &result.raw_text,
+            &result.final_text,
+            &persona.id,
+            &persona.name,
+            &result.actual_asr_provider,
+            &result.actual_asr_model,
+            &result.actual_text_provider,
+            &result.actual_text_model,
+            &result.text_processing_mode,
+            result.used_asr_fallback,
+            result.used_text_fallback,
+        )
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -92,22 +119,7 @@ pub fn reprocess_history_audio(
     )
     .map_err(|error| error.to_string())?;
 
-    database
-        .update_history_after_transcription(
-            &history_id,
-            &result.raw_text,
-            &result.final_text,
-            &persona.id,
-            &persona.name,
-            &result.actual_asr_provider,
-            &result.actual_asr_model,
-            &text_provider,
-            &text_model,
-            &persona.processing_mode,
-            result.used_asr_fallback,
-            result.used_text_fallback,
-        )
-        .map_err(|error| error.to_string())
+    persist_reprocessed_history(&database, &history_id, &persona, &result)
 }
 
 #[tauri::command]

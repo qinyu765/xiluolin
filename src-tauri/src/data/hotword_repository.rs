@@ -7,6 +7,12 @@ use super::{
     models::*,
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnabledHotwordSnapshot {
+    pub asr_hotwords: Vec<String>,
+    pub hotword_context: String,
+}
+
 impl LocalDatabase {
     pub fn create_hotword(&self, draft: HotwordDraft) -> rusqlite::Result<Hotword> {
         let id = Uuid::new_v4().to_string();
@@ -65,6 +71,14 @@ impl LocalDatabase {
     }
 
     pub fn enabled_hotword_context(&self) -> rusqlite::Result<String> {
+        Ok(self.enabled_hotword_snapshot()?.hotword_context)
+    }
+
+    pub fn enabled_hotword_texts(&self) -> rusqlite::Result<Vec<String>> {
+        Ok(self.enabled_hotword_snapshot()?.asr_hotwords)
+    }
+
+    pub fn enabled_hotword_snapshot(&self) -> rusqlite::Result<EnabledHotwordSnapshot> {
         let mut statement = self.connection.prepare(
             r#"
             SELECT id, text, category, enabled, created_at, updated_at
@@ -75,21 +89,14 @@ impl LocalDatabase {
         )?;
 
         let rows = statement.query_map([], hotword_from_row)?;
-        let hotwords = rows.collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(format_hotword_context(&hotwords))
-    }
-
-    pub fn enabled_hotword_texts(&self) -> rusqlite::Result<Vec<String>> {
-        let mut statement = self.connection.prepare(
-            r#"
-            SELECT text
-            FROM hotwords
-            WHERE enabled = 1
-            ORDER BY created_at ASC, id ASC
-            "#,
-        )?;
-        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
-        rows.collect()
+        let hotwords = normalize_enabled_hotwords(rows.collect::<rusqlite::Result<Vec<_>>>()?);
+        Ok(EnabledHotwordSnapshot {
+            asr_hotwords: hotwords
+                .iter()
+                .map(|hotword| hotword.text.clone())
+                .collect(),
+            hotword_context: format_hotword_context(&hotwords),
+        })
     }
 
     fn get_hotword(&self, id: &str) -> rusqlite::Result<Hotword> {
@@ -103,6 +110,21 @@ impl LocalDatabase {
             hotword_from_row,
         )
     }
+}
+
+fn normalize_enabled_hotwords(hotwords: Vec<Hotword>) -> Vec<Hotword> {
+    let mut normalized = Vec::new();
+    for mut hotword in hotwords {
+        hotword.text = hotword.text.trim().to_string();
+        if !hotword.text.is_empty()
+            && !normalized
+                .iter()
+                .any(|existing: &Hotword| existing.text == hotword.text)
+        {
+            normalized.push(hotword);
+        }
+    }
+    normalized
 }
 
 fn hotword_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Hotword> {

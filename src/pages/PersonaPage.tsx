@@ -142,21 +142,23 @@ export function PersonaPage({
                         >
                           <PencilIcon className="size-4" aria-hidden="true" />
                         </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => onDeletePersona(persona.id)}
-                          disabled={isGeneralPersona}
-                          title={
-                            isGeneralPersona
-                              ? "系统内置人格不可删除"
-                              : undefined
-                          }
-                          aria-label={`删除 ${persona.name}`}
-                        >
-                          <Trash2Icon className="size-4" aria-hidden="true" />
-                        </Button>
+                        {!persona.is_default ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => onDeletePersona(persona.id)}
+                            disabled={isGeneralPersona}
+                            title={
+                              isGeneralPersona
+                                ? "系统内置人格不可删除"
+                                : undefined
+                            }
+                            aria-label={`删除 ${persona.name}`}
+                          >
+                            <Trash2Icon className="size-4" aria-hidden="true" />
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   </section>

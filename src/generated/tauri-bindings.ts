@@ -284,6 +284,9 @@ export type VoiceInputResult = {
 	actual_asr_model: string,
 	used_asr_fallback: boolean,
 	used_text_fallback: boolean,
+	actual_text_provider: string,
+	actual_text_model: string,
+	text_processing_mode: string,
 	history_record: HistoryRecord | null,
 };
 

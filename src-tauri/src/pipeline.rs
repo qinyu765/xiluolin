@@ -39,6 +39,9 @@ pub struct VoiceInputResult {
     pub actual_asr_model: String,
     pub used_asr_fallback: bool,
     pub used_text_fallback: bool,
+    pub actual_text_provider: String,
+    pub actual_text_model: String,
+    pub text_processing_mode: String,
     pub history_record: Option<HistoryRecord>,
 }
 
@@ -137,6 +140,18 @@ pub fn prepare_uploaded_audio_file(
     Ok(path)
 }
 
+struct TemporaryAudioCleanup {
+    path: PathBuf,
+}
+
+impl Drop for TemporaryAudioCleanup {
+    fn drop(&mut self) {
+        if std::fs::remove_file(&self.path).is_err() {
+            eprintln!("[隐私] 临时音频文件清理失败");
+        }
+    }
+}
+
 pub fn process_voice_input(
     request: VoiceInputRequest,
     asr_config: AsrConfig,
@@ -171,6 +186,9 @@ pub fn process_voice_input_with_progress(
     // 1. 准备音频文件
     let step1_start = std::time::Instant::now();
     let audio_path = prepare_uploaded_audio_file(request.audio_bytes, &request.audio_extension)?;
+    let _audio_cleanup = TemporaryAudioCleanup {
+        path: audio_path.clone(),
+    };
     eprintln!(
         "[⏱️ 性能] 步骤1: 准备音频文件 - 耗时 {:?}",
         step1_start.elapsed()
@@ -179,11 +197,8 @@ pub fn process_voice_input_with_progress(
     // 2. 先读取人格与热词，保证 ASR 与文本处理使用同一批热词。
     let step2_start = std::time::Instant::now();
     let persona = default_persona(database)?;
-    let hotwords = database
-        .enabled_hotword_texts()
-        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
-    let hotword_context = database
-        .enabled_hotword_context()
+    let hotword_snapshot = database
+        .enabled_hotword_snapshot()
         .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
     eprintln!(
         "[⏱️ 性能] 步骤2: 获取人格和热词 - 耗时 {:?}",
@@ -196,13 +211,12 @@ pub fn process_voice_input_with_progress(
     let transcription = transcribe_audio_file(
         &AsrRequest {
             audio_path: audio_path.clone(),
-            hotwords,
+            hotwords: hotword_snapshot.asr_hotwords,
             context_prompt: None,
         },
         &asr_config,
     )
     .map_err(|error| VoiceInputError::RequestFailed(error.to_string()));
-    let _ = std::fs::remove_file(&audio_path);
     let transcription = transcription?;
     if transcription.text.trim().is_empty() {
         return Err(VoiceInputError::EmptyTranscription);
@@ -222,9 +236,14 @@ pub fn process_voice_input_with_progress(
     // 4. 原文模式只做保守空白规范化；润色模式才调用文本 Provider。
     let step4_start = std::time::Instant::now();
     let text_processing_mode = persona.processing_mode.clone();
-    let (final_text, used_text_fallback, text_provider, text_model) =
+    let (final_text, used_text_fallback, actual_text_provider, actual_text_model) =
         if text_processing_mode == VERBATIM_PROCESSING_MODE {
-            (normalize_verbatim_text(&transcription.text), false, "", "")
+            (
+                normalize_verbatim_text(&transcription.text),
+                false,
+                String::new(),
+                String::new(),
+            )
         } else {
             progress(VoiceInputStage::Refining);
             let polish_result = polish_text_with_provider(
@@ -232,7 +251,7 @@ pub fn process_voice_input_with_progress(
                     raw_text: transcription.text.clone(),
                     persona_id: persona.id.clone(),
                     persona_description: persona.description.clone(),
-                    hotword_context,
+                    hotword_context: hotword_snapshot.hotword_context,
                 },
                 &text_config,
             )
@@ -247,8 +266,8 @@ pub fn process_voice_input_with_progress(
             (
                 polish_result.final_text,
                 polish_result.used_fallback,
-                history_context.text_provider.as_str(),
-                history_context.text_model.as_str(),
+                history_context.text_provider.clone(),
+                history_context.text_model.clone(),
             )
         };
     eprintln!(
@@ -268,9 +287,9 @@ pub fn process_voice_input_with_progress(
             source: history_context.source,
             asr_provider: transcription.provider.clone(),
             asr_model: transcription.model.clone(),
-            text_provider: text_provider.to_string(),
-            text_model: text_model.to_string(),
-            text_processing_mode,
+            text_provider: actual_text_provider.clone(),
+            text_model: actual_text_model.clone(),
+            text_processing_mode: text_processing_mode.clone(),
             used_asr_fallback: transcription.used_fallback,
             used_fallback: used_text_fallback,
             delivery_method: "pending".to_string(),
@@ -297,6 +316,9 @@ pub fn process_voice_input_with_progress(
         actual_asr_model: transcription.model,
         used_asr_fallback: transcription.used_fallback,
         used_text_fallback,
+        actual_text_provider,
+        actual_text_model,
+        text_processing_mode,
         history_record,
     })
 }

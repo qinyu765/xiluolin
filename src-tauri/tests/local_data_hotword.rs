@@ -115,18 +115,74 @@ fn enabled_hotword_texts_keep_dictionary_order_for_asr() {
             .expect("hotword should be created");
     }
 
-    let dictionary_order = database
+    let mut expected = Vec::new();
+    for hotword in database
         .list_hotwords()
         .expect("dictionary should load")
         .into_iter()
         .filter(|hotword| hotword.enabled)
-        .map(|hotword| hotword.text)
-        .collect::<Vec<_>>();
+    {
+        let text = hotword.text.trim().to_string();
+        if !text.is_empty() && !expected.contains(&text) {
+            expected.push(text);
+        }
+    }
 
     assert_eq!(
         database
             .enabled_hotword_texts()
             .expect("enabled texts should load"),
-        dictionary_order
+        expected
     );
+}
+
+#[test]
+fn enabled_hotword_snapshot_stably_deduplicates_once_for_asr_and_context() {
+    let database = open_test_database(&temp_db_path("hotword-snapshot"));
+    for (text, category) in [
+        ("  XiLuoLin ", "产品名"),
+        ("XiLuoLin", "重复项"),
+        ("\t", "空白"),
+        ("智谱", "模型"),
+    ] {
+        database
+            .create_hotword(HotwordDraft {
+                text: text.to_string(),
+                category: category.to_string(),
+                enabled: true,
+            })
+            .expect("hotword should be created");
+    }
+
+    let mut expected = Vec::new();
+    for mut hotword in database
+        .list_hotwords()
+        .expect("dictionary should load")
+        .into_iter()
+        .filter(|hotword| hotword.enabled)
+    {
+        hotword.text = hotword.text.trim().to_string();
+        if !hotword.text.is_empty()
+            && !expected
+                .iter()
+                .any(|existing: &xiluolin_lib::data::Hotword| existing.text == hotword.text)
+        {
+            expected.push(hotword);
+        }
+    }
+    let expected_asr_hotwords = expected
+        .iter()
+        .map(|hotword| hotword.text.clone())
+        .collect::<Vec<_>>();
+    let expected_context = expected
+        .iter()
+        .map(|hotword| format!("- {}（{}）", hotword.text, hotword.category))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let snapshot = database
+        .enabled_hotword_snapshot()
+        .expect("enabled hotword snapshot should load");
+
+    assert_eq!(snapshot.asr_hotwords, expected_asr_hotwords);
+    assert_eq!(snapshot.hotword_context, expected_context);
 }

@@ -98,6 +98,11 @@ impl LocalDatabase {
             return Err("通用人格是系统内置人格，不可删除".to_string());
         }
 
+        let persona = self.get_persona(id).map_err(|error| error.to_string())?;
+        if persona.is_default {
+            return Err("默认人格不可删除，请先设置其他人格为默认人格".to_string());
+        }
+
         let deleted = self
             .connection
             .execute("DELETE FROM personas WHERE id = ?1", [id])

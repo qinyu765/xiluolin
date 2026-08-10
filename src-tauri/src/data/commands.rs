@@ -54,12 +54,13 @@ fn set_default_persona_with_persistence(
     persona_id: &str,
     persist_config: impl FnOnce(AppConfig) -> Result<(), String>,
 ) -> Result<DefaultPersonaUpdate, String> {
-    let previous_persona_id = database
+    let mut personas = database
         .list_personas()
-        .map_err(|error| error.to_string())?
-        .into_iter()
+        .map_err(|error| error.to_string())?;
+    let previous_persona_id = personas
+        .iter()
         .find(|persona| persona.is_default)
-        .map(|persona| persona.id)
+        .map(|persona| persona.id.clone())
         .ok_or_else(|| "默认人格不存在".to_string())?;
     database
         .set_default_persona(persona_id)
@@ -74,12 +75,10 @@ fn set_default_persona_with_persistence(
             )),
         };
     }
-    Ok(DefaultPersonaUpdate {
-        personas: database
-            .list_personas()
-            .map_err(|error| error.to_string())?,
-        config,
-    })
+    for persona in &mut personas {
+        persona.is_default = persona.id == persona_id;
+    }
+    Ok(DefaultPersonaUpdate { personas, config })
 }
 
 #[tauri::command]
@@ -242,8 +241,15 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
 
     if sanitized != config {
         let value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
-        store.set(APP_CONFIG_KEY.to_string(), value);
-        store.save().map_err(|error| error.to_string())?;
+        save_store_value_transactionally(
+            store.get(APP_CONFIG_KEY),
+            value,
+            |value| store.set(APP_CONFIG_KEY.to_string(), value),
+            || {
+                store.delete(APP_CONFIG_KEY);
+            },
+            || store.save().map_err(|error| error.to_string()),
+        )?;
     }
 
     config = sanitized;
@@ -265,8 +271,15 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
         .map_err(|error| error.to_string())?;
     let persisted_config = sanitized_config(&config);
     let value = serde_json::to_value(&persisted_config).map_err(|error| error.to_string())?;
-    store.set(APP_CONFIG_KEY.to_string(), value);
-    store.save().map_err(|error| error.to_string())?;
+    save_store_value_transactionally(
+        store.get(APP_CONFIG_KEY),
+        value,
+        |value| store.set(APP_CONFIG_KEY.to_string(), value),
+        || {
+            store.delete(APP_CONFIG_KEY);
+        },
+        || store.save().map_err(|error| error.to_string()),
+    )?;
 
     // 热更新快捷键
     let app_clone = app.clone();
@@ -288,6 +301,29 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
     Ok(config)
 }
 
+fn save_store_value_transactionally<T: Clone>(
+    previous_value: Option<T>,
+    new_value: T,
+    mut set: impl FnMut(T),
+    mut remove: impl FnMut(),
+    mut save: impl FnMut() -> Result<(), String>,
+) -> Result<(), String> {
+    set(new_value);
+    if let Err(primary_error) = save() {
+        match previous_value {
+            Some(previous_value) => set(previous_value),
+            None => remove(),
+        }
+        if let Err(restore_error) = save() {
+            return Err(format!(
+                "配置保存失败且磁盘恢复失败；内存配置已恢复：{primary_error}; {restore_error}"
+            ));
+        }
+        return Err(primary_error);
+    }
+    Ok(())
+}
+
 pub fn update_history_delivery_for_app(
     app: &tauri::AppHandle,
     history_id: &str,
@@ -303,6 +339,7 @@ pub fn update_history_delivery_for_app(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::{Cell, RefCell};
 
     fn test_database(label: &str) -> LocalDatabase {
         let path = std::env::temp_dir().join(format!(
@@ -318,9 +355,24 @@ mod tests {
     fn failed_default_persona_persistence_restores_previous_database_default() {
         let database = test_database("set-default-rollback");
         let config = default_app_config();
+        let cache = RefCell::new(config.clone());
+        let fail_next_save = Cell::new(true);
 
-        let error = set_default_persona_with_persistence(&database, config, "verbatim", |_| {
-            Err("injected config write failure".to_string())
+        let error = set_default_persona_with_persistence(&database, config, "verbatim", |next| {
+            let previous = cache.borrow().clone();
+            save_store_value_transactionally(
+                Some(previous),
+                next,
+                |value| *cache.borrow_mut() = value,
+                || unreachable!("the pre-existing config must be restored"),
+                || {
+                    if fail_next_save.replace(false) {
+                        Err("injected config write failure".to_string())
+                    } else {
+                        Ok(())
+                    }
+                },
+            )
         })
         .expect_err("a configuration persistence failure should fail the command");
 
@@ -335,6 +387,59 @@ mod tests {
             .unwrap()
             .iter()
             .any(|persona| persona.id == VERBATIM_PERSONA_ID && persona.is_default));
+        assert_eq!(cache.borrow().default_persona_id, GENERAL_PERSONA_ID);
+        let reconciled =
+            reconcile_initialized_local_data(&database, cache.into_inner(), |_| Ok(()))
+                .expect("the restored cache must not reapply the failed default persona");
+        assert_eq!(reconciled.default_persona_id, GENERAL_PERSONA_ID);
+    }
+
+    #[test]
+    fn failed_store_save_restores_the_mutated_cache_before_returning_error() {
+        let value = RefCell::new(Some("old-default".to_string()));
+        let fail_next_save = Cell::new(true);
+        let previous = value.borrow().clone();
+
+        let error = save_store_value_transactionally(
+            previous,
+            "new-default".to_string(),
+            |next| *value.borrow_mut() = Some(next),
+            || *value.borrow_mut() = None,
+            || {
+                if fail_next_save.replace(false) {
+                    Err("injected disk save failure".to_string())
+                } else {
+                    Ok(())
+                }
+            },
+        )
+        .expect_err("a failed save should be returned after the cache is restored");
+
+        assert_eq!(error, "injected disk save failure");
+        assert_eq!(value.borrow().as_deref(), Some("old-default"));
+    }
+
+    #[test]
+    fn successful_default_persona_update_returns_prepared_personas_and_config() {
+        let database = test_database("set-default-success");
+        let update = set_default_persona_with_persistence(
+            &database,
+            default_app_config(),
+            VERBATIM_PERSONA_ID,
+            |_| Ok(()),
+        )
+        .expect("successful persistence should return the authoritative update");
+
+        assert_eq!(update.config.default_persona_id, VERBATIM_PERSONA_ID);
+        assert_eq!(
+            update
+                .personas
+                .iter()
+                .find(|persona| persona.is_default)
+                .unwrap()
+                .id,
+            VERBATIM_PERSONA_ID
+        );
     }
 
     #[test]

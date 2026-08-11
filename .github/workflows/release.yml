@@ -4,9 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "已有的 annotated release tag，例如 v0.1.0"
+        required: true
+        type: string
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.release_tag || github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -17,6 +23,8 @@ jobs:
     name: Release quality gates
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
     permissions:
       contents: read
       checks: write
@@ -26,12 +34,13 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref_name }}
 
       - name: Verify tag belongs to main
         shell: bash
         run: |
           git fetch origin main
-          tag_ref="refs/tags/$GITHUB_REF_NAME"
+          tag_ref="refs/tags/$RELEASE_TAG"
           test "$(git cat-file -t "$tag_ref")" = "tag"
           tag_commit="$(git rev-list -n 1 "$tag_ref")"
           test "$tag_commit" = "$(git rev-parse HEAD)"
@@ -54,7 +63,7 @@ jobs:
       - name: Verify release version
         run: pnpm release:check
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
       - name: Run frontend quality checks
         run: pnpm check:frontend
@@ -67,8 +76,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: src-tauri
-          # sqlx 的未启用 PostgreSQL 可选依赖；上游目前没有修复版本。
-          ignore: RUSTSEC-2023-0071
+          # sqlx/tauri-plugin-sql 的未启用可选依赖只存在于 Cargo.lock；当前 target 不包含这些代码。
+          ignore: RUSTSEC-2023-0071,RUSTSEC-2026-0235
 
       - name: Scan repository for secrets
         uses: gitleaks/gitleaks-action@v3
@@ -81,6 +90,8 @@ jobs:
     needs: quality
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -103,6 +114,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref_name }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -169,12 +182,16 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
     permissions:
       contents: write
 
     steps:
       - name: Checkout release notes
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref_name }}
 
       - name: Download installer artifacts
         uses: actions/download-artifact@v8
@@ -196,36 +213,36 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          notes_file=".github/release-notes/${GITHUB_REF_NAME#v}.md"
+          notes_file=".github/release-notes/${RELEASE_TAG#v}.md"
           test -f "$notes_file"
           mapfile -d '' assets < <(find release-assets -type f -print0 | sort -z)
 
           is_prerelease=false
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+          if [[ "$RELEASE_TAG" == *-* ]]; then
             is_prerelease=true
           fi
 
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
-            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = "true"
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
               --verify-tag \
               --draft \
-              --title "XiLuoLin $GITHUB_REF_NAME" \
+              --title "XiLuoLin $RELEASE_TAG" \
               --notes-file "$notes_file"
           fi
 
           if [[ "$is_prerelease" == true ]]; then
-            gh release edit "$GITHUB_REF_NAME" \
+            gh release edit "$RELEASE_TAG" \
               --draft \
               --prerelease \
-              --title "XiLuoLin $GITHUB_REF_NAME" \
+              --title "XiLuoLin $RELEASE_TAG" \
               --notes-file "$notes_file"
           else
-            gh release edit "$GITHUB_REF_NAME" \
+            gh release edit "$RELEASE_TAG" \
               --draft=false \
               --prerelease=false \
-              --title "XiLuoLin $GITHUB_REF_NAME" \
+              --title "XiLuoLin $RELEASE_TAG" \
               --notes-file "$notes_file"
           fi

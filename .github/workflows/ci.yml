@@ -101,8 +101,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: src-tauri
-          # sqlx 的未启用 PostgreSQL 可选依赖；上游目前没有修复版本。
-          ignore: RUSTSEC-2023-0071
+          # sqlx/tauri-plugin-sql 的未启用可选依赖只存在于 Cargo.lock；当前 target 不包含这些代码。
+          ignore: RUSTSEC-2023-0071,RUSTSEC-2026-0235
 
       - name: Scan repository for secrets
         uses: gitleaks/gitleaks-action@v3

@@ -196,6 +196,7 @@ jobs:
       - name: Download installer artifacts
         uses: actions/download-artifact@v8
         with:
+          pattern: xiluolin-*
           path: release-assets
           merge-multiple: true
 

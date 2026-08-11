@@ -6,13 +6,14 @@ XiLuoLin is an open-source AI voice input assistant for office work, writing, an
 
 XiLuoLin is independently initiated and actively maintained. Community participation through Issues, Discussions, and Pull Requests is welcome.
 
-## Technical Preview Downloads
+## Stable Release Downloads
 
-`v0.1.0-beta.1` is the first public preview intended for technical users:
+`v0.1.0` is the first stable release:
 
 - macOS 13+ on Apple Silicon: an ad-hoc-signed, non-notarized DMG that requires manual approval on first launch.
 - Windows 10/11 x64: an unsigned NSIS installer that may trigger Microsoft Defender SmartScreen.
-- Intel Macs, Windows ARM64, Linux, app stores, and in-app updates are out of scope for this preview.
+- These packages may still trigger operating-system warnings because macOS is not notarized and Windows is not code-signed.
+- Intel Macs, Windows ARM64, Linux, app stores, and in-app updates are out of scope for this release.
 
 Download only from [GitHub Releases](https://github.com/qinyu765/xiluolin/releases) and verify the file against `SHA256SUMS.txt` from the same release. See the [macOS installation guide](docs/macos-build.md), [Windows installation guide](docs/windows-build.md), and [changelog](CHANGELOG.md) before installing.
 
@@ -22,9 +23,9 @@ XiLuoLin focuses on the complete workflow from speaking an idea to getting text 
 
 - **Voice capture**: microphone recording, short-audio processing, global shortcuts, and recording status feedback.
 - **Speech recognition**: Zhipu GLM-ASR-2512, OpenAI Whisper, and an offline local Whisper model; macOS can explicitly enable hold-Fn recording with short-tap cancellation.
-- **Persona-based rewriting**: use polished built-in or custom personas, or select Verbatim Dictation to skip the text model.
-- **Hotword dictionary**: Zhipu receives up to 100 native hotwords; OpenAI and local Whisper use soft prompts, while the complete dictionary remains available to downstream polishing.
-- **Desktop delivery**: clipboard and automatic paste output with fallback behavior when a preferred method is unavailable.
+- **Persona-based rewriting**: use polished built-in or custom personas, or select Verbatim Dictation to preserve the raw ASR wording while only normalizing whitespace.
+- **Hotword dictionary**: enabled hotwords globally bias ASR; Zhipu receives up to 100 native hotwords, OpenAI and local Whisper use soft prompts, and similar technical terms may compete.
+- **Desktop delivery**: clipboard and automatic paste output with a recoverable result window when a preferred method is unavailable.
 - **Local data**: store history, personas, hotwords, settings, and personal productivity statistics locally.
 - **Open extensibility**: maintain clear Provider and business-module boundaries for additional cloud services, local models, and cross-platform integrations.
 
@@ -49,7 +50,7 @@ Current priorities:
 
 - Verify microphone, shortcut, credential-store, and cross-application delivery behavior across operating systems
 - Improve the home-page voice entry point and recording-state experience
-- Validate the technical-preview installers and iterate on release and compatibility documentation
+- Validate the stable installers and continue improving release and compatibility documentation
 - Improve Provider configuration, failure recovery, and automated testing
 - Continue improving contributor documentation, Issue management, and technical decision records
 

@@ -1,6 +1,6 @@
 # Windows x64 构建与安装
 
-XiLuoLin `v0.1.0-beta.1` 面向 Windows 10/11 x64 提供未签名的 NSIS 技术预览安装包。Windows ARM64、Microsoft Store 和已签名安装包不在本次发布范围内。
+XiLuoLin `v0.1.0` 面向 Windows 10/11 x64 提供未签名的 NSIS 稳定版安装包。Windows ARM64、Microsoft Store 和已签名安装包不在本次发布范围内。
 
 ## 环境
 
@@ -20,7 +20,7 @@ pnpm tauri:build:windows:x64
 产物位于：
 
 ```text
-src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XiLuoLin_0.1.0-beta.1_x64-setup.exe
+src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XiLuoLin_0.1.0_x64-setup.exe
 ```
 
 ## 安装
@@ -42,6 +42,6 @@ src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XiLuoLin_0.1.0-beta.
 
 ## 已知限制
 
-- 安装包未签名，SmartScreen 警告属于本预览版本的已知行为。
+- 安装包未签名，SmartScreen 警告属于当前稳定版的已知行为。
 - Windows 不允许低权限进程向高权限窗口发送输入；此时需要手动粘贴。
 - 不支持 Windows ARM64，也不提供 MSI 或便携版。

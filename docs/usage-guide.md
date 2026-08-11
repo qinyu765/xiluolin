@@ -12,8 +12,8 @@
 - pnpm 10+
 - Rust stable 工具链
 - Windows：Microsoft Visual Studio C++ Build Tools、WebView2 Runtime
-- macOS：macOS 13+；当前技术预览包仅支持 Apple Silicon
-- Windows：Windows 10/11 x64；当前技术预览包未签名，可能触发 SmartScreen
+- macOS：macOS 13+；当前稳定版安装包仅支持 Apple Silicon，且未经 Apple 公证
+- Windows：Windows 10/11 x64；当前稳定版安装包未签名，可能触发 SmartScreen
 - 可用的麦克风及系统麦克风权限
 - 智谱 GLM-ASR-2512 API Key
 - OpenAI Responses API 或兼容文本处理服务的 API Key

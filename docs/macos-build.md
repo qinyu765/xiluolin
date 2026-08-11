@@ -1,6 +1,6 @@
 # macOS Apple Silicon 构建与安装
 
-XiLuoLin `v0.1.0-beta.1` 面向 macOS 13 及以上、Apple Silicon（arm64）提供未公证技术预览包。应用使用完整的 ad-hoc 签名以满足 Apple Silicon 运行要求，但没有 Developer ID 身份和 Apple 公证。
+XiLuoLin `v0.1.0` 面向 macOS 13 及以上、Apple Silicon（arm64）提供未公证稳定版安装包。应用使用完整的 ad-hoc 签名以满足 Apple Silicon 运行要求，但没有 Developer ID 身份和 Apple 公证。
 
 ## 环境
 
@@ -21,7 +21,7 @@ pnpm tauri:build:macos:arm64
 
 ```text
 src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app
-src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0-beta.1_aarch64.dmg
+src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0_aarch64.dmg
 ```
 
 最低系统版本固定为 macOS 13。构建脚本同时设置 `MACOSX_DEPLOYMENT_TARGET` 和 `CMAKE_OSX_DEPLOYMENT_TARGET`，确保 Tauri Bundle 与 whisper.cpp 原生编译使用相同目标。
@@ -51,7 +51,7 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0-beta.1_a
 
 ```bash
 APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app"
-DMG="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0-beta.1_aarch64.dmg"
+DMG="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0_aarch64.dmg"
 
 file "$APP/Contents/MacOS/xiluolin"
 plutil -p "$APP/Contents/Info.plist"
@@ -65,7 +65,7 @@ shasum -a 256 "$DMG"
 
 ## 已知限制
 
-- 未使用 Developer ID 签名和 Apple 公证，Gatekeeper 需要用户手动允许。
+- 未使用 Developer ID 签名和 Apple 公证，Gatekeeper 需要用户手动允许；这属于当前稳定版的已知限制。
 - 只构建 Apple Silicon，不支持 Intel Mac。
 - 多窗口应用会优先恢复录音开始时的精确窗口；无法匹配时退化为恢复原应用。
 - 目标应用退出、权限不足或系统无法确认焦点时不会发送按键，文本保留在剪贴板。

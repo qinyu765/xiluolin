@@ -1,4 +1,4 @@
-name: Release technical preview
+name: Release
 
 on:
   push:
@@ -164,8 +164,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  draft-release:
-    name: Create draft prerelease
+  publish-release:
+    name: Publish release
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -190,27 +190,42 @@ jobs:
             | sort -z \
             | xargs -0 sha256sum > SHA256SUMS.txt
 
-      - name: Create draft GitHub prerelease
+      - name: Create and publish GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           notes_file=".github/release-notes/${GITHUB_REF_NAME#v}.md"
           test -f "$notes_file"
           mapfile -d '' assets < <(find release-assets -type f -print0 | sort -z)
+
+          is_prerelease=false
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            is_prerelease=true
+          fi
+
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --verify-tag \
+              --draft \
+              --title "XiLuoLin $GITHUB_REF_NAME" \
+              --notes-file "$notes_file"
+          fi
+
+          if [[ "$is_prerelease" == true ]]; then
             gh release edit "$GITHUB_REF_NAME" \
               --draft \
               --prerelease \
               --title "XiLuoLin $GITHUB_REF_NAME" \
               --notes-file "$notes_file"
           else
-            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
-              --verify-tag \
-              --draft \
-              --prerelease \
+            gh release edit "$GITHUB_REF_NAME" \
+              --draft=false \
+              --prerelease=false \
               --title "XiLuoLin $GITHUB_REF_NAME" \
               --notes-file "$notes_file"
           fi

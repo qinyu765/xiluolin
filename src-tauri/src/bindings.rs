@@ -52,6 +52,9 @@ pub fn builder() -> Builder<tauri::Wry> {
             hotkey::unregister_hotkey,
             indicator::update_indicator_status,
             output::deliver_text,
+            output::read_fallback_result,
+            output::copy_fallback_result,
+            output::dismiss_fallback_result,
         ])
         .events(collect_events![
             events::RecordingCompletedEvent,

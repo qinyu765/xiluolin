@@ -44,7 +44,8 @@ export function HotwordPage({
           <div>
             <CardTitle className="text-2xl">热词管理</CardTitle>
             <CardDescription className="mt-2">
-              记住那些只属于你的重要词汇：专有名词、技术词汇、行业术语、个人习惯用语。启用后的热词会作为文本整理的参考上下文。
+              记住那些只属于你的重要词汇：专有名词、技术词汇、行业术语、个人习惯用语。启用后的热词会同时影响
+              ASR 识别和文本整理。
             </CardDescription>
           </div>
           <CardAction>
@@ -126,7 +127,7 @@ export function HotwordPage({
             </div>
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                以下内容会作为参考上下文注入到文本整理 prompt
+                以下启用热词会作为 ASR 偏置和文本整理 prompt 的参考上下文
               </p>
               <Textarea
                 value={hotwordContext || "暂无启用热词上下文。"}
@@ -140,6 +141,9 @@ export function HotwordPage({
                 {asrLimitNotice}
               </p>
             ) : null}
+            <p className="text-sm leading-6 text-amber-700 dark:text-amber-400">
+              相似的技术词可能互相竞争。原文听写也会受到全局热词影响；测试完成后请停用临时热词。
+            </p>
           </div>
         </CardContent>
       </Card>

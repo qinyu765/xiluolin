@@ -215,7 +215,7 @@ export function InputReadinessCard({
           </div>
         )}
         <p className="mt-4 text-xs leading-5 text-muted-foreground">
-          自动粘贴属于非阻断能力。即使不可用，识别结果仍会保存到历史并复制到剪贴板。
+          自动粘贴属于非阻断能力。即使不可用，识别结果仍会保存到历史并尝试复制；失败时可在结果窗口中恢复。
         </p>
       </CardContent>
     </Card>

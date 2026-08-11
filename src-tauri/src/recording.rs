@@ -362,13 +362,13 @@ pub async fn cancel_recording_for_session(
         .map_err(String::from)?;
     let session_id = recording.session_id;
     let output_path = recording.output_path;
-    recording.worker.cancel()?;
+    let worker_result = recording.worker.cancel();
     let _ = fs::remove_file(&output_path);
     let _ = windows_audio::unmute_all_sessions();
     app_handle
         .state::<CaptureSessionState>()
         .cancel(&session_id);
-    Ok(())
+    worker_result
 }
 
 #[tauri::command]
@@ -376,7 +376,10 @@ pub async fn cancel_recording_for_session(
 pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
     let host = cpal::default_host();
 
-    let default_device_name = host.default_input_device().and_then(|d| d.name().ok());
+    let default_device_name = host
+        .default_input_device()
+        .and_then(|device| device.description().ok())
+        .map(|description| description.name().to_string());
 
     let devices = host
         .input_devices()
@@ -384,7 +387,8 @@ pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
 
     let mut result = Vec::new();
     for device in devices {
-        if let Ok(name) = device.name() {
+        if let Ok(description) = device.description() {
+            let name = description.name().to_string();
             let is_default = default_device_name.as_ref() == Some(&name);
             result.push(AudioDevice { name, is_default });
         }

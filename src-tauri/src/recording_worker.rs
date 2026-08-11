@@ -12,7 +12,7 @@ type SharedWavWriter = Arc<Mutex<Option<WavWriter<BufWriter<std::fs::File>>>>>;
 
 enum AudioWorkerCommand {
     Stop(mpsc::Sender<Result<(), String>>),
-    Cancel(mpsc::Sender<()>),
+    Cancel(mpsc::Sender<Result<(), String>>),
 }
 
 pub(super) struct AudioWorker {
@@ -72,10 +72,11 @@ impl AudioWorker {
         self.command_sender
             .send(AudioWorkerCommand::Cancel(done_sender))
             .map_err(|error| format!("取消录音工作线程失败：{error}"))?;
-        done_receiver
+        let result = done_receiver
             .recv()
             .map_err(|error| format!("等待录音取消失败：{error}"))?;
-        self.join()
+        self.join()?;
+        result
     }
 
     fn join(&mut self) -> Result<(), String> {
@@ -118,20 +119,41 @@ fn select_input_device(
     host: &cpal::Host,
     preferred: &str,
 ) -> Result<(cpal::Device, bool), RecordingError> {
-    let default_device = host.default_input_device();
-    let default_name = default_device
-        .as_ref()
-        .and_then(|device| device.name().ok());
+    let mut default_device = host.default_input_device();
+    let default_name = default_device.as_ref().and_then(device_name);
+
+    // 保留 Host 返回的默认设备对象。不要在默认设备已知时重新从
+    // `input_devices()` 枚举同名对象；CoreAudio 上这两个对象的生命周期
+    // 语义不同，枚举对象可能额外持有断开监听器。
+    let preferred = preferred.trim();
+    if preferred.is_empty() {
+        if let Some(device) = default_device.take() {
+            return Ok((device, false));
+        }
+    } else if default_name.as_deref() == Some(preferred) {
+        if let Some(device) = default_device.take() {
+            return Ok((device, false));
+        }
+    }
+
     let devices = host
         .input_devices()
         .map_err(|error| RecordingError::DeviceConfigFailed(error.to_string()))?
-        .filter_map(|device| device.name().ok().map(|name| (name, device)))
+        .filter_map(|device| device_name(&device).map(|name| (name, device)))
         .collect::<Vec<_>>();
     let names = devices
         .iter()
         .map(|(name, _)| name.as_str())
         .collect::<Vec<_>>();
     let selection = select_input_device_name(preferred, &names, default_name.as_deref());
+
+    // 配置设备失效时，必须返回 Host 提供的真实默认设备对象，而不是
+    // 枚举列表中同名的对象。
+    if selection.fell_back {
+        if let Some(device) = default_device.take() {
+            return Ok((device, true));
+        }
+    }
 
     if let Some(selected_name) = selection.name.as_deref() {
         if let Some((_, device)) = devices.into_iter().find(|(name, _)| name == selected_name) {
@@ -141,6 +163,13 @@ fn select_input_device(
     default_device
         .map(|device| (device, selection.fell_back))
         .ok_or(RecordingError::NoInputDeviceAvailable)
+}
+
+fn device_name(device: &cpal::Device) -> Option<String> {
+    device
+        .description()
+        .ok()
+        .map(|description| description.name().to_string())
 }
 
 fn downmix_to_i16<T: Copy>(data: &[T], channels: usize, normalize: impl Fn(T) -> f64) -> Vec<i16> {
@@ -217,9 +246,21 @@ fn discard_recording_file(writer: &SharedWavWriter, output_path: &Path) {
     let _ = fs::remove_file(output_path);
 }
 
-fn finish_audio_resources<T>(stop_stream: impl FnOnce(), finalize: impl FnOnce() -> T) -> T {
-    stop_stream();
-    finalize()
+fn stop_stream(stream: cpal::Stream) -> Result<(), String> {
+    let pause_result = stream
+        .pause()
+        .map_err(|error| format!("暂停录音流失败：{error}"));
+    drop(stream);
+    pause_result
+}
+
+fn finish_audio_resources<T>(
+    stop_stream: impl FnOnce() -> Result<(), String>,
+    finalize: impl FnOnce() -> T,
+) -> (Result<(), String>, T) {
+    let stop_result = stop_stream();
+    let finalized = finalize();
+    (stop_result, finalized)
 }
 
 fn run_audio_worker(
@@ -248,7 +289,7 @@ fn run_audio_worker(
             &output_path,
             WavSpec {
                 channels: 1,
-                sample_rate: config.sample_rate().0,
+                sample_rate: config.sample_rate(),
                 bits_per_sample: 16,
                 sample_format: hound::SampleFormat::Int,
             },
@@ -293,7 +334,7 @@ fn run_audio_worker(
             RecordingError::StreamBuildFailed(error.to_string())
         })?;
         if let Err(error) = stream.play() {
-            drop(stream);
+            let _ = stop_stream(stream);
             discard_recording_file(&writer, &output_path);
             return Err(RecordingError::StreamStartFailed(error.to_string()));
         }
@@ -308,32 +349,40 @@ fn run_audio_worker(
         }
     };
     if ready_sender.send(Ok(())).is_err() {
-        drop(stream);
-        discard_recording_file(&writer, &output_path);
+        let (_, _) = finish_audio_resources(
+            || stop_stream(stream),
+            || discard_recording_file(&writer, &output_path),
+        );
         return;
     }
 
     match command_receiver.recv() {
         Ok(AudioWorkerCommand::Stop(result_sender)) => {
-            let result = finish_audio_resources(
-                || drop(stream),
+            let (stop_result, finalize_result) = finish_audio_resources(
+                || stop_stream(stream),
                 || finalize_writer(&writer).map_err(String::from),
             );
+            let result = stop_result.and(finalize_result);
             if result.is_err() {
                 let _ = fs::remove_file(&output_path);
             }
             let _ = result_sender.send(result);
         }
         Ok(AudioWorkerCommand::Cancel(done_sender)) => {
-            finish_audio_resources(
-                || drop(stream),
+            let (stop_result, _) = finish_audio_resources(
+                || stop_stream(stream),
                 || discard_recording_file(&writer, &output_path),
             );
-            let _ = done_sender.send(());
+            let _ = done_sender.send(stop_result);
         }
         Err(_) => {
-            drop(stream);
-            discard_recording_file(&writer, &output_path);
+            let (stop_result, _) = finish_audio_resources(
+                || stop_stream(stream),
+                || discard_recording_file(&writer, &output_path),
+            );
+            if let Err(error) = stop_result {
+                eprintln!("录音流释放失败：{error}");
+            }
         }
     }
 }
@@ -400,10 +449,14 @@ mod tests {
     #[test]
     fn stream_is_stopped_before_wav_is_finalized() {
         let operations = std::cell::RefCell::new(Vec::new());
-        finish_audio_resources(
-            || operations.borrow_mut().push("stop-stream"),
+        let (stop_result, _) = finish_audio_resources(
+            || {
+                operations.borrow_mut().push("stop-stream");
+                Ok(())
+            },
             || operations.borrow_mut().push("finalize-wav"),
         );
+        assert!(stop_result.is_ok());
         assert_eq!(operations.into_inner(), vec!["stop-stream", "finalize-wav"]);
     }
 
@@ -425,7 +478,9 @@ mod tests {
         .unwrap();
         let writer = Arc::new(Mutex::new(Some(writer)));
 
-        finish_audio_resources(|| {}, || discard_recording_file(&writer, &path));
+        let (stop_result, _) =
+            finish_audio_resources(|| Ok(()), || discard_recording_file(&writer, &path));
+        assert!(stop_result.is_ok());
 
         assert!(!path.exists());
     }

@@ -59,7 +59,7 @@ export function HotwordDialog({
                     text: event.target.value,
                   })
                 }
-                placeholder="输入热词，如「Kubernetes」、「Next.js」、「TypeScript」"
+                placeholder="输入热词，如「Kubernetes」、「Node.js」、「TypeScript」"
                 required
               />
             </div>

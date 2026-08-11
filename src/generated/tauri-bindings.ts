@@ -48,6 +48,13 @@ export const commands = {
 	unregisterHotkey: () => __TAURI_INVOKE<null>("unregister_hotkey"),
 	updateIndicatorStatus: (status: string) => __TAURI_INVOKE<null>("update_indicator_status", { status }),
 	deliverText: (sessionId: string | null, historyId: string | null, text: string) => __TAURI_INVOKE<OutputResult>("deliver_text", { sessionId, historyId, text }),
+	readFallbackResult: () => __TAURI_INVOKE<{
+	text: string,
+	reason: string,
+	copied: boolean,
+} | null>("read_fallback_result"),
+	copyFallbackResult: () => __TAURI_INVOKE<null>("copy_fallback_result"),
+	dismissFallbackResult: () => __TAURI_INVOKE<null>("dismiss_fallback_result"),
 };
 
 /** Events */
@@ -104,6 +111,12 @@ export type CaptureSessionStart = {
 export type DefaultPersonaUpdate = {
 	personas: Persona[],
 	config: AppConfig,
+};
+
+export type FallbackResult = {
+	text: string,
+	reason: string,
+	copied: boolean,
 };
 
 export type FocusRestoreLevel = "window" | "application" | "none";

@@ -45,6 +45,7 @@ pub fn run() {
     builder
         .manage(capture_session::CaptureSessionState::new())
         .manage(recording::RecordingState::new())
+        .manage(output::FallbackResultState::new())
         .manage(macos_fn::FnHoldManager::new())
         .setup(move |app| {
             event_bindings.mount_events(app);

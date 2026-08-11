@@ -33,11 +33,16 @@ pub fn run() {
 
     let event_bindings = bindings.clone();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+
+    builder
         .manage(capture_session::CaptureSessionState::new())
         .manage(recording::RecordingState::new())
         .manage(macos_fn::FnHoldManager::new())

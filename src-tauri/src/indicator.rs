@@ -16,6 +16,16 @@ const VALID_STATUSES: [&str; 6] = [
     "failed",
 ];
 
+#[cfg(target_os = "macos")]
+tauri_nspanel::tauri_panel! {
+    panel!(RecordingIndicatorPanel {
+        config: {
+            can_become_key_window: false,
+            can_become_main_window: false,
+        }
+    })
+}
+
 pub fn ensure_indicator(app: &AppHandle) -> Result<WebviewWindow, String> {
     if let Some(window) = app.get_webview_window(INDICATOR_LABEL) {
         return Ok(window);
@@ -41,11 +51,94 @@ pub fn ensure_indicator(app: &AppHandle) -> Result<WebviewWindow, String> {
         .visible(false)
         .build()
         .map_err(|error| format!("创建录音指示器失败：{error}"))?;
+    convert_macos_indicator_to_panel(&window)?;
+    configure_macos_fullscreen_overlay(&window)?;
     let _ = window.set_ignore_cursor_events(true);
 
     position_indicator(app, &window);
 
     Ok(window)
+}
+
+#[cfg(target_os = "macos")]
+fn convert_macos_indicator_to_panel(window: &WebviewWindow) -> Result<(), String> {
+    use tauri_nspanel::{StyleMask, WebviewWindowExt};
+
+    let panel = window
+        .to_panel::<RecordingIndicatorPanel>()
+        .map_err(|error| format!("创建录音指示器原生面板失败：{error}"))?;
+    panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+    panel.set_floating_panel(true);
+    panel.set_hides_on_deactivate(false);
+    panel.set_becomes_key_only_if_needed(true);
+    panel.set_ignores_mouse_events(true);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn convert_macos_indicator_to_panel(_window: &WebviewWindow) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn configure_macos_fullscreen_overlay(window: &WebviewWindow) -> Result<(), String> {
+    use objc2_app_kit::{NSScreenSaverWindowLevel, NSWindow};
+
+    let ns_window = window
+        .ns_window()
+        .map_err(|error| format!("读取录音指示器原生窗口失败：{error}"))?
+        .cast::<NSWindow>();
+    let ns_window = unsafe { ns_window.as_ref() }
+        .ok_or_else(|| "读取录音指示器原生窗口失败：窗口指针为空".to_string())?;
+
+    let behavior = fullscreen_overlay_behavior(ns_window.collectionBehavior());
+    ns_window.setCollectionBehavior(behavior);
+    ns_window.setLevel(NSScreenSaverWindowLevel);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn configure_macos_fullscreen_overlay(_window: &WebviewWindow) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn fullscreen_overlay_behavior(
+    current: objc2_app_kit::NSWindowCollectionBehavior,
+) -> objc2_app_kit::NSWindowCollectionBehavior {
+    use objc2_app_kit::NSWindowCollectionBehavior;
+
+    let incompatible =
+        NSWindowCollectionBehavior::FullScreenPrimary | NSWindowCollectionBehavior::FullScreenNone;
+    (current & !incompatible)
+        | NSWindowCollectionBehavior::CanJoinAllSpaces
+        | NSWindowCollectionBehavior::CanJoinAllApplications
+        | NSWindowCollectionBehavior::FullScreenAuxiliary
+        | NSWindowCollectionBehavior::Stationary
+}
+
+#[cfg(target_os = "macos")]
+fn order_macos_indicator_front(window: &WebviewWindow) -> Result<(), String> {
+    let dispatcher = window.clone();
+    let native_window = window.clone();
+    dispatcher
+        .run_on_main_thread(move || {
+            use objc2_app_kit::NSWindow;
+
+            let Ok(ns_window) = native_window.ns_window() else {
+                return;
+            };
+            let Some(ns_window) = (unsafe { ns_window.cast::<NSWindow>().as_ref() }) else {
+                return;
+            };
+            ns_window.orderFrontRegardless();
+        })
+        .map_err(|error| format!("置顶录音指示器失败：{error}"))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn order_macos_indicator_front(_window: &WebviewWindow) -> Result<(), String> {
+    Ok(())
 }
 
 pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
@@ -55,7 +148,8 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
     update_window(&window, "recording")?;
     window
         .show()
-        .map_err(|error| format!("显示录音指示器失败：{error}"))
+        .map_err(|error| format!("显示录音指示器失败：{error}"))?;
+    order_macos_indicator_front(&window)
 }
 
 fn position_indicator(app: &AppHandle, window: &WebviewWindow) {
@@ -171,5 +265,23 @@ mod tests {
                 "failed"
             ]
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn fullscreen_overlay_joins_fullscreen_spaces_as_an_auxiliary_window() {
+        use objc2_app_kit::NSWindowCollectionBehavior;
+
+        let behavior = fullscreen_overlay_behavior(
+            NSWindowCollectionBehavior::FullScreenPrimary
+                | NSWindowCollectionBehavior::FullScreenNone,
+        );
+
+        assert!(behavior.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
+        assert!(behavior.contains(NSWindowCollectionBehavior::CanJoinAllApplications));
+        assert!(behavior.contains(NSWindowCollectionBehavior::FullScreenAuxiliary));
+        assert!(behavior.contains(NSWindowCollectionBehavior::Stationary));
+        assert!(!behavior.contains(NSWindowCollectionBehavior::FullScreenPrimary));
+        assert!(!behavior.contains(NSWindowCollectionBehavior::FullScreenNone));
     }
 }

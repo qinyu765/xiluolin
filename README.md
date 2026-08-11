@@ -194,6 +194,10 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 
 当前仓库不包含 `.env`、真实 API Key 或录音临时文件。主要第三方依赖用途：
 
+  - macOS 录音状态浮窗复用 MIT/Apache-2.0 许可的
+    [tauri-nspanel](https://github.com/ahkohd/tauri-nspanel)，将 Tauri 窗口转换为不抢焦点的
+    `NSPanel`，以便显示在其他应用的原生全屏 Space。
+
   - `@radix-ui/react-dialog`：为 shadcn/ui 弹窗组件提供无障碍交互基础。
   - `@radix-ui/react-label`：为 shadcn/ui 表单标签组件提供无障碍交互基础。
   - `@radix-ui/react-select`：为 shadcn/ui 选择器组件提供键盘操作和弹层交互。

@@ -5,8 +5,10 @@ import type { AppConfig, AudioDevice } from "@/types";
 import {
   collectSchemaConfigKeys,
   getVisibleFields,
+  prepareSettingsConfig,
   resolveFieldOptions,
   settingsSchema,
+  validateSettingsConfig,
 } from "./settings-schema";
 
 const config: AppConfig = {
@@ -113,5 +115,21 @@ describe("settingsSchema", () => {
         auto_save_history: false,
       }),
     ).toBe(true);
+  });
+
+  it("保存前统一清理文本并只校验当前 Provider", () => {
+    const prepared = prepareSettingsConfig({
+      ...config,
+      asr_api_key: "  secret  ",
+      asr_base_url: "  https://example.com  ",
+      openai_base_url: "",
+    });
+
+    expect(prepared.asr_api_key).toBe("secret");
+    expect(prepared.asr_base_url).toBe("https://example.com");
+    expect(validateSettingsConfig(prepared)).toBeNull();
+    expect(validateSettingsConfig({ ...prepared, asr_base_url: "" })).toBe(
+      "Base URL不能为空。",
+    );
   });
 });

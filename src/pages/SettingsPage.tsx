@@ -1,14 +1,13 @@
-import React, { useState } from "react";
-import { Loader2Icon, SaveIcon } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react";
 
+import type { ConfigSaveState } from "@/app/controllers/config-save-queue";
+import { ConfigSaveStatus } from "@/components/settings/ConfigSaveStatus";
 import { FnHoldSetting } from "@/components/settings/FnHoldSetting";
 import { InputReadinessCard } from "@/components/settings/InputReadinessCard";
 import { ModelSettings } from "@/components/settings/ModelSettings";
 import { RecordingStorageCard } from "@/components/settings/RecordingStorageCard";
 import { SettingsFieldList } from "@/components/settings/SettingsFieldList";
 import { settingsSchema } from "@/components/settings/settings-schema";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -20,18 +19,18 @@ import { Label } from "@/components/ui/label";
 import { ShortcutInput } from "@/components/ui/shortcut-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AppConfig, AudioDevice } from "@/types";
+import type { SettingsSaveMode } from "@/components/settings/settings-schema";
 
 type SettingsPageProps = {
   appConfig: AppConfig | null;
   audioDevices: AudioDevice[];
-  asrStatus: string;
-  textProcessingStatus: string;
-  isAsrSaving: boolean;
-  isTextProcessingSaving: boolean;
-  onSaveAsrConfig: (event: React.FormEvent<HTMLFormElement>) => void;
-  onSaveTextProcessingConfig: (event: React.FormEvent<HTMLFormElement>) => void;
-  onConfigChange: (config: AppConfig) => void;
-  onSaveConfig: (config: AppConfig) => Promise<AppConfig>;
+  saveState: ConfigSaveState;
+  onConfigChange: (
+    patch: Partial<AppConfig>,
+    saveMode: SettingsSaveMode,
+  ) => void;
+  onConfigBlur: () => void;
+  onRetryConfigSave: () => void;
   configRevision: number;
   historyRevision: number;
 };
@@ -39,43 +38,17 @@ type SettingsPageProps = {
 export function SettingsPage({
   appConfig,
   audioDevices,
-  asrStatus,
-  textProcessingStatus,
-  isAsrSaving,
-  isTextProcessingSaving,
-  onSaveAsrConfig,
-  onSaveTextProcessingConfig,
+  saveState,
   onConfigChange,
-  onSaveConfig,
+  onConfigBlur,
+  onRetryConfigSave,
   configRevision,
   historyRevision,
 }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState("general");
-  const [isGeneralSaving, setIsGeneralSaving] = useState(false);
   const [modelRevision, setModelRevision] = useState(0);
 
-  const updateConfig = (patch: Partial<AppConfig>) => {
-    if (appConfig) onConfigChange({ ...appConfig, ...patch });
-  };
-
-  const handleGeneralSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!appConfig) return;
-
-    const nextConfig = {
-      ...appConfig,
-      longpress_shortcut: appConfig.longpress_shortcut.trim(),
-      toggle_shortcut: appConfig.toggle_shortcut.trim(),
-    };
-
-    setIsGeneralSaving(true);
-    onSaveConfig(nextConfig)
-      .then(() => toast.success("通用设置已保存"))
-      .catch((error) => toast.error(`保存通用设置失败：${String(error)}`))
-      .finally(() => setIsGeneralSaving(false));
-  };
-
-  const renderGeneralSlot = (slot: string) => {
+  const renderGeneralSlot = (slot: string, saveMode: SettingsSaveMode) => {
     if (slot === "longpress-shortcut") {
       return (
         <div className="grid gap-2">
@@ -83,7 +56,9 @@ export function SettingsPage({
           <ShortcutInput
             value={appConfig?.longpress_shortcut ?? ""}
             defaultValue="CommandOrControl+Shift+R"
-            onChange={(value) => updateConfig({ longpress_shortcut: value })}
+            onChange={(value) =>
+              onConfigChange({ longpress_shortcut: value }, saveMode)
+            }
             placeholder="点击后按下快捷键"
           />
           <p className="text-xs text-muted-foreground">
@@ -99,7 +74,9 @@ export function SettingsPage({
           <ShortcutInput
             value={appConfig?.toggle_shortcut ?? ""}
             defaultValue="Alt+Space"
-            onChange={(value) => updateConfig({ toggle_shortcut: value })}
+            onChange={(value) =>
+              onConfigChange({ toggle_shortcut: value }, saveMode)
+            }
             placeholder="点击后按下快捷键"
           />
           <p className="text-xs text-muted-foreground">
@@ -113,7 +90,7 @@ export function SettingsPage({
         <FnHoldSetting
           enabled={appConfig?.fn_hold_enabled ?? false}
           onCheckedChange={(checked) =>
-            updateConfig({ fn_hold_enabled: checked })
+            onConfigChange({ fn_hold_enabled: checked }, saveMode)
           }
         />
       );
@@ -123,11 +100,14 @@ export function SettingsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">设置</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          管理应用配置和模型服务
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold">设置</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            管理应用配置和模型服务，修改会自动保存
+          </p>
+        </div>
+        <ConfigSaveStatus state={saveState} onRetry={onRetryConfigSave} />
       </div>
 
       <InputReadinessCard refreshRevision={configRevision + modelRevision} />
@@ -156,35 +136,18 @@ export function SettingsPage({
                   <CardDescription>{section.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form className="grid gap-4" onSubmit={handleGeneralSubmit}>
+                  <div className="grid gap-4">
                     {appConfig ? (
                       <SettingsFieldList
                         section={section}
                         config={appConfig}
                         context={{ audioDevices }}
-                        onChange={updateConfig}
-                        onBlur={() => undefined}
+                        onChange={onConfigChange}
+                        onBlur={onConfigBlur}
                         renderSlot={renderGeneralSlot}
                       />
                     ) : null}
-                    <div className="flex justify-end border-t pt-4">
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={!appConfig || isGeneralSaving}
-                      >
-                        {isGeneralSaving ? (
-                          <Loader2Icon
-                            className="size-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <SaveIcon className="size-4" aria-hidden="true" />
-                        )}
-                        保存通用设置
-                      </Button>
-                    </div>
-                  </form>
+                  </div>
                 </CardContent>
               </Card>
             ),
@@ -194,13 +157,8 @@ export function SettingsPage({
         <TabsContent value="models" className="space-y-6">
           <ModelSettings
             appConfig={appConfig}
-            asrStatus={asrStatus}
-            textProcessingStatus={textProcessingStatus}
-            isAsrSaving={isAsrSaving}
-            isTextProcessingSaving={isTextProcessingSaving}
-            onSaveAsrConfig={onSaveAsrConfig}
-            onSaveTextProcessingConfig={onSaveTextProcessingConfig}
-            updateConfig={updateConfig}
+            updateConfig={onConfigChange}
+            onConfigBlur={onConfigBlur}
             onModelChanged={() => setModelRevision((value) => value + 1)}
           />
         </TabsContent>

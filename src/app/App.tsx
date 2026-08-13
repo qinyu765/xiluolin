@@ -86,14 +86,10 @@ export function App() {
           <SettingsPage
             appConfig={config.appConfig}
             audioDevices={config.audioDevices}
-            asrStatus={config.asrStatus}
-            textProcessingStatus={config.textProcessingStatus}
-            isAsrSaving={config.isAsrSaving}
-            isTextProcessingSaving={config.isTextProcessingSaving}
-            onSaveAsrConfig={config.handleSaveAsrConfig}
-            onSaveTextProcessingConfig={config.handleSaveTextProcessingConfig}
-            onConfigChange={config.setAppConfig}
-            onSaveConfig={config.saveConfig}
+            saveState={config.saveState}
+            onConfigChange={config.updateConfig}
+            onConfigBlur={config.flushConfigSave}
+            onRetryConfigSave={config.retryConfigSave}
             configRevision={config.revision}
             historyRevision={history.revision}
           />

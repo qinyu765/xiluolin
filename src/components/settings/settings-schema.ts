@@ -394,3 +394,38 @@ export function collectSchemaConfigKeys(schema: SettingsSchema) {
   }
   return [...keys];
 }
+
+export function prepareSettingsConfig(config: AppConfig) {
+  const prepared = { ...config };
+  for (const sections of [settingsSchema.general, settingsSchema.models]) {
+    for (const section of sections) {
+      if (section.type !== "fields") continue;
+      for (const field of section.fields) {
+        if (
+          (field.control === "text" || field.control === "password") &&
+          field.normalize
+        ) {
+          prepared[field.key] = field.normalize(prepared[field.key]);
+        }
+      }
+    }
+  }
+  return prepared;
+}
+
+export function validateSettingsConfig(config: AppConfig) {
+  for (const sections of [settingsSchema.general, settingsSchema.models]) {
+    for (const section of sections) {
+      for (const field of getVisibleFields(section, config)) {
+        if (
+          (field.control === "text" || field.control === "password") &&
+          field.validate
+        ) {
+          const error = field.validate(config[field.key], config);
+          if (error) return error;
+        }
+      }
+    }
+  }
+  return null;
+}

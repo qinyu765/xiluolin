@@ -23,7 +23,7 @@
 | 代码许可 | Apache-2.0 |
 | 本机链接 | macOS arm64 静态库解析、链接和运行通过 |
 | macOS x64 | release 构建通过，产物为 `Mach-O 64-bit executable x86_64` |
-| Windows x64 | `cargo check --target x86_64-pc-windows-msvc` 通过；未在 Windows 原生链接或运行 |
+| Windows x64 | 集成 crate 使用同版本 shared 包，避免官方 static `/MT` 与 whisper.cpp `/MD` 的 CRT 冲突；GitHub Actions 原生链接与测试通过后仍需验证 Tauri 安装包携带 DLL 和目标设备运行 |
 
 `sherpa-onnx-sys` 的构建脚本会按目标平台获取预编译包，但 crate 内部没有对下载资产执行固定摘要校验。若后续进入生产，应在 CI 预取并验证官方发布摘要，通过 `SHERPA_ONNX_ARCHIVE_DIR` 或等价的受控制品流程提供依赖，禁止安装/打包阶段静默联网获取。
 

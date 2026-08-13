@@ -35,13 +35,15 @@ enigo = "0.2"
 arboard = "3.4"
 thiserror = "2.0"
 sha2 = "0.10"
-sherpa-onnx = "=1.13.5"
 keyring = "4.1.5"
 whisper-rs = "0.16.0"
 rubato = "0.16.2"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+sherpa-onnx = { version = "=1.13.5", default-features = false, features = ["static"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 accessibility-sys = "0.2.0"
@@ -56,6 +58,8 @@ objc2-av-foundation = { version = "0.3.2", default-features = false, features = 
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel.git", rev = "a3122e894383aa068ec5365a42994e3ac94ba1b6" }
 
 [target.'cfg(windows)'.dependencies]
+# 上游 Windows 静态包使用 /MT，与 whisper.cpp 的 /MD 冲突；shared 包将 CRT 隔离在 DLL 内。
+sherpa-onnx = { version = "=1.13.5", default-features = false, features = ["shared"] }
 windows = { version = "0.58", features = [
     "Win32_Media_Audio",
     "Win32_System_Com",

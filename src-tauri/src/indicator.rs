@@ -15,6 +15,8 @@ const VALID_STATUSES: [&str; 6] = [
     "completed",
     "failed",
 ];
+const SNAPSHOT_REFRESH_SCRIPT: &str =
+    "window.dispatchEvent(new Event('capture-snapshot-refresh'));";
 
 #[cfg(target_os = "macos")]
 tauri_nspanel::tauri_panel! {
@@ -148,7 +150,8 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
     window
         .show()
         .map_err(|error| format!("显示录音指示器失败：{error}"))?;
-    order_macos_indicator_front(&window)
+    order_macos_indicator_front(&window)?;
+    update_window(&window, "recording")
 }
 
 fn position_indicator(app: &AppHandle, window: &WebviewWindow) {
@@ -205,7 +208,8 @@ pub fn update_indicator(app: &AppHandle, status: &str) -> Result<(), String> {
 }
 
 pub fn finish_indicator(app: &AppHandle, status: &str) -> Result<(), String> {
-    update_indicator(app, status)?;
+    indicator_refresh_script(status)?;
+    let refresh_result = update_indicator(app, status);
     let delay_ms = indicator_hide_delay(status);
     let revision = INDICATOR_REVISION.load(Ordering::SeqCst);
     let app = app.clone();
@@ -215,7 +219,8 @@ pub fn finish_indicator(app: &AppHandle, status: &str) -> Result<(), String> {
             let _ = hide_indicator(&app);
         }
     });
-    Ok(())
+    // 即使窗口脚本暂时不可用，也必须保留兜底隐藏，避免悬浮窗永久停在处理中。
+    refresh_result
 }
 
 fn indicator_hide_delay(status: &str) -> u64 {
@@ -226,11 +231,17 @@ fn indicator_hide_delay(status: &str) -> u64 {
     }
 }
 
-fn update_window(_window: &WebviewWindow, status: &str) -> Result<(), String> {
+fn indicator_refresh_script(status: &str) -> Result<&'static str, String> {
     if !VALID_STATUSES.contains(&status) {
         return Err(format!("未知的录音指示器状态：{status}"));
     }
-    Ok(())
+    Ok(SNAPSHOT_REFRESH_SCRIPT)
+}
+
+fn update_window(window: &WebviewWindow, status: &str) -> Result<(), String> {
+    window
+        .eval(indicator_refresh_script(status)?)
+        .map_err(|error| format!("刷新录音指示器状态失败：{error}"))
 }
 
 pub fn hide_indicator(app: &AppHandle) -> Result<(), String> {
@@ -293,6 +304,15 @@ mod tests {
     fn failed_indicator_stays_visible_longer_than_success() {
         assert_eq!(indicator_hide_delay("completed"), 1_200);
         assert_eq!(indicator_hide_delay("failed"), 4_000);
+    }
+
+    #[test]
+    fn status_update_requests_a_canonical_snapshot_refresh() {
+        assert_eq!(
+            indicator_refresh_script("completed").unwrap(),
+            "window.dispatchEvent(new Event('capture-snapshot-refresh'));"
+        );
+        assert!(indicator_refresh_script("unknown").is_err());
     }
 
     #[cfg(target_os = "macos")]

@@ -1,5 +1,5 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CaptureSnapshot } from "@/generated/tauri-bindings";
 import { idleCaptureSnapshot } from "./captureSnapshot";
@@ -40,6 +40,8 @@ describe("useCaptureSnapshot", () => {
     mocks.listener = undefined;
   });
 
+  afterEach(cleanup);
+
   it("recovers an active session when the window mounts late", async () => {
     mocks.read.mockResolvedValue(snapshot("session-1", 7, "transcribing"));
     const { result } = renderHook(() => useCaptureSnapshot());
@@ -65,5 +67,19 @@ describe("useCaptureSnapshot", () => {
 
     expect(result.current.data.phase).toBe("refining");
     expect(result.current.data.revision).toBe(9);
+  });
+
+  it("reloads the canonical snapshot when the native indicator requests a refresh", async () => {
+    mocks.read
+      .mockResolvedValueOnce(snapshot("session-3", 10, "transcribing"))
+      .mockResolvedValueOnce(snapshot("session-3", 11, "completed"));
+    const { result } = renderHook(() => useCaptureSnapshot());
+
+    await waitFor(() => expect(result.current.data.phase).toBe("transcribing"));
+
+    act(() => window.dispatchEvent(new Event("capture-snapshot-refresh")));
+
+    await waitFor(() => expect(result.current.data.phase).toBe("completed"));
+    expect(mocks.read).toHaveBeenCalledTimes(2);
   });
 });

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useReducer, useState } from "react";
 import { commands, events } from "@/generated/tauri-bindings";
 import { acceptCaptureSnapshot, idleCaptureSnapshot } from "./captureSnapshot";
 
+const SNAPSHOT_REFRESH_EVENT = "capture-snapshot-refresh";
+
 export function useCaptureSnapshot() {
   const [snapshot, receive] = useReducer(
     acceptCaptureSnapshot,
@@ -22,7 +24,9 @@ export function useCaptureSnapshot() {
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
+    const handleRefresh = () => void reload();
 
+    window.addEventListener(SNAPSHOT_REFRESH_EVENT, handleRefresh);
     void events.captureSnapshot
       .listen((event) => receive(event.payload))
       .then((dispose) => {
@@ -34,6 +38,7 @@ export function useCaptureSnapshot() {
     return () => {
       disposed = true;
       unlisten?.();
+      window.removeEventListener(SNAPSHOT_REFRESH_EVENT, handleRefresh);
     };
   }, [reload]);
 

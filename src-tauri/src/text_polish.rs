@@ -24,6 +24,8 @@ pub struct TextPolishResult {
     pub final_text: String,
     pub used_fallback: bool,
     pub error_message: Option<String>,
+    pub provider: String,
+    pub model: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +95,8 @@ pub fn polish_text_with_provider(
                 final_text: finalize_text(request, &final_text),
                 used_fallback: false,
                 error_message: None,
+                provider: config.provider.clone(),
+                model: config.model.clone(),
             })
         }
         Err(error @ (TextPolishError::RequestFailed(_) | TextPolishError::InvalidResponse(_))) => {
@@ -101,6 +105,8 @@ pub fn polish_text_with_provider(
                 final_text: finalize_text(request, request.raw_text.trim()),
                 used_fallback: true,
                 error_message: Some(error.to_string()),
+                provider: String::new(),
+                model: String::new(),
             })
         }
         Err(error) => {

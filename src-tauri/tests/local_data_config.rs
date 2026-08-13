@@ -46,34 +46,19 @@ fn initialize_is_idempotent_and_keeps_existing_data() {
 fn default_config_contains_provider_and_output_defaults() {
     let config = default_app_config();
 
-    assert_eq!(
-        config,
-        AppConfig {
-            default_persona_id: GENERAL_PERSONA_ID.to_string(),
-            asr_provider: "zhipu".to_string(),
-            asr_api_key: "".to_string(),
-            asr_base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
-            asr_model: "glm-asr-2512".to_string(),
-            openai_asr_model: "whisper-1".to_string(),
-            openai_api_key: "".to_string(),
-            openai_base_url: "https://api.openai.com/v1".to_string(),
-            openai_model: "gpt-4o-mini".to_string(),
-            text_provider: "zhipu".to_string(),
-            zhipu_api_key: "".to_string(),
-            zhipu_base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
-            zhipu_model: "glm-4.7-flash".to_string(),
-            longpress_shortcut: "CommandOrControl+Shift+R".to_string(),
-            toggle_shortcut: "Alt+Space".to_string(),
-            fn_hold_enabled: false,
-            auto_save_history: true,
-            mute_system_audio: false,
-            selected_microphone: "".to_string(),
-            retain_recordings: false,
-            local_asr_model: "ggml-base-q5_1.bin".to_string(),
-            allow_cloud_fallback: false,
-            fallback_asr_provider: "zhipu".to_string(),
-        }
-    );
+    assert_eq!(config.config_version, 2);
+    assert_eq!(config.default_persona_id, GENERAL_PERSONA_ID);
+    assert_eq!(config.asr.primary, "zhipu");
+    assert_eq!(config.asr.settings["zhipu"].model, "glm-asr-2512");
+    assert_eq!(config.asr.settings["openai"].model, "whisper-1");
+    assert_eq!(config.asr.settings["local"].model, "ggml-base-q5_1.bin");
+    assert_eq!(config.text.primary, "zhipu");
+    assert_eq!(config.text.settings["zhipu"].model, "glm-4.7-flash");
+    assert_eq!(config.text.settings["openai"].model, "gpt-4o-mini");
+    assert_eq!(config.longpress_shortcut, "CommandOrControl+Shift+R");
+    assert_eq!(config.toggle_shortcut, "Alt+Space");
+    assert!(!config.fn_hold_enabled);
+    assert!(config.auto_save_history);
 }
 
 #[test]

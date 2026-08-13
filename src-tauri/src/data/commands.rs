@@ -229,16 +229,17 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
-    let mut config = match store.get(APP_CONFIG_KEY) {
+    let stored_config = match store.get(APP_CONFIG_KEY) {
         Some(value) => serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
         None => default_app_config(),
     };
+    let mut config = migrate_config_to_v2(stored_config.clone())?;
 
     let legacy_credentials = AppCredentials::from_config(&config);
     let credentials = load_system_credentials(&legacy_credentials)?;
     let sanitized = sanitized_config(&config);
 
-    if sanitized != config {
+    if sanitized != stored_config {
         let value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
         save_store_value_transactionally(
             store.get(APP_CONFIG_KEY),
@@ -259,10 +260,13 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
-    use crate::credentials::{sanitized_config, save_system_credentials, AppCredentials};
+    use crate::credentials::{
+        load_system_credentials, sanitized_config, save_system_credentials, AppCredentials,
+    };
     use tauri_plugin_store::StoreExt;
 
     let credentials = AppCredentials::from_config(&config);
+    let previous_credentials = load_system_credentials(&AppCredentials::default())?;
     save_system_credentials(&credentials)?;
 
     let store = app
@@ -270,7 +274,7 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
         .map_err(|error| error.to_string())?;
     let persisted_config = sanitized_config(&config);
     let value = serde_json::to_value(&persisted_config).map_err(|error| error.to_string())?;
-    save_store_value_transactionally(
+    if let Err(config_error) = save_store_value_transactionally(
         store.get(APP_CONFIG_KEY),
         value,
         |value| store.set(APP_CONFIG_KEY.to_string(), value),
@@ -278,7 +282,14 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
             store.delete(APP_CONFIG_KEY);
         },
         || store.save().map_err(|error| error.to_string()),
-    )?;
+    ) {
+        return match save_system_credentials(&previous_credentials) {
+            Ok(()) => Err(config_error),
+            Err(restore_error) => Err(format!(
+                "配置保存失败且凭据恢复失败：{config_error}; {restore_error}"
+            )),
+        };
+    }
 
     // Fn 监听按同步配置顺序更新，避免连续保存时较早的异步任务覆盖最新开关状态。
     let fn_manager = app.state::<crate::macos_fn::FnHoldManager>();

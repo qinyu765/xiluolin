@@ -1,4 +1,8 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
+
+use crate::providers::catalog::{ProviderRoutingConfig, ProviderSettings};
 
 pub const GENERAL_PERSONA_ID: &str = "general";
 pub const VERBATIM_PERSONA_ID: &str = "verbatim";
@@ -10,26 +14,48 @@ pub(crate) const APP_CONFIG_KEY: &str = "app_config";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct AppConfig {
+    #[serde(default = "legacy_config_version")]
+    pub config_version: u16,
+    #[serde(default)]
+    pub asr: ProviderRoutingConfig,
+    #[serde(default)]
+    pub text: ProviderRoutingConfig,
     pub default_persona_id: String,
-    #[serde(default = "default_asr_provider")]
+    #[serde(default = "default_asr_provider", skip_serializing)]
+    #[specta(skip)]
     pub asr_provider: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
+    #[specta(skip)]
     pub asr_api_key: String,
+    #[serde(default = "default_asr_base_url", skip_serializing)]
+    #[specta(skip)]
     pub asr_base_url: String,
+    #[serde(default = "default_asr_model", skip_serializing)]
+    #[specta(skip)]
     pub asr_model: String,
-    #[serde(default = "default_openai_asr_model")]
+    #[serde(default = "default_openai_asr_model", skip_serializing)]
+    #[specta(skip)]
     pub openai_asr_model: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
+    #[specta(skip)]
     pub openai_api_key: String,
+    #[serde(default = "default_openai_base_url", skip_serializing)]
+    #[specta(skip)]
     pub openai_base_url: String,
+    #[serde(default = "default_openai_model", skip_serializing)]
+    #[specta(skip)]
     pub openai_model: String,
-    #[serde(default = "default_text_provider")]
+    #[serde(default = "default_text_provider", skip_serializing)]
+    #[specta(skip)]
     pub text_provider: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
+    #[specta(skip)]
     pub zhipu_api_key: String,
-    #[serde(default = "default_zhipu_base_url")]
+    #[serde(default = "default_zhipu_base_url", skip_serializing)]
+    #[specta(skip)]
     pub zhipu_base_url: String,
-    #[serde(default = "default_zhipu_model")]
+    #[serde(default = "default_zhipu_model", skip_serializing)]
+    #[specta(skip)]
     pub zhipu_model: String,
     #[serde(default)]
     pub longpress_shortcut: String,
@@ -44,11 +70,14 @@ pub struct AppConfig {
     pub selected_microphone: String,
     #[serde(default)]
     pub retain_recordings: bool,
-    #[serde(default = "default_local_asr_model")]
+    #[serde(default = "default_local_asr_model", skip_serializing)]
+    #[specta(skip)]
     pub local_asr_model: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
+    #[specta(skip)]
     pub allow_cloud_fallback: bool,
-    #[serde(default = "default_fallback_asr_provider")]
+    #[serde(default = "default_fallback_asr_provider", skip_serializing)]
+    #[specta(skip)]
     pub fallback_asr_provider: String,
 }
 
@@ -79,6 +108,14 @@ impl AppConfig {
                 &self.openai_model,
             )
         }
+    }
+
+    pub fn selected_asr_settings(&self) -> Option<&ProviderSettings> {
+        self.asr.settings.get(&self.asr.primary)
+    }
+
+    pub fn selected_text_settings(&self) -> Option<&ProviderSettings> {
+        self.text.settings.get(&self.text.primary)
     }
 }
 
@@ -190,6 +227,10 @@ fn default_asr_provider() -> String {
     "zhipu".to_string()
 }
 
+fn legacy_config_version() -> u16 {
+    1
+}
+
 pub fn normalized_processing_mode(mode: &str) -> &'static str {
     if mode == VERBATIM_PROCESSING_MODE {
         VERBATIM_PROCESSING_MODE
@@ -200,6 +241,22 @@ pub fn normalized_processing_mode(mode: &str) -> &'static str {
 
 fn default_openai_asr_model() -> String {
     "whisper-1".to_string()
+}
+
+fn default_asr_base_url() -> String {
+    "https://open.bigmodel.cn/api/paas/v4".to_string()
+}
+
+fn default_asr_model() -> String {
+    "glm-asr-2512".to_string()
+}
+
+fn default_openai_base_url() -> String {
+    "https://api.openai.com/v1".to_string()
+}
+
+fn default_openai_model() -> String {
+    "gpt-4o-mini".to_string()
 }
 
 fn default_text_provider() -> String {
@@ -223,7 +280,60 @@ fn default_fallback_asr_provider() -> String {
 }
 
 pub fn default_app_config() -> AppConfig {
+    let asr = ProviderRoutingConfig {
+        primary: "zhipu".to_string(),
+        fallbacks: Vec::new(),
+        settings: BTreeMap::from([
+            (
+                "zhipu".to_string(),
+                provider_settings("https://open.bigmodel.cn/api/paas/v4", "glm-asr-2512"),
+            ),
+            (
+                "openai".to_string(),
+                provider_settings("https://api.openai.com/v1", "whisper-1"),
+            ),
+            (
+                "local".to_string(),
+                provider_settings("", &default_local_asr_model()),
+            ),
+            (
+                "qwen-audio".to_string(),
+                provider_settings("https://dashscope.aliyuncs.com", "qwen-audio-3.0-asr-flash"),
+            ),
+            (
+                "qwen3-asr".to_string(),
+                provider_settings(
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                    "qwen3-asr-flash",
+                ),
+            ),
+        ]),
+    };
+    let text = ProviderRoutingConfig {
+        primary: "zhipu".to_string(),
+        fallbacks: Vec::new(),
+        settings: BTreeMap::from([
+            (
+                "zhipu".to_string(),
+                provider_settings(&default_zhipu_base_url(), &default_zhipu_model()),
+            ),
+            (
+                "openai".to_string(),
+                provider_settings("https://api.openai.com/v1", "gpt-4o-mini"),
+            ),
+            (
+                "qwen".to_string(),
+                provider_settings(
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                    "qwen3.7-flash",
+                ),
+            ),
+        ]),
+    };
     AppConfig {
+        config_version: 2,
+        asr,
+        text,
         default_persona_id: DEFAULT_PERSONA_ID.to_string(),
         asr_provider: default_asr_provider(),
         asr_api_key: "".to_string(),
@@ -247,5 +357,95 @@ pub fn default_app_config() -> AppConfig {
         local_asr_model: default_local_asr_model(),
         allow_cloud_fallback: false,
         fallback_asr_provider: default_fallback_asr_provider(),
+    }
+}
+
+pub fn migrate_config_to_v2(mut config: AppConfig) -> Result<AppConfig, String> {
+    if config.config_version >= 2 {
+        config.asr.validate()?;
+        config.text.validate()?;
+        return Ok(config);
+    }
+
+    let asr_primary = config.asr_provider.trim().to_string();
+    let text_primary = config.text_provider.trim().to_string();
+    let mut asr_settings = BTreeMap::from([
+        (
+            "zhipu".to_string(),
+            ProviderSettings {
+                api_key: config.asr_api_key.clone(),
+                base_url: config.asr_base_url.clone(),
+                model: config.asr_model.clone(),
+                options: BTreeMap::new(),
+            },
+        ),
+        (
+            "openai".to_string(),
+            ProviderSettings {
+                api_key: config.openai_api_key.clone(),
+                base_url: config.openai_base_url.clone(),
+                model: config.openai_asr_model.clone(),
+                options: BTreeMap::new(),
+            },
+        ),
+        (
+            "local".to_string(),
+            provider_settings("", &config.local_asr_model),
+        ),
+    ]);
+    for (provider, settings) in default_app_config().asr.settings {
+        asr_settings.entry(provider).or_insert(settings);
+    }
+    let fallbacks = if asr_primary == "local" && config.allow_cloud_fallback {
+        vec![config.fallback_asr_provider.clone()]
+    } else {
+        Vec::new()
+    };
+    config.asr = ProviderRoutingConfig {
+        primary: asr_primary,
+        fallbacks,
+        settings: asr_settings,
+    };
+
+    let mut text_settings = BTreeMap::from([
+        (
+            "zhipu".to_string(),
+            ProviderSettings {
+                api_key: config.zhipu_api_key.clone(),
+                base_url: config.zhipu_base_url.clone(),
+                model: config.zhipu_model.clone(),
+                options: BTreeMap::new(),
+            },
+        ),
+        (
+            "openai".to_string(),
+            ProviderSettings {
+                api_key: config.openai_api_key.clone(),
+                base_url: config.openai_base_url.clone(),
+                model: config.openai_model.clone(),
+                options: BTreeMap::new(),
+            },
+        ),
+    ]);
+    for (provider, settings) in default_app_config().text.settings {
+        text_settings.entry(provider).or_insert(settings);
+    }
+    config.text = ProviderRoutingConfig {
+        primary: text_primary,
+        fallbacks: Vec::new(),
+        settings: text_settings,
+    };
+    config.config_version = 2;
+    config.asr.validate()?;
+    config.text.validate()?;
+    Ok(config)
+}
+
+fn provider_settings(base_url: &str, model: &str) -> ProviderSettings {
+    ProviderSettings {
+        api_key: String::new(),
+        base_url: base_url.to_string(),
+        model: model.to_string(),
+        options: BTreeMap::new(),
     }
 }

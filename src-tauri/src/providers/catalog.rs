@@ -118,6 +118,7 @@ pub struct ProviderCapabilities {
     pub native_hotwords: bool,
     pub max_hotwords: Option<u16>,
     pub supports_prompt: bool,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub max_duration_ms: Option<u64>,
     pub local_model_management: bool,
     pub max_language_hints: Option<u16>,

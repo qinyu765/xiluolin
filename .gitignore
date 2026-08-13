@@ -75,3 +75,6 @@ DESIGN.md
 .agents/settings.local.json
 .claude/settings.local.json
 .playwright-cli/
+
+# Git 隔离工作区
+.worktrees/

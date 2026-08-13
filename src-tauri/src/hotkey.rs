@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
-use crate::events::{RecordingCompletedEvent, RecordingErrorEvent};
+use crate::events::RecordingErrorEvent;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent};
 use tokio::sync::Mutex;
 
@@ -298,12 +298,7 @@ async fn handle_long_press_mode(app: &AppHandle, event: ShortcutEvent) {
                     // 更新快捷键状态
                     let mut state = hotkey_state.lock().await;
                     state.is_recording_via_hotkey = false;
-                    // 触发后续处理流程
-                    println!("长按模式: 准备发送 recording-completed 事件");
-                    match RecordingCompletedEvent(result).emit(app) {
-                        Ok(_) => println!("长按模式: recording-completed 事件发送成功"),
-                        Err(e) => eprintln!("长按模式: recording-completed 事件发送失败: {:?}", e),
-                    }
+                    crate::capture_coordinator::spawn_recording_pipeline(app.clone(), result);
                 }
                 Err(e) => {
                     eprintln!("长按模式: 停止录音失败: {:?}", e);
@@ -348,11 +343,7 @@ async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
                 // 更新快捷键状态
                 let mut state = hotkey_state.lock().await;
                 state.is_recording_via_hotkey = false;
-                println!("切换模式: 准备发送 recording-completed 事件");
-                match RecordingCompletedEvent(result).emit(app) {
-                    Ok(_) => println!("切换模式: recording-completed 事件发送成功"),
-                    Err(e) => eprintln!("切换模式: recording-completed 事件发送失败: {:?}", e),
-                }
+                crate::capture_coordinator::spawn_recording_pipeline(app.clone(), result);
             }
             Err(e) => {
                 eprintln!("切换模式: 停止录音失败: {:?}", e);

@@ -1,8 +1,7 @@
-import React from "react";
 import { VoiceInputStatsCard } from "@/components/home/VoiceInputStatsCard";
+import { HomeReadinessCard } from "@/features/capture/HomeReadinessCard";
 import type {
   Persona,
-  VoiceInputResult,
   HistoryRecord,
   HistoryStatistics,
   AppConfig,
@@ -11,25 +10,11 @@ import { formatDuration, formatCreatedAt } from "@/utils/format";
 import { groupHistoryByDate } from "@/utils/date";
 
 type HomePageProps = {
-  personas: Persona[];
-  selectedPersonaId: string;
   selectedPersona: Persona | undefined;
-  isRecording: boolean;
-  isVoiceProcessing: boolean;
-  recordingDuration: number;
-  voiceStatus: string;
-  selectedAudioName: string;
-  voiceResult: VoiceInputResult | null;
   historyStats: HistoryStatistics | null;
   historyRecords: HistoryRecord[];
   historyStatus: string;
   appConfig: AppConfig | null;
-  onPersonaChange: (personaId: string) => void;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
-  onProcessAudio: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onCopyFinalText: () => void;
-  onOutputText: () => void;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
   onPlayHistoryRecording: (id: string) => void;
@@ -51,50 +36,24 @@ export function HomePage({
 }: HomePageProps) {
   return (
     <div className="space-y-6">
-      {/* 问候语 */}
-      <div className="rounded-lg border bg-card p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-2xl font-medium">
-            Hi，当前人格是{selectedPersona?.name || "未选择"}
-          </h2>
-          {selectedPersona?.id === "general" ? (
-            <span className="inline-flex h-6 items-center rounded-md border bg-muted px-2 text-xs font-medium">
-              推荐
-            </span>
-          ) : null}
-        </div>
-        {selectedPersona?.description && (
-          <p className="mt-2 text-sm text-muted-foreground">
-            {selectedPersona.description}
-          </p>
-        )}
-      </div>
+      <header>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+          Background dictation
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+          语音输入工作台
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          无需停留在窗口中，使用全局快捷键即可开始口述。
+        </p>
+      </header>
 
-      {/* 快速开始 - 暂时隐藏，不符合当前产品定位，保留以备后用 */}
-      {/* <QuickStartCard
-        personas={personas}
-        selectedPersonaId={selectedPersonaId}
-        selectedPersona={selectedPersona}
-        isRecording={isRecording}
-        isVoiceProcessing={isVoiceProcessing}
-        recordingDuration={recordingDuration}
-        voiceStatus={voiceStatus}
-        selectedAudioName={selectedAudioName}
-        voiceResult={voiceResult}
-        onPersonaChange={onPersonaChange}
-        onStartRecording={onStartRecording}
-        onStopRecording={onStopRecording}
-        onProcessAudio={onProcessAudio}
-        onCopyFinalText={onCopyFinalText}
-        onOutputText={onOutputText}
-        formatDuration={formatDuration}
-      /> */}
+      <HomeReadinessCard appConfig={appConfig} persona={selectedPersona} />
 
       <VoiceInputStatsCard
         historyStats={historyStats}
         historyRecords={historyRecords}
         historyStatus={historyStatus}
-        appConfig={appConfig}
         onCopyHistoryText={onCopyHistoryText}
         onDeleteHistoryRecord={onDeleteHistoryRecord}
         onPlayHistoryRecording={onPlayHistoryRecording}

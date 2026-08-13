@@ -23,6 +23,7 @@ XiLuoLin focuses on the complete workflow from speaking an idea to getting text 
 
 - **Voice capture**: microphone recording, short-audio processing, global shortcuts, and recording status feedback.
 - **Speech recognition**: Zhipu GLM-ASR-2512, OpenAI Whisper, and an offline local Whisper model; macOS can explicitly enable hold-Fn recording with short-tap cancellation.
+- **Live captions**: an optional, explicitly downloaded bilingual Zipformer INT8 model (about 198.6 MB) provides incremental text in the overlay without replacing the final ASR result.
 - **Persona-based rewriting**: use polished built-in or custom personas, or select Verbatim Dictation to preserve the raw ASR wording while only normalizing whitespace.
 - **Hotword dictionary**: enabled hotwords globally bias ASR; Zhipu receives up to 100 native hotwords, OpenAI and local Whisper use soft prompts, and similar technical terms may compete.
 - **Desktop delivery**: clipboard and automatic paste output with a recoverable result window when a preferred method is unavailable.
@@ -42,6 +43,7 @@ Major capabilities already implemented:
 - Zhipu GLM-ASR-2512 Provider
 - OpenAI Responses API text-rewriting Provider
 - Recording, global shortcuts, a recording indicator, and short-audio processing
+- A React-based live transcript overlay and verified local realtime-model management
 - Clipboard delivery, automatic paste, and error feedback
 - Home, persona, hotword, and settings pages
 - TypeScript, frontend build, Rust formatting, compilation, and test checks
@@ -78,7 +80,7 @@ The detailed product and engineering documents are currently maintained in Chine
 - Frontend: React 19, TypeScript, and Vite
 - UI: Tailwind CSS, shadcn/ui, and Radix UI
 - Local storage: SQLite, Tauri Store, and the operating-system credential store
-- Audio: cpal and hound
+- Audio: cpal and hound; statically linked Apache-2.0 sherpa-onnx for optional local live captions
 - External services: configurable ASR and text-processing Providers
 
 ## Requirements
@@ -122,10 +124,11 @@ GitHub Actions runs frontend, Windows/macOS Rust, dependency-security, and secre
 1. Start the application and open **Settings**.
 2. Configure Zhipu GLM-ASR-2512 or another supported ASR service.
 3. Configure the OpenAI Responses API or a compatible text-processing service.
-4. Select the microphone, shortcuts, and output method. On macOS, hold-Fn recording can be enabled after Accessibility permission is granted.
-5. Select Verbatim Dictation when no text-model rewriting is wanted, or use a polished built-in/custom persona.
-6. Add project names, personal names, and technical terms that require more accurate recognition.
-7. Place the cursor in a target application and use a global shortcut to start voice input.
+4. Optionally download the verified bilingual Zipformer model under **Settings → Model configuration** to enable live overlay captions.
+5. Select the microphone, shortcuts, and output method. On macOS, hold-Fn recording can be enabled after Accessibility permission is granted.
+6. Select Verbatim Dictation when no text-model rewriting is wanted, or use a polished built-in/custom persona.
+7. Add project names, personal names, and technical terms that require more accurate recognition.
+8. Place the cursor in a target application and use a global shortcut to start voice input.
 
 See the [usage and verification guide](docs/usage-guide.md) for detailed setup, validation paths, and failure scenarios.
 
@@ -137,6 +140,7 @@ See the [usage and verification guide](docs/usage-guide.md) for detailed setup, 
 - History, personas, hotwords, and statistics are stored in local SQLite by default and are not uploaded to a XiLuoLin server.
 - Temporary recordings created by the application are removed after either successful or failed processing. User-selected external audio files are never deleted by this cleanup logic.
 - Logs must not contain API keys, complete user text, or complete recording paths.
+- Live captions run locally. Preview text is never used as a final-result fallback and is not written to logs.
 
 Before using a third-party Provider, review its privacy policy, data-retention rules, and terms of service. Report security concerns according to [SECURITY.md](SECURITY.md).
 

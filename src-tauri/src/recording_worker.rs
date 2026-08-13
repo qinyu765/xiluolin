@@ -6,6 +6,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use hound::{WavSpec, WavWriter};
 
+use crate::realtime_asr::PreviewAudioSink;
 use crate::recording::RecordingError;
 
 type SharedWavWriter = Arc<Mutex<Option<WavWriter<BufWriter<std::fs::File>>>>>;
@@ -24,6 +25,7 @@ impl AudioWorker {
     pub(super) fn start(
         output_path: PathBuf,
         preferred_microphone: String,
+        preview_sink: Option<PreviewAudioSink>,
     ) -> Result<Self, RecordingError> {
         let (command_sender, command_receiver) = mpsc::channel();
         let (ready_sender, ready_receiver) = mpsc::channel();
@@ -33,6 +35,7 @@ impl AudioWorker {
                 run_audio_worker(
                     output_path,
                     preferred_microphone,
+                    preview_sink,
                     command_receiver,
                     ready_sender,
                 );
@@ -216,7 +219,19 @@ fn downmix_u16_to_i16(data: &[u16], channels: usize) -> Vec<i16> {
     })
 }
 
-fn write_samples(writer: &SharedWavWriter, samples: Vec<i16>) {
+fn write_samples(
+    writer: &SharedWavWriter,
+    preview_sink: Option<&PreviewAudioSink>,
+    sample_rate: u32,
+    samples: Vec<i16>,
+) {
+    if let Some(preview_sink) = preview_sink {
+        let preview_samples = samples
+            .iter()
+            .map(|sample| *sample as f32 / i16::MAX as f32)
+            .collect();
+        let _ = preview_sink.push(sample_rate, preview_samples);
+    }
     if let Ok(mut writer_guard) = writer.lock() {
         if let Some(writer) = writer_guard.as_mut() {
             for sample in samples {
@@ -266,6 +281,7 @@ fn finish_audio_resources<T>(
 fn run_audio_worker(
     output_path: PathBuf,
     preferred_microphone: String,
+    preview_sink: Option<PreviewAudioSink>,
     command_receiver: mpsc::Receiver<AudioWorkerCommand>,
     ready_sender: mpsc::Sender<Result<(), RecordingError>>,
 ) {
@@ -285,6 +301,7 @@ fn run_audio_worker(
             }
         })?;
         let channels = config.channels() as usize;
+        let sample_rate = config.sample_rate();
         let writer = WavWriter::create(
             &output_path,
             WavSpec {
@@ -297,11 +314,19 @@ fn run_audio_worker(
         .map_err(|error| RecordingError::FileCreationFailed(error.to_string()))?;
         let writer = Arc::new(Mutex::new(Some(writer)));
         let writer_clone = Arc::clone(&writer);
+        let preview_sink_f32 = preview_sink.clone();
+        let preview_sink_i16 = preview_sink.clone();
+        let preview_sink_u16 = preview_sink;
         let stream = match config.sample_format() {
             cpal::SampleFormat::F32 => device.build_input_stream(
                 &config.clone().into(),
                 move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                    write_samples(&writer_clone, downmix_f32_to_i16(data, channels));
+                    write_samples(
+                        &writer_clone,
+                        preview_sink_f32.as_ref(),
+                        sample_rate,
+                        downmix_f32_to_i16(data, channels),
+                    );
                 },
                 |error| eprintln!("录音流错误：{error}"),
                 None,
@@ -309,7 +334,12 @@ fn run_audio_worker(
             cpal::SampleFormat::I16 => device.build_input_stream(
                 &config.clone().into(),
                 move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                    write_samples(&writer_clone, downmix_i16_to_i16(data, channels));
+                    write_samples(
+                        &writer_clone,
+                        preview_sink_i16.as_ref(),
+                        sample_rate,
+                        downmix_i16_to_i16(data, channels),
+                    );
                 },
                 |error| eprintln!("录音流错误：{error}"),
                 None,
@@ -317,7 +347,12 @@ fn run_audio_worker(
             cpal::SampleFormat::U16 => device.build_input_stream(
                 &config.clone().into(),
                 move |data: &[u16], _: &cpal::InputCallbackInfo| {
-                    write_samples(&writer_clone, downmix_u16_to_i16(data, channels));
+                    write_samples(
+                        &writer_clone,
+                        preview_sink_u16.as_ref(),
+                        sample_rate,
+                        downmix_u16_to_i16(data, channels),
+                    );
                 },
                 |error| eprintln!("录音流错误：{error}"),
                 None,

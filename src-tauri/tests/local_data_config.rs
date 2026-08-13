@@ -72,6 +72,7 @@ fn default_config_contains_provider_and_output_defaults() {
             local_asr_model: "ggml-base-q5_1.bin".to_string(),
             allow_cloud_fallback: false,
             fallback_asr_provider: "zhipu".to_string(),
+            realtime_preview_enabled: false,
         }
     );
 }
@@ -84,4 +85,17 @@ fn legacy_config_defaults_fn_hold_to_disabled() {
     let config: AppConfig = serde_json::from_value(value).unwrap();
 
     assert!(!config.fn_hold_enabled);
+}
+
+#[test]
+fn legacy_config_defaults_realtime_preview_to_disabled() {
+    let mut value = serde_json::to_value(default_app_config()).unwrap();
+    value
+        .as_object_mut()
+        .unwrap()
+        .remove("realtime_preview_enabled");
+
+    let config: AppConfig = serde_json::from_value(value).unwrap();
+
+    assert!(!config.realtime_preview_enabled);
 }

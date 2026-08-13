@@ -20,7 +20,7 @@ export function AppSidebar({
       value={page}
       onValueChange={(value) => onPageChange(value as Page)}
       orientation="vertical"
-      className="fixed left-0 top-0 z-10 flex h-screen w-48 flex-col border-r bg-muted/30"
+      className="fixed left-0 top-0 z-10 flex h-screen w-44 flex-col border-r bg-muted/30"
     >
       <div className="border-b px-6 py-4">
         <h1 className="text-2xl font-semibold tracking-normal [font-family:Georgia,'Times_New_Roman',serif]">

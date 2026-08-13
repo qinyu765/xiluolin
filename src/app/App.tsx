@@ -10,6 +10,7 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import type { Page } from "@/types";
 
 import { AppSidebar } from "./AppSidebar";
+import { AppShell } from "./AppShell";
 import { useConfigController } from "./controllers/useConfigController";
 import { useHistoryController } from "./controllers/useHistoryController";
 import { useHotwordController } from "./controllers/useHotwordController";
@@ -25,83 +26,79 @@ export function App() {
   const recording = useRecordingController(history.reload);
 
   return (
-    <main className="flex min-h-screen">
+    <>
       <Toaster position="top-center" richColors />
-      <AppSidebar page={page} onPageChange={setPage} />
+      <AppShell sidebar={<AppSidebar page={page} onPageChange={setPage} />}>
+        {page === "home" && (
+          <HomePage
+            personas={personas.personas}
+            selectedPersonaId={personas.selectedId}
+            selectedPersona={personas.selected}
+            isRecording={recording.isRecording}
+            isVoiceProcessing={recording.isProcessing}
+            recordingDuration={recording.duration}
+            voiceStatus={recording.status}
+            selectedAudioName={recording.selectedAudioName}
+            voiceResult={recording.result}
+            historyStats={history.stats}
+            historyRecords={history.records}
+            historyStatus={history.status}
+            appConfig={config.appConfig}
+            onPersonaChange={personas.setSelectedId}
+            onStartRecording={recording.startRecording}
+            onStopRecording={recording.stopRecording}
+            onProcessAudio={recording.processAudio}
+            onCopyFinalText={recording.copyFinalText}
+            onOutputText={recording.outputText}
+            onCopyHistoryText={history.copyText}
+            onDeleteHistoryRecord={history.deleteRecord}
+            onPlayHistoryRecording={history.playRecording}
+            onReprocessHistoryAudio={history.reprocessAudio}
+            onRefineHistoryText={history.refineText}
+          />
+        )}
 
-      <div className="ml-48 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto max-w-4xl px-6 py-8">
-          {page === "home" && (
-            <HomePage
-              personas={personas.personas}
-              selectedPersonaId={personas.selectedId}
-              selectedPersona={personas.selected}
-              isRecording={recording.isRecording}
-              isVoiceProcessing={recording.isProcessing}
-              recordingDuration={recording.duration}
-              voiceStatus={recording.status}
-              selectedAudioName={recording.selectedAudioName}
-              voiceResult={recording.result}
-              historyStats={history.stats}
-              historyRecords={history.records}
-              historyStatus={history.status}
-              appConfig={config.appConfig}
-              onPersonaChange={personas.setSelectedId}
-              onStartRecording={recording.startRecording}
-              onStopRecording={recording.stopRecording}
-              onProcessAudio={recording.processAudio}
-              onCopyFinalText={recording.copyFinalText}
-              onOutputText={recording.outputText}
-              onCopyHistoryText={history.copyText}
-              onDeleteHistoryRecord={history.deleteRecord}
-              onPlayHistoryRecording={history.playRecording}
-              onReprocessHistoryAudio={history.reprocessAudio}
-              onRefineHistoryText={history.refineText}
-            />
-          )}
+        {page === "persona" && (
+          <PersonaPage
+            personas={personas.personas}
+            status={personas.status}
+            onCreatePersona={personas.openCreate}
+            onEditPersona={personas.openEdit}
+            onDeletePersona={personas.deletePersona}
+            onSetDefaultPersona={personas.setDefault}
+          />
+        )}
 
-          {page === "persona" && (
-            <PersonaPage
-              personas={personas.personas}
-              status={personas.status}
-              onCreatePersona={personas.openCreate}
-              onEditPersona={personas.openEdit}
-              onDeletePersona={personas.deletePersona}
-              onSetDefaultPersona={personas.setDefault}
-            />
-          )}
+        {page === "hotword" && (
+          <HotwordPage
+            hotwords={hotwords.hotwords}
+            hotwordContext={hotwords.context}
+            hotwordStatus={hotwords.status}
+            enabledHotwordCount={hotwords.enabledCount}
+            onCreateHotword={hotwords.openCreate}
+            onEditHotword={hotwords.openEdit}
+            onDeleteHotword={hotwords.deleteHotword}
+            onHotwordEnabledChange={hotwords.setEnabled}
+          />
+        )}
 
-          {page === "hotword" && (
-            <HotwordPage
-              hotwords={hotwords.hotwords}
-              hotwordContext={hotwords.context}
-              hotwordStatus={hotwords.status}
-              enabledHotwordCount={hotwords.enabledCount}
-              onCreateHotword={hotwords.openCreate}
-              onEditHotword={hotwords.openEdit}
-              onDeleteHotword={hotwords.deleteHotword}
-              onHotwordEnabledChange={hotwords.setEnabled}
-            />
-          )}
-
-          {page === "settings" && (
-            <SettingsPage
-              appConfig={config.appConfig}
-              audioDevices={config.audioDevices}
-              asrStatus={config.asrStatus}
-              textProcessingStatus={config.textProcessingStatus}
-              isAsrSaving={config.isAsrSaving}
-              isTextProcessingSaving={config.isTextProcessingSaving}
-              onSaveAsrConfig={config.handleSaveAsrConfig}
-              onSaveTextProcessingConfig={config.handleSaveTextProcessingConfig}
-              onConfigChange={config.setAppConfig}
-              onSaveConfig={config.saveConfig}
-              configRevision={config.revision}
-              historyRevision={history.revision}
-            />
-          )}
-        </div>
-      </div>
+        {page === "settings" && (
+          <SettingsPage
+            appConfig={config.appConfig}
+            audioDevices={config.audioDevices}
+            asrStatus={config.asrStatus}
+            textProcessingStatus={config.textProcessingStatus}
+            isAsrSaving={config.isAsrSaving}
+            isTextProcessingSaving={config.isTextProcessingSaving}
+            onSaveAsrConfig={config.handleSaveAsrConfig}
+            onSaveTextProcessingConfig={config.handleSaveTextProcessingConfig}
+            onConfigChange={config.setAppConfig}
+            onSaveConfig={config.saveConfig}
+            configRevision={config.revision}
+            historyRevision={history.revision}
+          />
+        )}
+      </AppShell>
 
       <HotwordDialog
         open={hotwords.isDialogOpen}
@@ -122,6 +119,6 @@ export function App() {
         onDraftChange={personas.setDraft}
         onSave={personas.save}
       />
-    </main>
+    </>
   );
 }

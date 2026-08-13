@@ -29,6 +29,7 @@
 }
 
 :root {
+  color-scheme: light;
   --radius: 0.5rem;
   --background: #f6f5f4;
   --foreground: rgba(0, 0, 0, 0.95);
@@ -50,6 +51,7 @@
   --ring: #097fe8;
 }
 
+/* 暂时固定浅色主题，深色变量保留待整体视觉验证后恢复。 */
 .dark {
   --background: #31302e;
   --foreground: #ffffff;

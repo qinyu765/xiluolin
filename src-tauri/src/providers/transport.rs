@@ -123,3 +123,53 @@ pub fn request_error(provider: &str, model: &str, error: reqwest::Error) -> Prov
         },
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeMap, net::TcpListener, thread, time::Duration};
+
+    use super::{http_error, post_json};
+    use crate::providers::error::ProviderErrorKind;
+
+    #[test]
+    fn http_statuses_are_classified_without_response_bodies() {
+        assert_eq!(
+            http_error("qwen", "model", 401).kind,
+            ProviderErrorKind::Authentication
+        );
+        assert_eq!(
+            http_error("qwen", "model", 429).kind,
+            ProviderErrorKind::RateLimited
+        );
+        assert_eq!(
+            http_error("qwen", "model", 503).kind,
+            ProviderErrorKind::RemoteFailure
+        );
+    }
+
+    #[test]
+    fn slow_provider_is_classified_as_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
+        let base_url = format!("http://{}", listener.local_addr().expect("local address"));
+        let handle = thread::spawn(move || {
+            let _connection = listener.accept().expect("accept request");
+            thread::sleep(Duration::from_millis(100));
+        });
+
+        let error = post_json(
+            "qwen",
+            "qwen3.7-flash",
+            &base_url,
+            "chat/completions",
+            "test-key",
+            &BTreeMap::new(),
+            &serde_json::json!({"input": "test"}),
+            Duration::from_millis(20),
+        )
+        .expect_err("request should time out");
+
+        assert_eq!(error.kind, ProviderErrorKind::Timeout);
+        assert_eq!(error.message, "Provider 请求超时");
+        handle.join().expect("mock server");
+    }
+}

@@ -15,10 +15,7 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByRole("main")).toHaveClass("h-screen", "overflow-hidden");
-    expect(screen.getByTestId("app-sidebar")).toHaveClass(
-      "h-full",
-      "shrink-0",
-    );
+    expect(screen.getByTestId("app-sidebar")).toHaveClass("h-full", "shrink-0");
     expect(screen.getByTestId("app-sidebar")).not.toHaveClass("fixed");
     expect(screen.getByRole("region", { name: "页面内容" })).toHaveClass(
       "h-full",

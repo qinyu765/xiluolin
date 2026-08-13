@@ -9,12 +9,13 @@ export const commands = {
 	startCapture: () => __TAURI_INVOKE<CaptureSessionStart>("start_capture"),
 	stopCapture: () => __TAURI_INVOKE<CaptureSnapshot>("stop_capture"),
 	polishText: (request: TextPolishRequest, provider: string, apiKey: string, baseUrl: string, model: string) => __TAURI_INVOKE<TextPolishResult>("polish_text", { request, provider, apiKey, baseUrl, model }),
+	listProviderCatalog: () => __TAURI_INVOKE<ProviderCatalog>("list_provider_catalog"),
 	processUploadedAudio: (request: VoiceInputRequest) => __TAURI_INVOKE<VoiceInputResult>("process_uploaded_audio", { request }),
 	readCaptureSnapshot: () => __TAURI_INVOKE<CaptureSnapshot>("read_capture_snapshot"),
 	abortCaptureSession: (sessionId: string) => __TAURI_INVOKE<null>("abort_capture_session", { sessionId }),
-	initializeLocalData: () => __TAURI_INVOKE<AppConfig>("initialize_local_data"),
+	initializeLocalData: () => __TAURI_INVOKE<AppConfig_Serialize>("initialize_local_data"),
 	listPersonas: () => __TAURI_INVOKE<Persona[]>("list_personas"),
-	setDefaultPersona: (personaId: string) => __TAURI_INVOKE<DefaultPersonaUpdate>("set_default_persona", { personaId }),
+	setDefaultPersona: (personaId: string) => __TAURI_INVOKE<DefaultPersonaUpdate_Serialize>("set_default_persona", { personaId }),
 	createPersona: (draft: PersonaDraft) => __TAURI_INVOKE<Persona>("create_persona", { draft }),
 	updatePersona: (id: string, draft: PersonaDraft) => __TAURI_INVOKE<Persona>("update_persona", { id, draft }),
 	deletePersona: (id: string) => __TAURI_INVOKE<Persona[]>("delete_persona", { id }),
@@ -30,8 +31,8 @@ export const commands = {
 	readRetainedRecording: (historyId: string) => __TAURI_INVOKE<number[]>("read_retained_recording", { historyId }),
 	reprocessHistoryAudio: (historyId: string) => __TAURI_INVOKE<HistoryRecord>("reprocess_history_audio", { historyId }),
 	refineHistoryText: (historyId: string) => __TAURI_INVOKE<HistoryRecord>("refine_history_text", { historyId }),
-	readAppConfig: () => __TAURI_INVOKE<AppConfig>("read_app_config"),
-	updateAppConfig: (config: AppConfig) => __TAURI_INVOKE<AppConfig>("update_app_config", { config }),
+	readAppConfig: () => __TAURI_INVOKE<AppConfig_Serialize>("read_app_config"),
+	updateAppConfig: (config: AppConfig_Deserialize) => __TAURI_INVOKE<AppConfig_Serialize>("update_app_config", { config }),
 	listAudioDevices: () => __TAURI_INVOKE<AudioDevice[]>("list_audio_devices"),
 	readInputReadiness: () => __TAURI_INVOKE<InputReadiness>("read_input_readiness"),
 	localAsrModelInfo: () => __TAURI_INVOKE<LocalAsrModelInfo>("local_asr_model_info"),
@@ -72,20 +73,13 @@ export const events = {
 };
 
 /* Types */
-export type AppConfig = {
+export type AppConfig = AppConfig_Serialize | AppConfig_Deserialize;
+
+export type AppConfig_Deserialize = {
+	config_version?: number,
+	asr?: ProviderRoutingConfig,
+	text?: ProviderRoutingConfig,
 	default_persona_id: string,
-	asr_provider?: string,
-	asr_api_key?: string,
-	asr_base_url: string,
-	asr_model: string,
-	openai_asr_model?: string,
-	openai_api_key?: string,
-	openai_base_url: string,
-	openai_model: string,
-	text_provider?: string,
-	zhipu_api_key?: string,
-	zhipu_base_url?: string,
-	zhipu_model?: string,
 	longpress_shortcut?: string,
 	toggle_shortcut?: string,
 	fn_hold_enabled?: boolean,
@@ -93,10 +87,22 @@ export type AppConfig = {
 	mute_system_audio?: boolean,
 	selected_microphone?: string,
 	retain_recordings?: boolean,
-	local_asr_model?: string,
-	allow_cloud_fallback?: boolean,
-	fallback_asr_provider?: string,
 	realtime_preview_enabled?: boolean,
+};
+
+export type AppConfig_Serialize = {
+	config_version: number,
+	asr: ProviderRoutingConfig,
+	text: ProviderRoutingConfig,
+	default_persona_id: string,
+	longpress_shortcut: string,
+	toggle_shortcut: string,
+	fn_hold_enabled: boolean,
+	auto_save_history: boolean,
+	mute_system_audio: boolean,
+	selected_microphone: string,
+	retain_recordings: boolean,
+	realtime_preview_enabled: boolean,
 };
 
 export type AsrTranscription = {
@@ -141,9 +147,16 @@ export type CaptureSnapshotEvent = CaptureSnapshot;
 
 export type CaptureSource = "hotkey" | "app";
 
-export type DefaultPersonaUpdate = {
+export type DefaultPersonaUpdate = DefaultPersonaUpdate_Serialize | DefaultPersonaUpdate_Deserialize;
+
+export type DefaultPersonaUpdate_Deserialize = {
 	personas: Persona[],
-	config: AppConfig,
+	config: AppConfig_Deserialize,
+};
+
+export type DefaultPersonaUpdate_Serialize = {
+	personas: Persona[],
+	config: AppConfig_Serialize,
 };
 
 export type FallbackResult = {
@@ -278,6 +291,67 @@ export type PersonaDraft = {
 
 export type PreviewState = "disabled" | "loading" | "active" | "unavailable";
 
+export type ProviderCapabilities = {
+	native_hotwords: boolean,
+	max_hotwords: number | null,
+	supports_prompt: boolean,
+	max_duration_ms: number | null,
+	local_model_management: boolean,
+	max_language_hints: number | null,
+};
+
+export type ProviderCapability = "asr" | "text";
+
+export type ProviderCatalog = {
+	asr: ProviderDescriptor[],
+	text: ProviderDescriptor[],
+};
+
+export type ProviderDescriptor = {
+	id: string,
+	name: string,
+	capability: ProviderCapability,
+	protocol: string,
+	default_base_url: string,
+	default_model: string,
+	fields: ProviderFieldDescriptor[],
+	capabilities: ProviderCapabilities,
+};
+
+export type ProviderFieldChoice = {
+	value: string,
+	label: string,
+};
+
+export type ProviderFieldDescriptor = {
+	key: string,
+	label: string,
+	kind: ProviderFieldKind,
+	required: boolean,
+	secret: boolean,
+	placeholder: string,
+	help: string,
+	choices: ProviderFieldChoice[],
+	max_items: number | null,
+};
+
+export type ProviderFieldKind = "api_key" | "text" | "select" | "multi_select" | "switch";
+
+export type ProviderOptionValue = { type: "text"; value: string } | { type: "boolean"; value: boolean } | { type: "string_list"; value: string[] };
+
+export type ProviderRoutingConfig = {
+	primary?: string,
+	fallbacks?: string[],
+	settings?: { [key in string]: ProviderSettings },
+};
+
+export type ProviderSettings = {
+	api_key?: string,
+	base_url?: string,
+	model?: string,
+	options?: { [key in string]: ProviderOptionValue },
+};
+
 export type ReadinessAction = "request_microphone" | "open_microphone_settings" | "request_accessibility" | "open_accessibility_settings";
 
 export type ReadinessCheck = {
@@ -334,6 +408,8 @@ export type TextPolishResult = {
 	final_text: string,
 	used_fallback: boolean,
 	error_message: string | null,
+	provider: string,
+	model: string,
 };
 
 export type VoiceInputRequest = {

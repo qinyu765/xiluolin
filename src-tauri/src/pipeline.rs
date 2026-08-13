@@ -10,10 +10,15 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    asr::{build_asr_config, transcribe_audio_file, AsrConfig, AsrRequest},
+    asr::{transcribe_audio_file, AsrConfig, AsrRequest, AsrTranscription},
     capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
     data::{HistoryRecord, HistoryRecordDraft, LocalDatabase, Persona, VERBATIM_PROCESSING_MODE},
     indicator,
+    providers::{
+        asr::{default_asr_registry, route_asr, AsrInput},
+        catalog::ProviderRoutingConfig,
+        text::{default_text_registry, route_text, TextInput},
+    },
     text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
 };
 
@@ -230,10 +235,66 @@ pub fn process_voice_input(
     )
 }
 
+pub fn process_voice_input_routed(
+    request: VoiceInputRequest,
+    asr_routing: ProviderRoutingConfig,
+    text_routing: ProviderRoutingConfig,
+    local_model_path: Option<PathBuf>,
+    database: &LocalDatabase,
+    auto_save_history: bool,
+    history_context: HistoryContext,
+) -> Result<VoiceInputResult, VoiceInputError> {
+    process_voice_input_with_execution(
+        request,
+        ProviderExecution::Routed {
+            asr: asr_routing,
+            text: text_routing,
+            local_model_path,
+        },
+        database,
+        auto_save_history,
+        history_context,
+        |_| {},
+    )
+}
+
 pub fn process_voice_input_with_progress(
     request: VoiceInputRequest,
     asr_config: AsrConfig,
     text_config: TextPolishConfig,
+    database: &LocalDatabase,
+    auto_save_history: bool,
+    history_context: HistoryContext,
+    progress: impl FnMut(VoiceInputStage),
+) -> Result<VoiceInputResult, VoiceInputError> {
+    process_voice_input_with_execution(
+        request,
+        ProviderExecution::Legacy {
+            asr: asr_config,
+            text: text_config,
+        },
+        database,
+        auto_save_history,
+        history_context,
+        progress,
+    )
+}
+
+enum ProviderExecution {
+    Legacy {
+        asr: AsrConfig,
+        text: TextPolishConfig,
+    },
+    Routed {
+        asr: ProviderRoutingConfig,
+        text: ProviderRoutingConfig,
+        local_model_path: Option<PathBuf>,
+    },
+}
+
+fn process_voice_input_with_execution(
+    request: VoiceInputRequest,
+    providers: ProviderExecution,
     database: &LocalDatabase,
     auto_save_history: bool,
     history_context: HistoryContext,
@@ -245,8 +306,7 @@ pub fn process_voice_input_with_progress(
         .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
     process_voice_input_with_captured_context(
         request,
-        asr_config,
-        text_config,
+        providers,
         database,
         auto_save_history,
         history_context,
@@ -258,10 +318,9 @@ pub fn process_voice_input_with_progress(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn process_voice_input_with_captured_context(
+fn process_voice_input_with_captured_context(
     request: VoiceInputRequest,
-    asr_config: AsrConfig,
-    text_config: TextPolishConfig,
+    providers: ProviderExecution,
     database: &LocalDatabase,
     auto_save_history: bool,
     history_context: HistoryContext,
@@ -287,15 +346,36 @@ pub fn process_voice_input_with_captured_context(
     // 2. ASR 识别。人格与热词在录音开始时固定；人格描述绝不发送给 ASR。
     progress(VoiceInputStage::Transcribing);
     let step3_start = std::time::Instant::now();
-    let transcription = transcribe_audio_file(
-        &AsrRequest {
-            audio_path: audio_path.to_path_buf(),
-            hotwords: asr_hotwords,
-            context_prompt: None,
-        },
-        &asr_config,
-    )
-    .map_err(|error| VoiceInputError::RequestFailed(error.to_string()));
+    let asr_request = AsrRequest {
+        audio_path: audio_path.to_path_buf(),
+        hotwords: asr_hotwords,
+        context_prompt: None,
+    };
+    let transcription = match &providers {
+        ProviderExecution::Legacy { asr, .. } => transcribe_audio_file(&asr_request, asr)
+            .map_err(|error| VoiceInputError::RequestFailed(error.to_string())),
+        ProviderExecution::Routed {
+            asr,
+            local_model_path,
+            ..
+        } => route_asr(
+            &AsrInput {
+                audio_path: asr_request.audio_path.clone(),
+                hotwords: asr_request.hotwords.clone(),
+                context_prompt: asr_request.context_prompt.clone(),
+                local_model_path: local_model_path.clone(),
+            },
+            asr,
+            &default_asr_registry(),
+        )
+        .map(|result| AsrTranscription {
+            text: result.output.text,
+            provider: result.output.provider,
+            model: result.output.model,
+            used_fallback: result.used_fallback,
+        })
+        .map_err(|error| VoiceInputError::RequestFailed(error.to_string())),
+    };
     let transcription = transcription?;
     if transcription.text.trim().is_empty() {
         return Err(VoiceInputError::EmptyTranscription);
@@ -325,28 +405,50 @@ pub fn process_voice_input_with_captured_context(
             )
         } else {
             progress(VoiceInputStage::Refining);
-            let polish_result = polish_text_with_provider(
-                &TextPolishRequest {
-                    raw_text: transcription.text.clone(),
-                    persona_id: persona.id.clone(),
-                    persona_description: persona.description.clone(),
-                    hotword_context,
-                },
-                &text_config,
-            )
-            .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+            let text_request = TextPolishRequest {
+                raw_text: transcription.text.clone(),
+                persona_id: persona.id.clone(),
+                persona_description: persona.description.clone(),
+                hotword_context,
+            };
+            let polish_result = match &providers {
+                ProviderExecution::Legacy { text, .. } => {
+                    polish_text_with_provider(&text_request, text)
+                        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?
+                }
+                ProviderExecution::Routed { text, .. } => {
+                    let routed = route_text(
+                        &TextInput {
+                            raw_text: text_request.raw_text.clone(),
+                            persona_id: text_request.persona_id.clone(),
+                            persona_description: text_request.persona_description.clone(),
+                            hotword_context: text_request.hotword_context.clone(),
+                        },
+                        text,
+                        &default_text_registry(),
+                    )
+                    .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+                    crate::text_polish::TextPolishResult {
+                        final_text: routed.output.text,
+                        used_fallback: routed.used_text_fallback,
+                        error_message: None,
+                        provider: routed.output.provider,
+                        model: routed.output.model,
+                    }
+                }
+            };
             log_processing_result(
                 "文本润色",
-                &text_config.provider,
-                &text_config.model,
+                &polish_result.provider,
+                &polish_result.model,
                 &polish_result.final_text,
                 polish_result.used_fallback,
             );
             (
                 polish_result.final_text,
                 polish_result.used_fallback,
-                history_context.text_provider.clone(),
-                history_context.text_model.clone(),
+                polish_result.provider,
+                polish_result.model,
             )
         };
     eprintln!(
@@ -432,28 +534,22 @@ pub fn process_uploaded_audio(
         .map_err(|error| error.to_string())?;
     database.initialize().map_err(|error| error.to_string())?;
 
-    let asr_config = build_asr_config(&app, &config)?;
-    let (text_api_key, text_base_url, text_model) = config.selected_text_config();
-    let text_api_key = text_api_key.to_string();
-    let text_base_url = text_base_url.to_string();
-    let text_model = text_model.to_string();
-
     let history_context = HistoryContext {
         source: "upload".to_string(),
-        text_provider: config.text_provider.clone(),
-        text_model: text_model.clone(),
+        text_provider: config.text.primary.clone(),
+        text_model: config
+            .selected_text_settings()
+            .map(|settings| settings.model.clone())
+            .unwrap_or_default(),
         audio_path: None,
     };
 
-    process_voice_input(
+    let local_model_path = route_local_model_path(&app, &config.asr)?;
+    process_voice_input_routed(
         request,
-        asr_config,
-        TextPolishConfig {
-            provider: config.text_provider,
-            api_key: text_api_key,
-            base_url: text_base_url,
-            model: text_model,
-        },
+        config.asr,
+        config.text,
+        local_model_path,
         &database,
         config.auto_save_history,
         history_context,
@@ -541,23 +637,20 @@ pub fn process_recording_file(
             std::path::Path::new(&file_path),
             |audio_bytes, audio_extension, recording_path| {
                 let config = captured.config.clone();
-                eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr_provider);
+                eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr.primary);
 
                 std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
                 let database = LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
                     .map_err(|error| error.to_string())?;
                 database.initialize().map_err(|error| error.to_string())?;
 
-                let asr_config = build_asr_config(&app, &config)?;
-                let (text_api_key, text_base_url, text_model) = config.selected_text_config();
-                let text_api_key = text_api_key.to_string();
-                let text_base_url = text_base_url.to_string();
-                let text_model = text_model.to_string();
-
                 let history_context = HistoryContext {
                     source: "recording".to_string(),
-                    text_provider: config.text_provider.clone(),
-                    text_model: text_model.clone(),
+                    text_provider: config.text.primary.clone(),
+                    text_model: config
+                        .selected_text_settings()
+                        .map(|settings| settings.model.clone())
+                        .unwrap_or_default(),
                     audio_path: if config.retain_recordings && config.auto_save_history {
                         Some(recording_path.to_string_lossy().to_string())
                     } else {
@@ -566,18 +659,17 @@ pub fn process_recording_file(
                 };
 
                 let retain_requested = config.retain_recordings && config.auto_save_history;
+                let local_model_path = route_local_model_path(&app, &config.asr)?;
                 let processed = process_voice_input_with_captured_context(
                     VoiceInputRequest {
                         audio_bytes,
                         audio_extension,
                         duration_ms: i64::from(duration_ms),
                     },
-                    asr_config,
-                    TextPolishConfig {
-                        provider: config.text_provider,
-                        api_key: text_api_key,
-                        base_url: text_base_url,
-                        model: text_model,
+                    ProviderExecution::Routed {
+                        asr: config.asr,
+                        text: config.text,
+                        local_model_path,
                     },
                     &database,
                     config.auto_save_history,
@@ -614,4 +706,15 @@ pub fn process_recording_file(
     }
 
     result
+}
+
+fn route_local_model_path(
+    app: &tauri::AppHandle,
+    routing: &ProviderRoutingConfig,
+) -> Result<Option<PathBuf>, String> {
+    if routing.provider_ids().any(|provider| provider == "local") {
+        crate::local_asr_model::model_path(app).map(Some)
+    } else {
+        Ok(None)
+    }
 }

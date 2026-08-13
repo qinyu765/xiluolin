@@ -70,7 +70,10 @@ fn read_request(stream: &mut TcpStream) -> Vec<u8> {
     request
 }
 
-fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHandle<Vec<u8>>) {
+fn spawn_mock_asr_server_with_status(
+    status: &'static str,
+    response_body: &'static str,
+) -> (String, thread::JoinHandle<Vec<u8>>) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("mock server should bind");
     let base_url = format!(
         "http://{}",
@@ -85,7 +88,7 @@ fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHa
             .expect("mock server should accept request");
         let request = read_request(&mut stream);
         let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             response_body.len(),
             response_body
         );
@@ -96,6 +99,10 @@ fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHa
     });
 
     (base_url, handle)
+}
+
+fn spawn_mock_asr_server(response_body: &'static str) -> (String, thread::JoinHandle<Vec<u8>>) {
+    spawn_mock_asr_server_with_status("200 OK", response_body)
 }
 
 fn asr_config(base_url: String, api_key: &str) -> AsrConfig {
@@ -166,6 +173,27 @@ fn rejects_unsupported_audio_extension() {
     .expect_err("unsupported extension should fail");
 
     assert_eq!(error, AsrError::UnsupportedAudioFormat("txt".to_string()));
+}
+
+#[test]
+fn multipart_asr_preserves_http_status_for_provider_classification() {
+    for (status, expected) in [
+        ("401 Unauthorized", 401),
+        ("429 Too Many Requests", 429),
+        ("503 Service Unavailable", 503),
+    ] {
+        let audio_path = temp_audio_path("http-status", "wav", b"fixture audio");
+        let (base_url, handle) = spawn_mock_asr_server_with_status(status, "{}");
+        let error = transcribe_audio_file(
+            &request(audio_path.clone()),
+            &asr_config(base_url, "test-key"),
+        )
+        .expect_err("HTTP failure should be structured");
+        handle.join().expect("mock server");
+        fs::remove_file(audio_path).expect("remove fixture");
+
+        assert_eq!(error, AsrError::HttpStatus(expected));
+    }
 }
 
 #[test]

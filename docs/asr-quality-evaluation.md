@@ -5,8 +5,8 @@
 ## 当前产品边界
 
 - 单条语音输入最长 28 秒；25 秒时提示，28 秒自动停止并识别。
-- 智谱 `glm-asr-2512` 是质量优先默认模型；智谱原生热词最多发送前 100 个稳定去重词。
-- OpenAI ASR 的 `prompt` 和本地 Whisper 的 `initial_prompt` 是软提示，不等价于智谱原生热词。
+- 智谱 `glm-asr-2512` 是质量优先默认模型；智谱与 Qwen-Audio 原生热词最多发送前 100 个稳定去重词，Qwen-Audio 权重固定为 5。
+- OpenAI ASR 的 `prompt`、Qwen3-ASR 的 system glossary 和本地 Whisper 的 `initial_prompt` 不等价于原生热词。Qwen-Audio 最多接受 4 个语言提示，Qwen3-ASR 只接受单语言选项。
 - “原文听写”只清理首尾和异常空白，不调用文本整理 Provider；其他人格继续使用润色流程。
 - “原文听写”不会替 ASR 改写或纠正术语；评估原文质量时必须使用原始 ASR 结果，并记录启用热词及其顺序。
 - 第一阶段不提供边说边出字。实时预览必须在本阶段指标稳定后另行验证。
@@ -18,6 +18,7 @@
 每轮必须固定：
 
 - 应用 commit、ASR Provider、模型和配置；
+- 实际成功的 Provider、模型、route 位置，以及是否命中 fallback；
 - 麦克风与采样设备；
 - 热词列表及顺序；
 - 网络条件与录音环境；
@@ -58,5 +59,7 @@
 1. 不启用 `Node.js` 热词，重复 20 次。
 2. 只启用精确的 `Node.js` 热词，重复 20 次。
 3. 目标是热词组至少 19/20 次输出准确的 `Node.js`；未达标时记录为 Provider 能力限制，不改变“原文听写”语义，也不通过文本模型静默替换。
+
+比较 Provider 时必须分别跑固定 primary 和完整 fallback route。固定 primary 用于质量归因；完整 route 用于产品可用性，但 fallback 成功样本必须按实际 Provider 分组，不能计入 primary 的质量或延迟。Qwen-Audio 与 Qwen3-ASR 协议和热词语义不同，应作为两个独立候选模型评测。
 
 这些桌面检查无法由无物理按键、无麦克风授权的 CI 替代。发布说明必须明确列出已执行的平台和仍未执行的项。

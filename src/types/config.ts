@@ -1,5 +1,5 @@
 import type {
-  AppConfig as GeneratedAppConfig,
+  AppConfig_Serialize,
   AudioDevice,
   InputReadiness,
   LocalAsrDownloadProgress,
@@ -10,7 +10,7 @@ import type {
   RecordingStorageInfo,
 } from "@/generated/tauri-bindings";
 
-export type AppConfig = Required<GeneratedAppConfig>;
+export type AppConfig = AppConfig_Serialize;
 export type {
   AudioDevice,
   InputReadiness,

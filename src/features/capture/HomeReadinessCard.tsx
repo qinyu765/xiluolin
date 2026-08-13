@@ -16,6 +16,7 @@ import { formatShortcutDisplay } from "@/utils/shortcut";
 
 type ReadinessData = Awaited<ReturnType<typeof commands.readInputReadiness>> & {
   realtime: Awaited<ReturnType<typeof commands.realtimeAsrModelInfo>>;
+  catalog: Awaited<ReturnType<typeof commands.listProviderCatalog>>;
 };
 
 export function HomeReadinessCard({
@@ -26,20 +27,20 @@ export function HomeReadinessCard({
   persona: Persona | undefined;
 }) {
   const load = useCallback(async (): Promise<ReadinessData> => {
-    const [readiness, realtime] = await Promise.all([
+    const [readiness, realtime, catalog] = await Promise.all([
       commands.readInputReadiness(),
       commands.realtimeAsrModelInfo(),
+      commands.listProviderCatalog(),
     ]);
-    return { ...readiness, realtime };
+    return { ...readiness, realtime, catalog };
   }, []);
   const resource = useResource(load);
   const shortcut = appConfig?.longpress_shortcut || appConfig?.toggle_shortcut;
+  const providerId = appConfig?.asr.primary;
   const provider =
-    appConfig?.asr_provider === "local"
-      ? "本地 Whisper"
-      : appConfig?.asr_provider === "openai"
-        ? "OpenAI 兼容"
-        : "智谱 ASR";
+    resource.data?.catalog.asr.find(({ id }) => id === providerId)?.name ||
+    providerId ||
+    "未配置";
   const items = [
     {
       icon: Mic2Icon,

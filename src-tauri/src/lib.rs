@@ -17,6 +17,7 @@ pub mod macos_fn;
 pub mod macos_permissions;
 pub mod output;
 pub mod pipeline;
+pub mod providers;
 pub mod readiness;
 pub mod realtime_asr;
 pub mod realtime_asr_model;

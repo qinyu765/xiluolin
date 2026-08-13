@@ -218,7 +218,7 @@ fn create_recognizer(directory: &Path, hotwords: &[String]) -> Result<OnlineReco
     let path = |name: &str| directory.join(name).to_string_lossy().to_string();
     let mut config = OnlineRecognizerConfig::default();
     config.model_config.transducer.encoder = Some(path("encoder-epoch-99-avg-1.int8.onnx"));
-    config.model_config.transducer.decoder = Some(path("decoder-epoch-99-avg-1.int8.onnx"));
+    config.model_config.transducer.decoder = Some(path("decoder-epoch-99-avg-1.onnx"));
     config.model_config.transducer.joiner = Some(path("joiner-epoch-99-avg-1.int8.onnx"));
     config.model_config.tokens = Some(path("tokens.txt"));
     config.model_config.bpe_vocab = Some(path("bpe.vocab"));

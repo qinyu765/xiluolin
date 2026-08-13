@@ -2,8 +2,8 @@ use tauri_specta::{collect_commands, collect_events, Builder, ErrorHandlingMode}
 
 use crate::{
     asr, capture_coordinator, capture_session, data, events, history_reprocessing, hotkey,
-    indicator, local_asr_model, macos_permissions, output, pipeline, readiness, realtime_asr_model,
-    recording, recording_storage, text_polish,
+    indicator, local_asr_model, macos_permissions, output, pipeline, providers, readiness,
+    realtime_asr_model, recording, recording_storage, text_polish,
 };
 
 pub fn builder() -> Builder<tauri::Wry> {
@@ -14,6 +14,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             capture_coordinator::start_capture,
             capture_coordinator::stop_capture,
             text_polish::polish_text,
+            providers::list_provider_catalog,
             pipeline::process_uploaded_audio,
             capture_session::read_capture_snapshot,
             capture_session::abort_capture_session,

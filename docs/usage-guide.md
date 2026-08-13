@@ -15,8 +15,8 @@
 - macOS：macOS 13+；当前稳定版安装包仅支持 Apple Silicon，且未经 Apple 公证
 - Windows：Windows 10/11 x64；当前稳定版安装包未签名，可能触发 SmartScreen
 - 可用的麦克风及系统麦克风权限
-- 智谱 GLM-ASR-2512 API Key
-- OpenAI Responses API 或兼容文本处理服务的 API Key
+- 至少一组受支持的 ASR Provider 凭据，或已下载的本地 Whisper 模型
+- 如需人格整理，至少一组受支持的文本 Provider 凭据
 
 ## 开发日志中的识别结果
 
@@ -52,11 +52,14 @@ pnpm tauri dev
 
 应用分别配置语音识别和文本整理服务：
 
-- ASR 当前支持智谱 GLM-ASR-2512 和 OpenAI Whisper 兼容配置。
+- ASR 支持智谱、OpenAI-compatible、本地 Whisper、Qwen-Audio 3.0 和 Qwen3-ASR；文本支持智谱、OpenAI-compatible 与千问。
+- ASR 和文本各自选择一个 primary，并可追加最多两个有序 fallback。每项只尝试一次；文本链全部失败时返回 ASR 原文。
 - 使用智谱 `audio/transcriptions` 时，应用录音会在 25 秒提示并于 28 秒自动停止；超过 30 秒的外部音频会在请求前被拒绝。
-- 启用热词会同时影响 ASR 和文本整理：智谱会接收前 100 个稳定去重热词，OpenAI 和本地 Whisper 只把热词作为软提示。相似技术词可能互相竞争，临时测试热词应在验证后停用。
-- 文本整理支持智谱和 OpenAI Responses API 兼容配置。
+- 启用热词会同时影响 ASR 和文本整理：智谱与 Qwen-Audio 接收前 100 个稳定去重原生热词，Qwen-Audio 权重为 5；Qwen3-ASR 使用 system glossary；OpenAI 和本地 Whisper 使用软提示。相似技术词可能互相竞争，临时测试热词应在验证后停用。
+- Qwen-Audio 可填写最多 4 个语言提示；Qwen3-ASR 可选择单语言并开关 ITN（默认关闭）；千问文本固定关闭 thinking。
 - 每类服务都需要选择 Provider，并填写对应的 API Key、Base URL 和模型名。
+- 千问 Base URL 可填写公共地域或 Workspace 专属地域地址，应用会自动追加能力端点。Key、Workspace 与地域必须匹配；接口和可用模型以[阿里云 Qwen-Audio 文档](https://help.aliyun.com/zh/model-studio/non-real-time-speech-recognition-for-fun-asr-flash)、[Qwen-ASR 文档](https://help.aliyun.com/en/model-studio/qwen-asr-api-reference)及[文本生成文档](https://help.aliyun.com/en/model-studio/text-generation)为准。
+- 当 primary 为本地 Whisper 时，加入云端 fallback 会显示隐私确认；拒绝后不会保存该 fallback。
 - 优先通过设置页保存配置，不要直接编辑应用数据文件或把密钥写入仓库。
 - 保存后先用短语音验证 ASR，再验证文本整理和跨应用输出，便于定位失败环节。
 
@@ -103,7 +106,7 @@ macOS 开启“按住 Fn 录音”后，按下 Fn 立即暂存录音，松开进
 
 - 确认结果能够恢复录音开始时的目标应用窗口并写入；精确窗口不可用时可降级为原应用，自动输入失败时复制到剪贴板并打开可保留结果的失败窗口。
 - 失败结果窗口只在自动输入链路失败时出现，展示完整只读文本、失败原因和复制状态；正常成功输入不需要额外确认。
-- 确认历史记录包含原始文本、整理结果、人格和录音时长。
+- 确认历史记录包含原始文本、整理结果、人格、录音时长和实际成功的 Provider/模型；fallback 成功时不能仍显示 primary。
 - 确认统计卡片在成功处理后更新。
 - 重启应用，确认本地历史和设置仍可读取。
 

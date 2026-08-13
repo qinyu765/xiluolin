@@ -36,7 +36,7 @@ vi.mock("@/generated/tauri-bindings", () => ({
 }));
 
 const model = (patch: Partial<RealtimeModelInfo> = {}): RealtimeModelInfo => ({
-  name: "Zipformer 中英双语 INT8",
+  name: "Zipformer 中英双语量化版",
   revision: "98590b7ed6443e77b714204da2757d75e1a642f4",
   path: "/models/realtime",
   state: "not_downloaded",

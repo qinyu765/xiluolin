@@ -14,9 +14,9 @@ use tauri_specta::Event;
 use crate::{capture_session::CaptureSessionState, events::RealtimeAsrDownloadProgressEvent};
 
 const MODEL_ID: &str = "csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20";
-const MODEL_NAME: &str = "Zipformer 中英双语 INT8";
+const MODEL_NAME: &str = "Zipformer 中英双语量化版";
 const MODEL_REVISION: &str = "98590b7ed6443e77b714204da2757d75e1a642f4";
-const MODEL_DIRECTORY: &str = "sherpa-onnx-streaming-zipformer-bilingual-zh-en-int8";
+const MODEL_DIRECTORY: &str = "sherpa-onnx-streaming-zipformer-bilingual-zh-en-mixed-int8";
 const VERIFIED_MARKER: &str = ".verified-revision";
 static DOWNLOAD_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -34,9 +34,9 @@ pub const MODEL_ARTIFACTS: &[ModelArtifact] = &[
         sha256: "8fa764187a261844f859d7143ebaa563af5d10adfece4c18a8f414c88cba2a9b",
     },
     ModelArtifact {
-        name: "decoder-epoch-99-avg-1.int8.onnx",
-        size: 13_091_040,
-        sha256: "1a70c593d71e53f023f5f55b0b4cfff5055abb786ee3992e5f63dc2e273cc4fa",
+        name: "decoder-epoch-99-avg-1.onnx",
+        size: 13_876_452,
+        sha256: "2e3b5ec371f8899ee6acd829fd753ba45772df57a91bdf37cde3136354e7db7d",
     },
     ModelArtifact {
         name: "joiner-epoch-99-avg-1.int8.onnx",
@@ -420,7 +420,22 @@ pub fn delete_realtime_asr_model(app: tauri::AppHandle) -> Result<RealtimeModelI
 mod tests {
     use std::io::Write;
 
-    use super::{activate_staging_directory, verify_file};
+    use super::{activate_staging_directory, verify_file, MODEL_ARTIFACTS};
+
+    #[test]
+    fn model_manifest_uses_the_evaluated_mixed_quantization_artifacts() {
+        let decoder = MODEL_ARTIFACTS
+            .iter()
+            .find(|artifact| artifact.name.starts_with("decoder-"))
+            .expect("decoder artifact should exist");
+
+        assert_eq!(decoder.name, "decoder-epoch-99-avg-1.onnx");
+        assert_eq!(decoder.size, 13_876_452);
+        assert_eq!(
+            decoder.sha256,
+            "2e3b5ec371f8899ee6acd829fd753ba45772df57a91bdf37cde3136354e7db7d"
+        );
+    }
 
     #[test]
     fn artifact_verification_rejects_missing_size_and_hash_mismatches() {

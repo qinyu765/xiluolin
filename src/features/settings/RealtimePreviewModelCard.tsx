@@ -138,8 +138,8 @@ export function RealtimePreviewModelCard({
           <div>
             <CardTitle>录音实时预览</CardTitle>
             <CardDescription className="mt-1.5">
-              实验性功能，默认关闭。本地 Zipformer 只生成增量字幕；最终结果仍由上方
-              ASR 服务生成。
+              实验性功能，默认关闭。本地 Zipformer
+              只生成增量字幕；最终结果仍由上方 ASR 服务生成。
             </CardDescription>
           </div>
           <Switch

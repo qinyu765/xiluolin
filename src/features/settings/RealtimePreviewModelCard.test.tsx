@@ -36,12 +36,12 @@ vi.mock("@/generated/tauri-bindings", () => ({
 }));
 
 const model = (patch: Partial<RealtimeModelInfo> = {}): RealtimeModelInfo => ({
-  name: "Zipformer 中英双语量化版",
+  name: "Zipformer 中英双语混合量化实验版",
   revision: "98590b7ed6443e77b714204da2757d75e1a642f4",
   path: "/models/realtime",
   state: "not_downloaded",
   enabled: false,
-  total_size_bytes: 198_000_000,
+  total_size_bytes: 199_313_605,
   downloaded_size_bytes: 0,
   ...patch,
 });
@@ -61,6 +61,8 @@ describe("RealtimePreviewModelCard", () => {
         onChanged={vi.fn()}
       />,
     );
+
+    expect(await screen.findByText(/实验性功能/)).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: "下载模型" }));
     await waitFor(() => expect(mocks.progressListener).toBeDefined());
@@ -85,7 +87,7 @@ describe("RealtimePreviewModelCard", () => {
     const installed = model({
       state: "ready",
       enabled: true,
-      downloaded_size_bytes: 198_000_000,
+      downloaded_size_bytes: 199_313_605,
     });
     mocks.info.mockResolvedValue(installed);
     mocks.remove.mockResolvedValue(model());

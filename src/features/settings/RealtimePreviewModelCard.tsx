@@ -138,8 +138,8 @@ export function RealtimePreviewModelCard({
           <div>
             <CardTitle>录音实时预览</CardTitle>
             <CardDescription className="mt-1.5">
-              本地 Zipformer 在录音时生成增量字幕；最终结果仍由上方 ASR
-              服务生成。
+              实验性功能，默认关闭。本地 Zipformer 只生成增量字幕；最终结果仍由上方
+              ASR 服务生成。
             </CardDescription>
           </div>
           <Switch
@@ -235,7 +235,8 @@ export function RealtimePreviewModelCard({
           </div>
         ) : null}
         <p className="text-xs leading-5 text-muted-foreground">
-          预览异常、模型缺失或队列积压时会自动降级为阶段提示，不影响录音和最终识别。
+          候选模型的训练数据许可链、真实录音质量和目标设备稳定性尚未完成验证；模型需显式下载。
+          预览异常、模型缺失或队列积压时会自动降级为阶段提示，不影响录音、最终识别、历史和投递。
         </p>
       </CardContent>
     </Card>

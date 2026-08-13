@@ -14,7 +14,7 @@ use tauri_specta::Event;
 use crate::{capture_session::CaptureSessionState, events::RealtimeAsrDownloadProgressEvent};
 
 const MODEL_ID: &str = "csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20";
-const MODEL_NAME: &str = "Zipformer 中英双语量化版";
+const MODEL_NAME: &str = "Zipformer 中英双语混合量化实验版";
 const MODEL_REVISION: &str = "98590b7ed6443e77b714204da2757d75e1a642f4";
 const MODEL_DIRECTORY: &str = "sherpa-onnx-streaming-zipformer-bilingual-zh-en-mixed-int8";
 const VERIFIED_MARKER: &str = ".verified-revision";
@@ -420,21 +420,53 @@ pub fn delete_realtime_asr_model(app: tauri::AppHandle) -> Result<RealtimeModelI
 mod tests {
     use std::io::Write;
 
-    use super::{activate_staging_directory, verify_file, MODEL_ARTIFACTS};
+    use super::{
+        activate_staging_directory, total_size, verify_file, MODEL_ARTIFACTS, MODEL_REVISION,
+    };
 
     #[test]
     fn model_manifest_uses_the_evaluated_mixed_quantization_artifacts() {
-        let decoder = MODEL_ARTIFACTS
-            .iter()
-            .find(|artifact| artifact.name.starts_with("decoder-"))
-            .expect("decoder artifact should exist");
+        let expected = [
+            (
+                "encoder-epoch-99-avg-1.int8.onnx",
+                181_895_032,
+                "8fa764187a261844f859d7143ebaa563af5d10adfece4c18a8f414c88cba2a9b",
+            ),
+            (
+                "decoder-epoch-99-avg-1.onnx",
+                13_876_452,
+                "2e3b5ec371f8899ee6acd829fd753ba45772df57a91bdf37cde3136354e7db7d",
+            ),
+            (
+                "joiner-epoch-99-avg-1.int8.onnx",
+                3_228_404,
+                "1ed689c5ed19dbaa725d9d191bb4822b5f4855a39e1ffd28cbc1f340d25b2ee0",
+            ),
+            (
+                "tokens.txt",
+                56_317,
+                "a8e0e4ec53810e433789b54a5c0134a7eaa2ffca595a6334d54c00da858841d3",
+            ),
+            (
+                "bpe.model",
+                244_836,
+                "bcae393dbc5611be5ffa4c7ae0841558978a5a4f484008cb9dff3a2cc97ebe01",
+            ),
+            (
+                "bpe.vocab",
+                12_564,
+                "d0b642f3a2eacd5fadefdeff9e0e1358cab729647cbb7fe58cf738e1f7407029",
+            ),
+        ];
 
-        assert_eq!(decoder.name, "decoder-epoch-99-avg-1.onnx");
-        assert_eq!(decoder.size, 13_876_452);
-        assert_eq!(
-            decoder.sha256,
-            "2e3b5ec371f8899ee6acd829fd753ba45772df57a91bdf37cde3136354e7db7d"
-        );
+        assert_eq!(MODEL_REVISION, "98590b7ed6443e77b714204da2757d75e1a642f4");
+        assert_eq!(MODEL_ARTIFACTS.len(), expected.len());
+        assert_eq!(total_size(), 199_313_605);
+        for (artifact, (name, size, sha256)) in MODEL_ARTIFACTS.iter().zip(expected) {
+            assert_eq!(artifact.name, name);
+            assert_eq!(artifact.size, size);
+            assert_eq!(artifact.sha256, sha256);
+        }
     }
 
     #[test]

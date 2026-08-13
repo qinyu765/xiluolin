@@ -226,37 +226,45 @@ fn transcribe_with_openai(
     // 构建 multipart form
     let step1_start = std::time::Instant::now();
     let prompt = build_soft_prompt(request.context_prompt.as_deref(), &request.hotwords);
-    let mut form = ureq::unversioned::multipart::Form::new().text("model", config.model.trim());
-    if let Some(prompt) = prompt.as_deref() {
-        form = form.text("prompt", prompt);
-    }
-    let form = form
-        .file("file", audio_path)
+    let file_name = audio_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("recording.wav")
+        .to_string();
+    let audio_bytes = std::fs::read(audio_path)
+        .map_err(|error| AsrError::RequestFailed(format!("读取音频文件失败：{error}")))?;
+    let file_part = reqwest::blocking::multipart::Part::bytes(audio_bytes)
+        .file_name(file_name)
+        .mime_str(audio_mime_type(audio_path))
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
+    let mut form =
+        reqwest::blocking::multipart::Form::new().text("model", config.model.trim().to_string());
+    if let Some(prompt) = prompt.as_deref() {
+        form = form.text("prompt", prompt.to_string());
+    }
+    let form = form.part("file", file_part);
     eprintln!(
         "[⏱️ ASR OpenAI] 构建 multipart form - 耗时 {:?}",
         step1_start.elapsed()
     );
 
-    // 创建禁用自动状态码错误的 agent
+    // 创建统一的 blocking HTTP client。
     let step2_start = std::time::Instant::now();
-    let agent = ureq::Agent::config_builder()
-        .http_status_as_error(false)
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
         .build()
-        .new_agent();
+        .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
     eprintln!(
         "[⏱️ ASR OpenAI] 创建 HTTP agent - 耗时 {:?}",
         step2_start.elapsed()
     );
 
     let step3_start = std::time::Instant::now();
-    let response = agent
+    let response = client
         .post(&url)
-        .header(
-            "Authorization",
-            &format!("Bearer {}", config.api_key.trim()),
-        )
-        .send(form)
+        .bearer_auth(config.api_key.trim())
+        .multipart(form)
+        .send()
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
     eprintln!(
         "[⏱️ ASR OpenAI] 发送 HTTP 请求并等待响应 - 耗时 {:?}",
@@ -265,22 +273,17 @@ fn transcribe_with_openai(
 
     // 检查状态码
     let step4_start = std::time::Instant::now();
-    let status_code = response.status().as_u16();
-    if status_code >= 400 && status_code < 600 {
-        let body = response.into_body().read_to_string().unwrap_or_default();
-        eprintln!(
-            "[⏱️ ASR OpenAI] Error: status={}, body={}",
-            status_code, body
-        );
+    let status = response.status();
+    let status_code = status.as_u16();
+    if !status.is_success() {
+        eprintln!("[⏱️ ASR OpenAI] Error: status={status_code}");
         return Err(AsrError::RequestFailed(format!(
-            "http status: {}, body: {}",
-            status_code, body
+            "http status: {status_code}"
         )));
     }
 
     let transcription: OpenAITranscriptionResponse = response
-        .into_body()
-        .read_json()
+        .json()
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
     eprintln!(
         "[⏱️ ASR OpenAI] 解析响应 - 耗时 {:?}",
@@ -317,9 +320,7 @@ fn transcribe_with_zhipu(
         eprintln!("无法读取音频文件的 WAV 规格信息");
     }
 
-    // 智谱网关可能在校验 Authorization 后提前拒绝上传。ureq 在仍写入
-    // multipart body 时会把这种响应表现为 Broken pipe，导致真正的 HTTP 状态和
-    // 错误体丢失。reqwest 对该场景的响应处理更稳健，并支持 HTTP/2。
+    // reqwest 对服务端提前拒绝 multipart 上传的场景响应处理稳定，并支持 HTTP/2。
     let file_name = audio_path
         .file_name()
         .and_then(|name| name.to_str())
@@ -363,10 +364,9 @@ fn transcribe_with_zhipu(
         .text()
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
     if !status.is_success() {
-        eprintln!("ASR Error Response: status={}, body={}", status_code, body);
+        eprintln!("ASR Error Response: status={status_code}");
         return Err(AsrError::RequestFailed(format!(
-            "http status: {}, body: {}",
-            status_code, body
+            "http status: {status_code}"
         )));
     }
 

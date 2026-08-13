@@ -60,6 +60,8 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0_aarch64.
 - **辅助功能**：用于恢复录音开始时的应用窗口并发送 `Command+V`；未授权时识别结果仍会复制到剪贴板。
 - 设置页“语音输入就绪检查”可以读取权限状态、请求权限并打开对应的 macOS 设置页。
 
+签名构建会启用 Hardened Runtime，因此 bundle 必须携带 `com.apple.security.device.audio-input=true`；它允许程序向系统请求音频输入，但不会跳过用户的麦克风授权。应用未启用 App Sandbox，不应额外声明沙箱专用的麦克风 entitlement。
+
 如果系统设置显示 XiLuoLin 已开启，但应用仍报告未请求或未授权，通常是旧 ad-hoc 构建的授权与当前 DR 不匹配。确认已经安装稳定签名版本后，可以仅重置 XiLuoLin 的两项记录：
 
 ```bash
@@ -80,13 +82,14 @@ plutil -p "$APP/Contents/Info.plist"
 codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -dv --verbose=4 "$APP"
 codesign -d -r - "$APP"
+codesign -d --entitlements :- "$APP"
 hdiutil verify "$DMG"
 shasum -a 256 "$DMG"
 ```
 
 预期主程序架构包含 `arm64`，`Info.plist` 包含 `LSMinimumSystemVersion = 13.0`、`CFBundleIdentifier = com.xiluolin.desktop` 和 `NSMicrophoneUsageDescription`。`codesign` 严格验证必须成功。
 
-通用构建的 DR 只绑定具体 `cdhash`；稳定开发签名的 DR 应包含 `identifier "com.xiluolin.desktop"`、Apple 签名锚点和所选开发证书。由于没有 Apple 公证，两种构建的 `spctl` 拒绝都属于预期行为。
+通用构建的 DR 只绑定具体 `cdhash`；稳定开发签名的 DR 应包含 `identifier "com.xiluolin.desktop"`、Apple 签名锚点和所选开发证书。签名 entitlements 应包含 `com.apple.security.device.audio-input = true`。由于没有 Apple 公证，两种构建的 `spctl` 拒绝都属于预期行为。
 
 ## 已知限制
 

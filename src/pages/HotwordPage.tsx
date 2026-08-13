@@ -141,9 +141,6 @@ export function HotwordPage({
                 {asrLimitNotice}
               </p>
             ) : null}
-            <p className="text-sm leading-6 text-amber-700 dark:text-amber-400">
-              相似的技术词可能互相竞争。原文听写也会受到全局热词影响；测试完成后请停用临时热词。
-            </p>
           </div>
         </CardContent>
       </Card>

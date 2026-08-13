@@ -47,4 +47,15 @@ describe("HotwordPage", () => {
       screen.queryByText(/使用智谱 ASR 时仅前 100 个用于语音识别/),
     ).not.toBeInTheDocument();
   });
+
+  it("不显示热词互相竞争和临时停用说明", () => {
+    renderPage(1);
+
+    expect(
+      screen.queryByText(/相似的技术词可能互相竞争/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/测试完成后请停用临时热词/),
+    ).not.toBeInTheDocument();
+  });
 });

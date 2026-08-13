@@ -295,8 +295,6 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
         };
     }
 
-    crate::credentials::finalize_system_credentials_migration()?;
-
     // Fn 监听按同步配置顺序更新，避免连续保存时较早的异步任务覆盖最新开关状态。
     let fn_manager = app.state::<crate::macos_fn::FnHoldManager>();
     if let Err(error) =

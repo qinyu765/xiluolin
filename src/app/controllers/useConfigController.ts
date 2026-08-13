@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { commands } from "@/generated/tauri-bindings";
+import {
+  commands,
+  type ProviderRoutingConfig,
+  type ProviderSettings,
+} from "@/generated/tauri-bindings";
 import type { AppConfig, AudioDevice } from "@/types";
 import { toErrorMessage } from "@/utils/error";
 
@@ -50,54 +54,20 @@ export function useConfigController() {
     event.preventDefault();
     if (!appConfig) return;
 
-    const nextConfig: AppConfig = {
-      ...appConfig,
-      asr_api_key: appConfig.asr_api_key.trim(),
-      asr_base_url: appConfig.asr_base_url.trim(),
-      asr_model: appConfig.asr_model.trim(),
-      openai_api_key: appConfig.openai_api_key.trim(),
-      openai_base_url: appConfig.openai_base_url.trim(),
-      openai_asr_model: appConfig.openai_asr_model.trim(),
-    };
-    const selectedBaseUrl =
-      nextConfig.asr_provider === "local"
-        ? "local"
-        : nextConfig.asr_provider === "openai"
-          ? nextConfig.openai_base_url
-          : nextConfig.asr_base_url;
-    const selectedModel =
-      nextConfig.asr_provider === "local"
-        ? nextConfig.local_asr_model
-        : nextConfig.asr_provider === "openai"
-          ? nextConfig.openai_asr_model
-          : nextConfig.asr_model;
-
-    if (!selectedBaseUrl || !selectedModel) {
-      setAsrStatus("当前 ASR Provider 的 Base URL 和模型名不能为空。");
+    const nextConfig = normalizeProviderConfig(appConfig);
+    const invalidProvider = invalidRouteProvider(nextConfig.asr, true);
+    if (invalidProvider) {
+      setAsrStatus(
+        `${invalidProvider} 的 API Key、Base URL 或模型配置不完整。`,
+      );
       return;
     }
 
     setIsAsrSaving(true);
     setAsrStatus("正在保存 ASR 配置...");
     try {
-      const saved = await saveConfig(nextConfig);
-      const apiKey =
-        saved.asr_provider === "local"
-          ? "local"
-          : saved.asr_provider === "openai"
-            ? saved.openai_api_key
-            : saved.asr_api_key;
-      const label =
-        saved.asr_provider === "local"
-          ? "本地 Whisper"
-          : saved.asr_provider === "openai"
-            ? "OpenAI"
-            : "智谱";
-      setAsrStatus(
-        apiKey
-          ? `${label} ASR 配置已保存。`
-          : "ASR 配置已保存，真实转写前仍需填写 API Key。",
-      );
+      await saveConfig(nextConfig);
+      setAsrStatus("ASR Provider 调用链已保存。");
     } catch (error) {
       setAsrStatus(`保存 ASR 配置失败：${toErrorMessage(error)}`);
     } finally {
@@ -111,39 +81,20 @@ export function useConfigController() {
     event.preventDefault();
     if (!appConfig) return;
 
-    const nextConfig: AppConfig = {
-      ...appConfig,
-      zhipu_api_key: appConfig.zhipu_api_key.trim(),
-      zhipu_base_url: appConfig.zhipu_base_url.trim(),
-      zhipu_model: appConfig.zhipu_model.trim(),
-      openai_api_key: appConfig.openai_api_key.trim(),
-      openai_base_url: appConfig.openai_base_url.trim(),
-      openai_model: appConfig.openai_model.trim(),
-    };
-    const usesZhipu = nextConfig.text_provider === "zhipu";
-    const label = usesZhipu ? "智谱" : "OpenAI 兼容";
-    const apiKey = usesZhipu
-      ? nextConfig.zhipu_api_key
-      : nextConfig.openai_api_key;
-    const baseUrl = usesZhipu
-      ? nextConfig.zhipu_base_url
-      : nextConfig.openai_base_url;
-    const model = usesZhipu ? nextConfig.zhipu_model : nextConfig.openai_model;
-
-    if (!baseUrl || !model) {
-      setTextProcessingStatus("当前文本处理服务的 Base URL 和模型名不能为空。");
+    const nextConfig = normalizeProviderConfig(appConfig);
+    const invalidProvider = invalidRouteProvider(nextConfig.text, false);
+    if (invalidProvider) {
+      setTextProcessingStatus(
+        `${invalidProvider} 的 API Key、Base URL 或模型配置不完整。`,
+      );
       return;
     }
 
     setIsTextProcessingSaving(true);
-    setTextProcessingStatus(`正在保存${label}文本处理配置...`);
+    setTextProcessingStatus("正在保存文本 Provider 调用链...");
     try {
       await saveConfig(nextConfig);
-      setTextProcessingStatus(
-        apiKey
-          ? `${label}文本处理配置已保存。`
-          : `${label}文本处理配置已保存，真实整理前仍需填写 API Key。`,
-      );
+      setTextProcessingStatus("文本 Provider 调用链已保存。");
     } catch (error) {
       setTextProcessingStatus(`保存文本处理配置失败：${toErrorMessage(error)}`);
     } finally {
@@ -164,4 +115,49 @@ export function useConfigController() {
     handleSaveAsrConfig,
     handleSaveTextProcessingConfig,
   };
+}
+
+function normalizeProviderConfig(config: AppConfig): AppConfig {
+  const normalizeRoute = (
+    route: ProviderRoutingConfig,
+  ): ProviderRoutingConfig => ({
+    primary: route.primary?.trim() ?? "",
+    fallbacks: route.fallbacks ?? [],
+    settings: Object.fromEntries(
+      Object.entries(route.settings ?? {}).map(([provider, settings]) => [
+        provider,
+        {
+          ...settings,
+          api_key: settings.api_key?.trim() ?? "",
+          base_url: settings.base_url?.trim() ?? "",
+          model: settings.model?.trim() ?? "",
+          options: settings.options ?? {},
+        },
+      ]),
+    ),
+  });
+  return {
+    ...config,
+    asr: normalizeRoute(config.asr),
+    text: normalizeRoute(config.text),
+  };
+}
+
+function invalidRouteProvider(
+  route: ProviderRoutingConfig,
+  allowLocal: boolean,
+) {
+  for (const provider of [route.primary, ...(route.fallbacks ?? [])]) {
+    if (!provider) return "Provider";
+    if (allowLocal && provider === "local") continue;
+    const settings: ProviderSettings | undefined = route.settings?.[provider];
+    if (
+      !settings?.api_key?.trim() ||
+      !settings.base_url?.trim() ||
+      !settings.model?.trim()
+    ) {
+      return provider;
+    }
+  }
+  return "";
 }

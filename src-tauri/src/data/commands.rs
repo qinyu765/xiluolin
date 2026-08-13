@@ -223,7 +223,10 @@ pub fn delete_history_record(app: tauri::AppHandle, id: String) -> Result<(), St
 #[tauri::command]
 #[specta::specta]
 pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
-    use crate::credentials::{load_system_credentials, sanitized_config, AppCredentials};
+    use crate::credentials::{
+        finalize_system_credentials_migration, load_system_credentials, sanitized_config,
+        AppCredentials,
+    };
     use tauri_plugin_store::StoreExt;
 
     let store = app
@@ -251,6 +254,7 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
             || store.save().map_err(|error| error.to_string()),
         )?;
     }
+    finalize_system_credentials_migration()?;
 
     config = sanitized;
     credentials.apply_to(&mut config);
@@ -290,6 +294,8 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
             )),
         };
     }
+
+    crate::credentials::finalize_system_credentials_migration()?;
 
     // Fn 监听按同步配置顺序更新，避免连续保存时较早的异步任务覆盖最新开关状态。
     let fn_manager = app.state::<crate::macos_fn::FnHoldManager>();

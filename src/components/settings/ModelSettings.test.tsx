@@ -73,6 +73,23 @@ const { catalog } = vi.hoisted(() => ({
           max_language_hints: 4,
         },
       },
+      {
+        id: "openai",
+        name: "OpenAI-compatible ASR",
+        capability: "asr",
+        protocol: "multipart",
+        default_base_url: "https://api.openai.com/v1",
+        default_model: "whisper-1",
+        fields: [],
+        capabilities: {
+          native_hotwords: false,
+          max_hotwords: null,
+          supports_prompt: true,
+          max_duration_ms: null,
+          local_model_management: false,
+          max_language_hints: null,
+        },
+      },
     ],
     text: [],
   } as ProviderCatalog,
@@ -205,4 +222,32 @@ test("将 fallback 切换为 primary 时自动去重", async () => {
   expect(updateConfig).toHaveBeenLastCalledWith({
     asr: expect.objectContaining({ primary: "local", fallbacks: [] }),
   });
+});
+
+test("切换为 local primary 且保留云 fallback 时要求隐私确认", async () => {
+  const user = userEvent.setup();
+  const updateConfig = vi.fn();
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const next = config();
+  next.asr.primary = "qwen-audio";
+  next.asr.fallbacks = ["local", "openai"];
+  render(
+    <ModelSettings
+      {...requiredProps}
+      appConfig={next}
+      updateConfig={updateConfig}
+    />,
+  );
+
+  await screen.findByText("本地模型管理");
+  await user.click(
+    screen.getByLabelText("Primary Provider", { selector: "#asr-primary" }),
+  );
+  await user.click(await screen.findByRole("option", { name: "本地 Whisper" }));
+
+  expect(confirm).toHaveBeenCalledWith(
+    expect.stringContaining("音频会在本地识别失败时发送到云端"),
+  );
+  expect(updateConfig).not.toHaveBeenCalled();
+  confirm.mockRestore();
 });

@@ -141,10 +141,21 @@ function ProviderCard({
   );
 
   const updateProvider = (descriptor: ProviderDescriptor) => {
+    const nextFallbacks = fallbacks.filter(
+      (providerId) => providerId !== descriptor.id,
+    );
+    if (
+      capability === "asr" &&
+      descriptor.id === "local" &&
+      nextFallbacks.some((providerId) => providerId !== "local") &&
+      !confirmCloudFallback("切换为本地 Whisper 后")
+    ) {
+      return;
+    }
     onChange({
       ...routing,
       primary: descriptor.id,
-      fallbacks: fallbacks.filter((providerId) => providerId !== descriptor.id),
+      fallbacks: nextFallbacks,
       settings: ensureSettings(settings, descriptor),
     });
   };
@@ -156,9 +167,7 @@ function ProviderCard({
       capability === "asr" &&
       primary === "local" &&
       descriptor.id !== "local" &&
-      !window.confirm(
-        `添加 ${descriptor.name} 后，音频会在本地识别失败时发送到云端。是否确认授权？`,
-      )
+      !confirmCloudFallback(`添加 ${descriptor.name} 后`)
     ) {
       return;
     }
@@ -502,4 +511,10 @@ function move(values: string[], from: number, to: number) {
   const [value] = result.splice(from, 1);
   result.splice(to, 0, value);
   return result;
+}
+
+function confirmCloudFallback(action: string) {
+  return window.confirm(
+    `${action}，音频会在本地识别失败时发送到云端。是否确认授权？`,
+  );
 }

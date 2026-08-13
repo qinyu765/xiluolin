@@ -165,4 +165,3 @@ ASR 与 Text 即使使用同一厂商也分别保存凭据，避免能力间隐�
 ## 提交与集成
 
 实现位于 `feat/multi-provider-architecture` 的独立 worktree，按设计、核心注册表、千问 adapter、配置迁移、UI/pipeline 和文档拆分小提交。不 push、不创建 PR、不合并，等待维护者明确指令。
-

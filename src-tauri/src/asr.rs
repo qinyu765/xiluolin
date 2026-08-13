@@ -117,6 +117,7 @@ pub enum AsrError {
     MissingAudioFile(PathBuf),
     UnsupportedAudioFormat(String),
     AudioTooLarge { max_bytes: u64, actual_bytes: u64 },
+    HttpStatus(u16),
     RequestFailed(String),
     InvalidResponse(String),
 }
@@ -140,6 +141,7 @@ impl fmt::Display for AsrError {
                 formatter,
                 "音频文件过大，最大支持 {max_bytes} 字节，当前为 {actual_bytes} 字节"
             ),
+            Self::HttpStatus(status) => write!(formatter, "ASR 服务返回 HTTP {status}"),
             Self::RequestFailed(message) => write!(formatter, "ASR 请求失败：{message}"),
             Self::InvalidResponse(message) => write!(formatter, "ASR 响应解析失败：{message}"),
         }
@@ -277,9 +279,7 @@ fn transcribe_with_openai(
     let status_code = status.as_u16();
     if !status.is_success() {
         eprintln!("[⏱️ ASR OpenAI] Error: status={status_code}");
-        return Err(AsrError::RequestFailed(format!(
-            "http status: {status_code}"
-        )));
+        return Err(AsrError::HttpStatus(status_code));
     }
 
     let transcription: OpenAITranscriptionResponse = response
@@ -365,9 +365,7 @@ fn transcribe_with_zhipu(
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
     if !status.is_success() {
         eprintln!("ASR Error Response: status={status_code}");
-        return Err(AsrError::RequestFailed(format!(
-            "http status: {status_code}"
-        )));
+        return Err(AsrError::HttpStatus(status_code));
     }
 
     let transcription: ZhipuTranscriptionResponse = serde_json::from_str(&body)

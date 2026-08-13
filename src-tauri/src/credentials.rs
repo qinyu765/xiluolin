@@ -212,10 +212,108 @@ impl SystemCredentialStore {
     fn write_bundled(credentials: &AppCredentials) -> Result<(), String> {
         let value = serde_json::to_string(credentials)
             .map_err(|error| format!("序列化系统凭据失败：{error}"))?;
-        Self::bundled_entry(BUNDLED_CREDENTIAL_ACCOUNT)?
+        let entry = Self::bundled_entry(BUNDLED_CREDENTIAL_ACCOUNT)?;
+        entry
             .set_password(&value)
-            .map_err(|error| format!("保存系统凭据失败：{error}"))
+            .map_err(|error| format!("保存系统凭据失败：{error}"))?;
+        let persisted = entry
+            .get_password()
+            .map_err(|error| format!("校验系统凭据失败：{error}"))?;
+        if persisted != value {
+            return Err("校验系统凭据失败：回读内容不一致".to_string());
+        }
+        Ok(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum LegacyCredentialLocation {
+    BundledV1,
+    CurrentSplit(CredentialKey),
+    LegacySplit(CredentialKey),
+}
+
+impl LegacyCredentialLocation {
+    fn all() -> Vec<Self> {
+        let mut locations = vec![Self::BundledV1];
+        locations.extend(CredentialKey::ALL.map(Self::CurrentSplit));
+        locations.extend(CredentialKey::ALL.map(Self::LegacySplit));
+        locations
+    }
+}
+
+trait LegacyCredentialCleanupStore {
+    fn read(&self, location: LegacyCredentialLocation) -> Result<Option<String>, String>;
+    fn write(&self, location: LegacyCredentialLocation, value: &str) -> Result<(), String>;
+    fn delete(&self, location: LegacyCredentialLocation) -> Result<(), String>;
+}
+
+impl SystemCredentialStore {
+    fn legacy_location_entry(location: LegacyCredentialLocation) -> Result<keyring::Entry, String> {
+        match location {
+            LegacyCredentialLocation::BundledV1 => {
+                Self::bundled_entry(LEGACY_BUNDLED_CREDENTIAL_ACCOUNT)
+            }
+            LegacyCredentialLocation::CurrentSplit(key) => Self::primary_entry(key),
+            LegacyCredentialLocation::LegacySplit(key) => Self::legacy_entry(key),
+        }
+    }
+}
+
+impl LegacyCredentialCleanupStore for SystemCredentialStore {
+    fn read(&self, location: LegacyCredentialLocation) -> Result<Option<String>, String> {
+        match Self::legacy_location_entry(location)?.get_password() {
+            Ok(value) => Ok(Some(value)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(error) => Err(format!("读取旧版系统凭据失败：{error}")),
+        }
+    }
+
+    fn write(&self, location: LegacyCredentialLocation, value: &str) -> Result<(), String> {
+        Self::legacy_location_entry(location)?
+            .set_password(value)
+            .map_err(|error| format!("恢复旧版系统凭据失败：{error}"))
+    }
+
+    fn delete(&self, location: LegacyCredentialLocation) -> Result<(), String> {
+        match Self::legacy_location_entry(location)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(format!("清理旧版系统凭据失败：{error}")),
+        }
+    }
+}
+
+fn cleanup_legacy_credentials(store: &impl LegacyCredentialCleanupStore) -> Result<(), String> {
+    let snapshot = LegacyCredentialLocation::all()
+        .into_iter()
+        .filter_map(|location| match store.read(location) {
+            Ok(Some(value)) => Some(Ok((location, value))),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    for (location, _) in &snapshot {
+        if let Err(delete_error) = store.delete(*location) {
+            let restore_errors = snapshot
+                .iter()
+                .filter_map(|(restore_location, value)| store.write(*restore_location, value).err())
+                .collect::<Vec<_>>();
+            return if restore_errors.is_empty() {
+                Err(delete_error)
+            } else {
+                Err(format!(
+                    "{delete_error}; 旧凭据恢复失败：{}",
+                    restore_errors.join("; ")
+                ))
+            };
+        }
+    }
+    Ok(())
+}
+
+pub fn finalize_system_credentials_migration() -> Result<(), String> {
+    cleanup_legacy_credentials(&SystemCredentialStore)
 }
 
 impl CredentialStore for SystemCredentialStore {
@@ -364,6 +462,31 @@ mod tests {
         fail_on_set: RefCell<Option<CredentialKey>>,
     }
 
+    #[derive(Default)]
+    struct MemoryLegacyCleanupStore {
+        values: RefCell<HashMap<LegacyCredentialLocation, String>>,
+        fail_on_delete: RefCell<Option<LegacyCredentialLocation>>,
+    }
+
+    impl LegacyCredentialCleanupStore for MemoryLegacyCleanupStore {
+        fn read(&self, location: LegacyCredentialLocation) -> Result<Option<String>, String> {
+            Ok(self.values.borrow().get(&location).cloned())
+        }
+
+        fn write(&self, location: LegacyCredentialLocation, value: &str) -> Result<(), String> {
+            self.values.borrow_mut().insert(location, value.to_string());
+            Ok(())
+        }
+
+        fn delete(&self, location: LegacyCredentialLocation) -> Result<(), String> {
+            if self.fail_on_delete.borrow().as_ref() == Some(&location) {
+                return Err("模拟旧凭据清理失败".to_string());
+            }
+            self.values.borrow_mut().remove(&location);
+            Ok(())
+        }
+    }
+
     impl CredentialStore for MemoryCredentialStore {
         fn get(&self, key: CredentialKey) -> Result<Option<String>, String> {
             Ok(self.values.borrow().get(&key).cloned())
@@ -478,5 +601,39 @@ mod tests {
         save_credentials(&AppCredentials::default(), &store).expect("deletion should pass");
 
         assert_eq!(store.get(CredentialKey::Asr).unwrap(), None);
+    }
+
+    #[test]
+    fn successful_v2_migration_cleans_all_legacy_credential_shapes() {
+        let store = MemoryLegacyCleanupStore::default();
+        for (index, location) in LegacyCredentialLocation::all().into_iter().enumerate() {
+            store
+                .values
+                .borrow_mut()
+                .insert(location, format!("secret-{index}"));
+        }
+
+        cleanup_legacy_credentials(&store).expect("cleanup should pass");
+
+        assert!(store.values.borrow().is_empty());
+    }
+
+    #[test]
+    fn failed_legacy_cleanup_restores_every_old_credential() {
+        let store = MemoryLegacyCleanupStore::default();
+        let expected = LegacyCredentialLocation::all()
+            .into_iter()
+            .enumerate()
+            .map(|(index, location)| (location, format!("secret-{index}")))
+            .collect::<HashMap<_, _>>();
+        *store.values.borrow_mut() = expected.clone();
+        *store.fail_on_delete.borrow_mut() = Some(LegacyCredentialLocation::CurrentSplit(
+            CredentialKey::OpenAi,
+        ));
+
+        let error = cleanup_legacy_credentials(&store).expect_err("cleanup should fail");
+
+        assert!(error.contains("模拟旧凭据清理失败"));
+        assert_eq!(*store.values.borrow(), expected);
     }
 }

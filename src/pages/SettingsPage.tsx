@@ -8,6 +8,7 @@ import { ModelSettings } from "@/components/settings/ModelSettings";
 import { RecordingStorageCard } from "@/components/settings/RecordingStorageCard";
 import { SettingsFieldList } from "@/components/settings/SettingsFieldList";
 import { settingsSchema } from "@/components/settings/settings-schema";
+import { usePreservedTabScroll } from "@/components/settings/usePreservedTabScroll";
 import {
   Card,
   CardContent,
@@ -45,7 +46,7 @@ export function SettingsPage({
   configRevision,
   historyRevision,
 }: SettingsPageProps) {
-  const [activeTab, setActiveTab] = useState("general");
+  const { activeTab, rootRef, onTabChange } = usePreservedTabScroll("general");
   const [modelRevision, setModelRevision] = useState(0);
 
   const renderGeneralSlot = (slot: string, saveMode: SettingsSaveMode) => {
@@ -99,7 +100,7 @@ export function SettingsPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div ref={rootRef} className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">设置</h1>
@@ -112,11 +113,7 @@ export function SettingsPage({
 
       <InputReadinessCard refreshRevision={configRevision + modelRevision} />
 
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-6"
-      >
+      <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="general">通用</TabsTrigger>
           <TabsTrigger value="models">模型配置</TabsTrigger>

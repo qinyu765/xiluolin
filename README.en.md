@@ -23,7 +23,7 @@ XiLuoLin focuses on the complete workflow from speaking an idea to getting text 
 
 - **Voice capture**: microphone recording, short-audio processing, global shortcuts, and recording status feedback.
 - **Speech recognition**: Zhipu GLM-ASR-2512, OpenAI Whisper, and an offline local Whisper model; macOS can explicitly enable hold-Fn recording with short-tap cancellation.
-- **Live captions**: an optional, explicitly downloaded bilingual Zipformer INT8 model (about 198.6 MB) provides incremental text in the overlay without replacing the final ASR result.
+- **Experimental live captions**: disabled by default; an explicitly downloaded bilingual Zipformer mixed-quantization candidate (about 199.3 MB) provides incremental overlay text without replacing final ASR. Preview failures do not affect final recognition, history, or delivery.
 - **Persona-based rewriting**: use polished built-in or custom personas, or select Verbatim Dictation to preserve the raw ASR wording while only normalizing whitespace.
 - **Hotword dictionary**: enabled hotwords globally bias ASR; Zhipu receives up to 100 native hotwords, OpenAI and local Whisper use soft prompts, and similar technical terms may compete.
 - **Desktop delivery**: clipboard and automatic paste output with a recoverable result window when a preferred method is unavailable.
@@ -43,7 +43,7 @@ Major capabilities already implemented:
 - Zhipu GLM-ASR-2512 Provider
 - OpenAI Responses API text-rewriting Provider
 - Recording, global shortcuts, a recording indicator, and short-audio processing
-- A React-based live transcript overlay and verified local realtime-model management
+- An experimental React live-transcript overlay with explicit, checksummed local model downloads; the candidate model remains No-Go for production redistribution until its training-data license chain is auditable
 - Clipboard delivery, automatic paste, and error feedback
 - Home, persona, hotword, and settings pages
 - TypeScript, frontend build, Rust formatting, compilation, and test checks

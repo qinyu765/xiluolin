@@ -7,7 +7,7 @@
 ```bash
 cargo run --release -- \
   --encoder /path/to/encoder.int8.onnx \
-  --decoder /path/to/decoder.int8.onnx \
+  --decoder /path/to/decoder.onnx \
   --joiner /path/to/joiner.int8.onnx \
   --tokens /path/to/tokens.txt \
   --wav /path/to/sample.wav \

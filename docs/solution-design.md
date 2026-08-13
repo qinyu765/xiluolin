@@ -235,9 +235,11 @@ ASR Provider 只负责语音转文本。
 
 ASR 阶段不接收人格提示词，不做人格化改写。
 
-Provider descriptor 声明原生热词、最大热词数、软提示、时长、语言提示和本地模型管理能力。智谱和 Qwen-Audio 使用前 100 个稳定去重的原生热词；Qwen-Audio 权重固定为 5，并支持最多 4 个 `language_hints`。OpenAI `prompt`、Qwen3-ASR system glossary 与本地 Whisper `initial_prompt` 属于提示。当前实现均不提供实时麦克风流。
+Provider descriptor 声明原生热词、最大热词数、软提示、时长、语言提示和本地模型管理能力。智谱和 Qwen-Audio 使用前 100 个稳定去重的原生热词；Qwen-Audio 权重固定为 5，并支持最多 4 个 `language_hints`。OpenAI `prompt`、Qwen3-ASR system glossary 与本地 Whisper `initial_prompt` 属于提示。最终 ASR Provider 均在停止录音后处理完整音频，不消费实时预览文本。
 
-当前默认使用非流式调用，原因是主流程需要在停止录音后拿到完整转写文本，再交给 OpenAI 做人格化整理。流式 ASR 可以作为后续优化，用于展示实时字幕或降低等待感。
+实时预览是独立的实验性旁路：默认关闭，用户显式下载固定 revision 且通过大小与 SHA-256 校验的 Zipformer 混合量化候选模型后才可启用。Rust 录音层把有界 PCM 帧送入 sherpa-onnx；预览失败、不可用或背压时只降级悬浮窗，不阻断最终识别、历史或投递。停止录音后，权威链路仍按会话开始时固定的 ASR/Text Provider primary→fallback 路由处理完整 WAV，并记录实际成功的 Provider、模型与 fallback 状态。
+
+该候选模型不打入安装包，当前只供本地体验。训练数据许可链、真实录音质量、下载体验、Windows 原生打包和目标设备稳定性未关闭前，生产分发保持 No-Go；资产与性能依据见 [`2026-08-13-streaming-asr-adr.md`](./dev/2026-08-13-streaming-asr-adr.md)。
 
 #### 快速文本模型 Provider
 

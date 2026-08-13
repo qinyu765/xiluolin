@@ -6,7 +6,7 @@ XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入�
 
 - **语音输入能力**：支持全局组合快捷键和应用内录音流程；macOS 可显式开启独立 Fn 按住录音，短按取消，25 秒提示并于 28 秒自动停止
 - **智能识别**：支持智谱 GLM-ASR-2512、OpenAI Whisper 和本地 Whisper；本地模式使用官方 whisper.cpp `ggml-base-q5_1.bin`，可离线转写
-- **实时字幕**：可显式下载约 198.6 MB 的中英双语 Zipformer INT8 模型，在悬浮窗中增量显示录音文字；预览失败不会影响最终 ASR
+- **实验性实时字幕**：默认关闭；可显式下载约 199.3 MB 的中英双语 Zipformer 混合量化候选模型，在悬浮窗中增量显示录音文字；它不替代最终 ASR，预览失败也不会影响最终识别、历史和投递
 - **人格化整理**：默认使用不可修改的“通用人格”进行自然、精炼的轻量整理；“原文听写”会跳过文本模型，也可切换其他内置或自定义人格
 - **热词词典**：启用热词同时影响 ASR 和文本整理；智谱原生接收前 100 个稳定去重热词，OpenAI 和本地 Whisper 使用软提示
 - **Capture 历史**：保存原始文本、整理结果、人格、输入来源、实际 Provider/模型、降级和投递方式；保留录音可试听、重新转写，原始文本可用当前人格重新整理
@@ -232,7 +232,7 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 - `reqwest`：Rust 侧统一调用智谱、OpenAI-compatible 与千问 Provider，发送 multipart / JSON 请求并处理超时。
 - `base64`：为 Qwen-Audio 原生多模态请求编码音频 Data URI。
 - `sha2`：校验显式下载的实时预览模型文件，避免损坏或不匹配的模型进入运行时。
-- `sherpa-onnx`：Apache-2.0 许可的本地流式识别运行时；当前 Zipformer 候选仅作为默认关闭的实验性预览模型，不替代最终 ASR。
+- `sherpa-onnx`：Apache-2.0 许可的本地流式识别运行时，精确锁定 `1.13.5`；当前 Zipformer 候选仅用于默认关闭的实验性预览，不打入安装包、不替代最终 ASR。候选权重虽标注 Apache-2.0，但训练数据许可链仍不可审计，生产分发保持 No-Go。
 - `cpal`：采集麦克风音频输入。
 - `hound`：写入并读取 WAV 录音文件。
 - `core-graphics`：在 macOS 使用 `CGEventTap` 捕获独立 Fn 手势，不修改系统 Fn 偏好。

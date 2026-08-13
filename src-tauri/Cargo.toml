@@ -34,6 +34,8 @@ tokio = { version = "1", features = ["time"] }
 enigo = "0.2"
 arboard = "3.4"
 thiserror = "2.0"
+sha2 = "0.10"
+sherpa-onnx = "1.13.5"
 keyring = "4.1.5"
 whisper-rs = "0.16.0"
 rubato = "0.16.2"

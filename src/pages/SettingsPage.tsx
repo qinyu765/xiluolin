@@ -37,8 +37,6 @@ type SettingsPageProps = {
   onSaveTextProcessingConfig: (event: React.FormEvent<HTMLFormElement>) => void;
   onConfigChange: (config: AppConfig) => void;
   onSaveConfig: (config: AppConfig) => Promise<AppConfig>;
-  configRevision: number;
-  historyRevision: number;
 };
 
 export function SettingsPage({
@@ -52,12 +50,9 @@ export function SettingsPage({
   onSaveTextProcessingConfig,
   onConfigChange,
   onSaveConfig,
-  configRevision,
-  historyRevision,
 }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState("general");
   const [isGeneralSaving, setIsGeneralSaving] = useState(false);
-  const [modelRevision, setModelRevision] = useState(0);
 
   const updateConfig = (patch: Partial<AppConfig>) => {
     if (appConfig) onConfigChange({ ...appConfig, ...patch });
@@ -95,7 +90,7 @@ export function SettingsPage({
         </p>
       </div>
 
-      <InputReadinessCard refreshRevision={configRevision + modelRevision} />
+      <InputReadinessCard />
 
       <Tabs
         value={activeTab}
@@ -258,7 +253,7 @@ export function SettingsPage({
               </form>
             </CardContent>
           </Card>
-          <RecordingStorageCard revision={historyRevision} />
+          <RecordingStorageCard />
         </TabsContent>
 
         <TabsContent value="models" className="space-y-6">
@@ -271,7 +266,9 @@ export function SettingsPage({
             onSaveAsrConfig={onSaveAsrConfig}
             onSaveTextProcessingConfig={onSaveTextProcessingConfig}
             updateConfig={updateConfig}
-            onModelChanged={() => setModelRevision((value) => value + 1)}
+            onModelChanged={() =>
+              window.dispatchEvent(new Event("xiluolin:readiness-changed"))
+            }
           />
         </TabsContent>
       </Tabs>

@@ -237,6 +237,37 @@ pub fn process_voice_input_with_progress(
     database: &LocalDatabase,
     auto_save_history: bool,
     history_context: HistoryContext,
+    progress: impl FnMut(VoiceInputStage),
+) -> Result<VoiceInputResult, VoiceInputError> {
+    let persona = default_persona(database)?;
+    let hotword_snapshot = database
+        .enabled_hotword_snapshot()
+        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
+    process_voice_input_with_captured_context(
+        request,
+        asr_config,
+        text_config,
+        database,
+        auto_save_history,
+        history_context,
+        persona,
+        hotword_snapshot.asr_hotwords,
+        hotword_snapshot.hotword_context,
+        progress,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn process_voice_input_with_captured_context(
+    request: VoiceInputRequest,
+    asr_config: AsrConfig,
+    text_config: TextPolishConfig,
+    database: &LocalDatabase,
+    auto_save_history: bool,
+    history_context: HistoryContext,
+    persona: Persona,
+    asr_hotwords: Vec<String>,
+    hotword_context: String,
     mut progress: impl FnMut(VoiceInputStage),
 ) -> Result<VoiceInputResult, VoiceInputError> {
     let start_time = std::time::Instant::now();
@@ -253,24 +284,13 @@ pub fn process_voice_input_with_progress(
         step1_start.elapsed()
     );
 
-    // 2. 先读取人格与热词，保证 ASR 与文本处理使用同一批热词。
-    let step2_start = std::time::Instant::now();
-    let persona = default_persona(database)?;
-    let hotword_snapshot = database
-        .enabled_hotword_snapshot()
-        .map_err(|error| VoiceInputError::RequestFailed(error.to_string()))?;
-    eprintln!(
-        "[⏱️ 性能] 步骤2: 获取人格和热词 - 耗时 {:?}",
-        step2_start.elapsed()
-    );
-
-    // 3. ASR 识别。人格描述属于文本处理提示词，绝不发送给 ASR。
+    // 2. ASR 识别。人格与热词在录音开始时固定；人格描述绝不发送给 ASR。
     progress(VoiceInputStage::Transcribing);
     let step3_start = std::time::Instant::now();
     let transcription = transcribe_audio_file(
         &AsrRequest {
             audio_path: audio_path.to_path_buf(),
-            hotwords: hotword_snapshot.asr_hotwords,
+            hotwords: asr_hotwords,
             context_prompt: None,
         },
         &asr_config,
@@ -310,7 +330,7 @@ pub fn process_voice_input_with_progress(
                     raw_text: transcription.text.clone(),
                     persona_id: persona.id.clone(),
                     persona_description: persona.description.clone(),
-                    hotword_context: hotword_snapshot.hotword_context,
+                    hotword_context,
                 },
                 &text_config,
             )
@@ -502,11 +522,12 @@ pub fn process_recording_file(
     file_path: String,
     duration_ms: u32,
 ) -> Result<VoiceInputResult, String> {
-    use crate::data::{read_app_config, LocalDatabase};
+    use crate::data::LocalDatabase;
     use tauri::Manager;
 
     let sessions = app.state::<CaptureSessionState>();
     let context = sessions.delivery_context(&session_id)?;
+    let captured = sessions.processing_context(&session_id)?;
     let show_indicator = context.source == CaptureSource::Hotkey;
     let result = (|| {
         let app_data_dir = app
@@ -519,7 +540,7 @@ pub fn process_recording_file(
             &recordings_dir,
             std::path::Path::new(&file_path),
             |audio_bytes, audio_extension, recording_path| {
-                let config = read_app_config(app.clone())?;
+                let config = captured.config.clone();
                 eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr_provider);
 
                 std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
@@ -545,7 +566,7 @@ pub fn process_recording_file(
                 };
 
                 let retain_requested = config.retain_recordings && config.auto_save_history;
-                let processed = process_voice_input_with_progress(
+                let processed = process_voice_input_with_captured_context(
                     VoiceInputRequest {
                         audio_bytes,
                         audio_extension,
@@ -561,6 +582,9 @@ pub fn process_recording_file(
                     &database,
                     config.auto_save_history,
                     history_context,
+                    captured.persona.clone(),
+                    captured.asr_hotwords.clone(),
+                    captured.hotword_context.clone(),
                     |stage| {
                         let (status, indicator_status) = match stage {
                             VoiceInputStage::Transcribing => {
@@ -569,6 +593,7 @@ pub fn process_recording_file(
                             VoiceInputStage::Refining => (CaptureStatus::Refining, "refining"),
                         };
                         let _ = sessions.update_status(&session_id, status);
+                        let _ = sessions.emit_snapshot(&app);
                         if show_indicator {
                             let _ = indicator::update_indicator(&app, indicator_status);
                         }
@@ -584,17 +609,8 @@ pub fn process_recording_file(
     if let Ok(processed) = &result {
         if let Some(history) = &processed.history_record {
             let _ = sessions.attach_history(&session_id, history.id.clone());
+            let _ = sessions.emit_snapshot(&app);
         }
-    }
-
-    if let Err(error) = &result {
-        // 错误路径必须无条件释放会话。finish 受状态机约束且此前忽略了返回值，
-        // 一旦状态更新异常就会永久触发“上一条语音输入仍在处理中”。
-        sessions.cancel(&session_id);
-        if show_indicator {
-            let _ = indicator::finish_indicator(&app, "failed");
-        }
-        eprintln!("语音输入处理失败：{error}");
     }
 
     result

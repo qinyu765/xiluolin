@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{AppHandle, Manager, Monitor, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 const INDICATOR_LABEL: &str = "recording-indicator";
-const INDICATOR_WIDTH: f64 = 320.0;
-const INDICATOR_HEIGHT: f64 = 64.0;
+const INDICATOR_WIDTH: f64 = 480.0;
+const INDICATOR_HEIGHT: f64 = 72.0;
 const INDICATOR_TOP_RATIO: f64 = 0.04;
 static INDICATOR_REVISION: AtomicU64 = AtomicU64::new(0);
 const VALID_STATUSES: [&str; 6] = [
@@ -34,7 +34,7 @@ pub fn ensure_indicator(app: &AppHandle) -> Result<WebviewWindow, String> {
     let window_builder = WebviewWindowBuilder::new(
         app,
         INDICATOR_LABEL,
-        WebviewUrl::App("indicator.html".into()),
+        WebviewUrl::App("index.html?window=indicator".into()),
     )
     .title("语音输入状态")
     .inner_size(INDICATOR_WIDTH, INDICATOR_HEIGHT)
@@ -145,7 +145,6 @@ pub fn show_indicator(app: &AppHandle) -> Result<(), String> {
     let window = ensure_indicator(app)?;
     INDICATOR_REVISION.fetch_add(1, Ordering::SeqCst);
     position_indicator(app, &window);
-    update_window(&window, "recording")?;
     window
         .show()
         .map_err(|error| format!("显示录音指示器失败：{error}"))?;
@@ -156,19 +155,30 @@ fn position_indicator(app: &AppHandle, window: &WebviewWindow) {
     let monitor = cursor_monitor(app)
         .or_else(|| app.primary_monitor().ok().flatten())
         .or_else(|| window.current_monitor().ok().flatten());
-    let window_size = window.outer_size().ok();
-
-    if let (Some(monitor), Some(window_size)) = (monitor, window_size) {
+    if let Some(monitor) = monitor {
+        let scale = monitor.scale_factor();
+        let window_width = indicator_width(monitor.size().width, scale);
+        let window_height = (INDICATOR_HEIGHT * scale).round() as u32;
+        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+            window_width,
+            window_height,
+        )));
         let monitor_position = monitor.position();
         let position = indicator_position(
             monitor_position.x,
             monitor_position.y,
             monitor.size().width,
             monitor.size().height,
-            window_size.width,
+            window_width,
         );
         let _ = window.set_position(tauri::Position::Physical(position));
     }
+}
+
+fn indicator_width(monitor_width: u32, scale_factor: f64) -> u32 {
+    let desired = (INDICATOR_WIDTH * scale_factor).round() as u32;
+    let margin = (32.0 * scale_factor).round() as u32;
+    desired.min(monitor_width.saturating_sub(margin).max(1))
 }
 
 fn cursor_monitor(app: &AppHandle) -> Option<Monitor> {
@@ -196,10 +206,11 @@ pub fn update_indicator(app: &AppHandle, status: &str) -> Result<(), String> {
 
 pub fn finish_indicator(app: &AppHandle, status: &str) -> Result<(), String> {
     update_indicator(app, status)?;
+    let delay_ms = indicator_hide_delay(status);
     let revision = INDICATOR_REVISION.load(Ordering::SeqCst);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(900)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
         if INDICATOR_REVISION.load(Ordering::SeqCst) == revision {
             let _ = hide_indicator(&app);
         }
@@ -207,14 +218,19 @@ pub fn finish_indicator(app: &AppHandle, status: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn update_window(window: &WebviewWindow, status: &str) -> Result<(), String> {
+fn indicator_hide_delay(status: &str) -> u64 {
+    if status == "failed" {
+        4_000
+    } else {
+        1_200
+    }
+}
+
+fn update_window(_window: &WebviewWindow, status: &str) -> Result<(), String> {
     if !VALID_STATUSES.contains(&status) {
         return Err(format!("未知的录音指示器状态：{status}"));
     }
-    let status = serde_json::to_string(status).map_err(|error| error.to_string())?;
-    window
-        .eval(format!("window.setIndicatorStatus({status});"))
-        .map_err(|error| format!("更新录音指示器失败：{error}"))
+    Ok(())
 }
 
 pub fn hide_indicator(app: &AppHandle) -> Result<(), String> {
@@ -239,17 +255,23 @@ mod tests {
     #[test]
     fn indicator_is_centered_near_the_top_of_the_primary_monitor() {
         assert_eq!(
-            indicator_position(0, 0, 1920, 1080, 320),
-            tauri::PhysicalPosition { x: 800, y: 43 }
+            indicator_position(0, 0, 1920, 1080, 480),
+            tauri::PhysicalPosition { x: 720, y: 43 }
         );
     }
 
     #[test]
     fn indicator_position_includes_secondary_monitor_origin() {
         assert_eq!(
-            indicator_position(-2560, -120, 2560, 1440, 320),
-            tauri::PhysicalPosition { x: -1440, y: -62 }
+            indicator_position(-2560, -120, 2560, 1440, 480),
+            tauri::PhysicalPosition { x: -1520, y: -62 }
         );
+    }
+
+    #[test]
+    fn indicator_width_leaves_a_margin_on_narrow_displays() {
+        assert_eq!(indicator_width(460, 1.0), 428);
+        assert_eq!(indicator_width(1920, 2.0), 960);
     }
 
     #[test]
@@ -265,6 +287,12 @@ mod tests {
                 "failed"
             ]
         );
+    }
+
+    #[test]
+    fn failed_indicator_stays_visible_longer_than_success() {
+        assert_eq!(indicator_hide_delay("completed"), 1_200);
+        assert_eq!(indicator_hide_delay("failed"), 4_000);
     }
 
     #[cfg(target_os = "macos")]

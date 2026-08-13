@@ -65,11 +65,7 @@ function actionPermission(action: ReadinessAction) {
   return action.includes("microphone") ? "microphone" : "accessibility";
 }
 
-export function InputReadinessCard({
-  refreshRevision = 0,
-}: {
-  refreshRevision?: number;
-}) {
+export function InputReadinessCard() {
   const [readiness, setReadiness] = useState<InputReadiness | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,10 +90,12 @@ export function InputReadinessCard({
     const handleRefresh = () => void refresh();
     void refresh(true);
     window.addEventListener("focus", handleRefresh);
+    window.addEventListener("xiluolin:readiness-changed", handleRefresh);
     return () => {
       window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("xiluolin:readiness-changed", handleRefresh);
     };
-  }, [refresh, refreshRevision]);
+  }, [refresh]);
 
   const runAction = useCallback(
     async (action: ReadinessAction) => {

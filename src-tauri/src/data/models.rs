@@ -50,6 +50,8 @@ pub struct AppConfig {
     pub allow_cloud_fallback: bool,
     #[serde(default = "default_fallback_asr_provider")]
     pub fallback_asr_provider: String,
+    #[serde(default)]
+    pub realtime_preview_enabled: bool,
 }
 
 impl AppConfig {
@@ -247,5 +249,6 @@ pub fn default_app_config() -> AppConfig {
         local_asr_model: default_local_asr_model(),
         allow_cloud_fallback: false,
         fallback_asr_provider: default_fallback_asr_provider(),
+        realtime_preview_enabled: false,
     }
 }

@@ -52,7 +52,7 @@ React 前端负责所有用户可见交互：
 - 热词词典管理。
 - 模型服务、快捷键和输出方式设置。
 
-前端按业务领域使用 controller hooks 管理状态：`recording`、`history`、`persona`、`hotword` 和 `config`。`App` 只负责页面组合与导航；录音 controller 使用显式阶段并统一处理快捷键和应用内录音完成流程。设置页通过 props、callback 和 revision 显式刷新就绪状态与录音存储统计，不依赖全局 DOM 自定义事件。
+前端按 `capture`、`history`、`persona`、`hotword`、`settings`、`shared` 和 `platform/tauri` 分域。`App` 只负责页面组合与导航；录音生命周期由 Rust 协调器拥有，主窗口与 React 悬浮窗通过资源 hooks 和类型化事件订阅状态，不在 WebView 中串联后台流程。
 
 Rust command、event 和跨 IPC 数据类型通过 Specta 生成 `src/generated/tauri-bindings.ts`。前端只能通过生成的 `commands` 和 `events` 调用 Tauri，生成文件由 `pnpm bindings:check` 在 CI 中检查漂移。
 
@@ -84,6 +84,8 @@ Tauri 后端负责系统能力和核心编排：
 - 自动粘贴到当前输入位置。
 - 读写 SQLite、Tauri Store 和系统凭据库。
 - 统一处理流程状态和错误信息。
+- 维护单一 CaptureSnapshot、固定每次会话的配置/人格/前 100 个热词与目标窗口，并在无主 WebView 监听时继续完成最终投递。
+- 将 PCM 非阻塞送入 sherpa-onnx 预览线程；背压或运行异常只关闭本次预览，WAV 和最终处理链路继续执行。
 
 ### 2.3 本地编排策略
 
@@ -530,16 +532,15 @@ Prompt 工程师人格示例目标：
 
 ### 9.1 首页
 
-当前首页聚焦输入结果和效率反馈：
+当前首页聚焦运行状态和效率反馈：
 
-- 当前人格问候和人格说明。
-- 快捷键提示，优先显示长按模式快捷键，其次显示切换模式快捷键。
+- 运行就绪卡：麦克风、最终 ASR、实时模型、快捷键和当前人格。
 - 统计卡片：语音协作次数、累计口述时间、口述生成字数、预计节省时间、常用人格。
 - 最近历史记录，按今天、昨天和具体日期分组。
 - 每条历史记录展示人格、创建时间、录音时长、生成字数和整理结果摘要。
-- 每条历史记录支持复制和删除。
+- 每条历史记录支持播放保留录音、复制、重新识别、重新整理和删除。
 
-录音快速开始卡片已保留为组件，但当前首页可见结构暂时隐藏该入口。Rust 侧为快捷键录音建立 CaptureSession 并发出携带 `session_id` 的完成事件；前端串联 `process_recording_file`、`deliver_text`、历史刷新和错误提示。状态窗由 `public/indicator.html` 提供并在启动时预创建，不主动获取焦点。真实服务 smoke test、Windows 跨权限级别粘贴和首页可见输入入口仍需继续验证。
+首页不创建录音 controller，也不提供隐藏的上传入口。Rust CaptureSession 协调器独立完成录音、最终识别、整理、历史保存和文字投递；React 主窗口与悬浮窗先读取 `CaptureSnapshot`，再订阅类型化事件并用全局单调 revision 丢弃乱序状态。悬浮窗与主窗口共享 React 入口、主题 token、错误态和测试设施。
 
 ### 9.2 人格页
 

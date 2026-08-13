@@ -12,7 +12,6 @@ export function useConfigController() {
     useState("正在读取文本处理配置...");
   const [isAsrSaving, setIsAsrSaving] = useState(false);
   const [isTextProcessingSaving, setIsTextProcessingSaving] = useState(false);
-  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -40,7 +39,7 @@ export function useConfigController() {
   const saveConfig = async (config: AppConfig) => {
     const saved = (await commands.updateAppConfig(config)) as AppConfig;
     setAppConfig(saved);
-    setRevision((value) => value + 1);
+    window.dispatchEvent(new Event("xiluolin:readiness-changed"));
     return saved;
   };
 
@@ -158,7 +157,6 @@ export function useConfigController() {
     textProcessingStatus,
     isAsrSaving,
     isTextProcessingSaving,
-    revision,
     setAppConfig,
     saveConfig,
     handleSaveAsrConfig,

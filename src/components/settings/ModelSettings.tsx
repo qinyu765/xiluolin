@@ -1,6 +1,7 @@
 import { Loader2Icon, SaveIcon } from "lucide-react";
 
 import { LocalAsrSettings } from "@/components/settings/LocalAsrSettings";
+import { RealtimePreviewModelCard } from "@/features/settings/RealtimePreviewModelCard";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,6 +47,12 @@ export function ModelSettings(props: ModelSettingsProps) {
   } = props;
   return (
     <>
+      <RealtimePreviewModelCard
+        onEnabledChange={(enabled) =>
+          updateConfig({ realtime_preview_enabled: enabled })
+        }
+        onChanged={onModelChanged}
+      />
       <Card>
         <CardHeader>
           <CardTitle>语音识别服务</CardTitle>

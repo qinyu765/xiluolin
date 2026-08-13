@@ -5,7 +5,9 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::{
-    capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
+    capture_session::{
+        CaptureFailure, CapturePhase, CaptureSessionState, CaptureSource, CaptureStatus,
+    },
     focus_capture::{restore_focus, FocusRestoreLevel, FocusSnapshot},
     indicator,
 };
@@ -162,6 +164,25 @@ pub async fn deliver_text(
     history_id: Option<String>,
     text: String,
 ) -> Result<OutputResult, String> {
+    deliver_text_internal(
+        &app,
+        &sessions,
+        &fallback_state,
+        session_id,
+        history_id,
+        text,
+    )
+    .await
+}
+
+pub async fn deliver_text_internal(
+    app: &tauri::AppHandle,
+    sessions: &CaptureSessionState,
+    fallback_state: &FallbackResultState,
+    session_id: Option<String>,
+    history_id: Option<String>,
+    text: String,
+) -> Result<OutputResult, String> {
     eprintln!(
         "[文本投递] 开始：session={}, chars={}",
         session_id.as_deref().unwrap_or("none"),
@@ -172,7 +193,7 @@ pub async fn deliver_text(
         clipboard_copy(&text).await?;
         if let Some(history_id) = history_id {
             if let Err(error) =
-                crate::data::update_history_delivery_for_app(&app, &history_id, "copy")
+                crate::data::update_history_delivery_for_app(app, &history_id, "copy")
             {
                 eprintln!("更新历史投递方式失败：{error}");
             }
@@ -190,15 +211,16 @@ pub async fn deliver_text(
 
     let context = sessions.delivery_context(&session_id)?;
     sessions.update_status(&session_id, CaptureStatus::Delivering)?;
+    let _ = sessions.emit_snapshot(app);
     if context.source == CaptureSource::Hotkey {
-        let _ = indicator::update_indicator(&app, "delivering");
+        let _ = indicator::update_indicator(app, "delivering");
     }
 
     if context.source == CaptureSource::App {
         let result = clipboard_copy(&text).await;
         return finish_delivery(
-            &app,
-            &sessions,
+            app,
+            sessions,
             &session_id,
             result.map(|_| OutputResult {
                 method: OutputMethod::Clipboard,
@@ -221,8 +243,8 @@ pub async fn deliver_text(
                 outcome.target_restore_level, outcome.clipboard_restored
             );
             finish_delivery(
-                &app,
-                &sessions,
+                app,
+                sessions,
                 &session_id,
                 Ok(OutputResult {
                     method: OutputMethod::Paste,
@@ -272,7 +294,7 @@ pub async fn deliver_text(
                 copied,
             }) {
                 eprintln!("保存失败结果失败：{error}");
-            } else if let Err(error) = show_fallback_window(&app) {
+            } else if let Err(error) = show_fallback_window(app) {
                 eprintln!("显示失败结果窗口失败：{error}");
             }
             let fallback = Ok(OutputResult {
@@ -284,7 +306,7 @@ pub async fn deliver_text(
                 clipboard_restored: false,
                 used_fallback: true,
             });
-            finish_delivery(&app, &sessions, &session_id, fallback, true)
+            finish_delivery(app, sessions, &session_id, fallback, true)
         }
     }
 }
@@ -359,13 +381,23 @@ fn finish_delivery(
                 }
             }
             sessions.finish(session_id, CaptureStatus::Completed)?;
+            let _ = sessions.emit_snapshot(app);
             if show_indicator {
                 let _ = indicator::finish_indicator(app, "completed");
             }
             Ok(result)
         }
         Err(error) => {
-            let _ = sessions.finish(session_id, CaptureStatus::Failed);
+            let _ = sessions.fail(
+                session_id,
+                CaptureFailure {
+                    code: "delivery_failed".to_string(),
+                    stage: CapturePhase::Delivering,
+                    recoverable: true,
+                    detail: error.clone(),
+                },
+            );
+            let _ = sessions.emit_snapshot(app);
             if show_indicator {
                 let _ = indicator::finish_indicator(app, "failed");
             }

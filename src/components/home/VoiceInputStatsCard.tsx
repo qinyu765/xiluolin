@@ -12,21 +12,13 @@ import {
   WandSparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import type { AppConfig, HistoryRecord, HistoryStatistics } from "@/types";
-import { formatShortcutDisplay } from "@/utils/shortcut";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { HistoryRecord, HistoryStatistics } from "@/types";
 
 type VoiceInputStatsCardProps = {
   historyStats: HistoryStatistics | null;
   historyRecords: HistoryRecord[];
   historyStatus: string;
-  appConfig: AppConfig | null;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
   onPlayHistoryRecording: (id: string) => void;
@@ -45,7 +37,6 @@ export function VoiceInputStatsCard({
   historyStats,
   historyRecords,
   historyStatus,
-  appConfig,
   onCopyHistoryText,
   onDeleteHistoryRecord,
   onPlayHistoryRecording,
@@ -55,100 +46,69 @@ export function VoiceInputStatsCard({
   formatCreatedAt,
   groupHistoryByDate,
 }: VoiceInputStatsCardProps) {
-  const getShortcutHint = () => {
-    const longpress = appConfig?.longpress_shortcut;
-    const toggle = appConfig?.toggle_shortcut;
-
-    if (longpress) {
-      const display = formatShortcutDisplay(longpress);
-      return `按住 ${display} 开始语音输入`;
-    }
-
-    if (toggle) {
-      const display = formatShortcutDisplay(toggle);
-      return `按 ${display} 开始/停止语音输入`;
-    }
-
-    return "请前往设置页配置快捷键";
-  };
-
   return (
-    <Card>
-      <CardHeader>
-        <div>
-          <CardTitle className="text-xl">{getShortcutHint()}</CardTitle>
-        </div>
-        <CardAction>
-          <span className="inline-flex h-8 items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-            {historyStats?.total_count ?? 0} 次记录
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
+        <section className="min-h-28 rounded-lg border bg-card p-4 shadow-sm">
+          <BarChart3Icon
+            className="mb-3 size-4 text-primary"
+            aria-hidden="true"
+          />
+          <p className="text-xs text-muted-foreground">语音协作次数</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {historyStats?.total_count ?? 0}
+          </p>
+        </section>
+        <section className="min-h-28 rounded-lg border bg-card p-4 shadow-sm">
+          <Clock3Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+          <p className="text-xs text-muted-foreground">累计口述时间</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {formatDuration(historyStats?.total_duration_ms ?? 0)}
+          </p>
+        </section>
+        <section className="min-h-28 rounded-lg border bg-card p-4 shadow-sm">
+          <PencilIcon className="mb-3 size-4 text-primary" aria-hidden="true" />
+          <p className="text-xs text-muted-foreground">口述生成字数</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {historyStats?.total_output_chars ?? 0}
+          </p>
+        </section>
+        <section className="min-h-28 rounded-lg border bg-card p-4 shadow-sm">
+          <HistoryIcon
+            className="mb-3 size-4 text-primary"
+            aria-hidden="true"
+          />
+          <p className="text-xs text-muted-foreground">预计节省时间</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {formatDuration(historyStats?.estimated_saved_ms ?? 0)}
+          </p>
+        </section>
+        <section className="min-h-28 rounded-lg border bg-card p-4 shadow-sm sm:col-span-2 md:col-span-1">
+          <Mic2Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
+          <p className="text-xs text-muted-foreground">常用人格</p>
+          <p className="mt-1 truncate text-lg font-semibold">
+            {historyStats?.top_persona_name ?? "暂无"}
+          </p>
+          {historyStats?.top_persona_name ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              使用 {historyStats.top_persona_count} 次
+            </p>
+          ) : null}
+        </section>
+      </div>
+
+      <Card>
+        <CardHeader className="grid-cols-[1fr_auto] items-center">
+          <CardTitle>最近历史</CardTitle>
+          <span className="text-xs text-muted-foreground">
+            最近 {historyRecords.length} 条
           </span>
-        </CardAction>
-      </CardHeader>
-
-      <CardContent className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <section className="rounded-lg border bg-muted/30 p-4">
-            <BarChart3Icon
-              className="mb-3 size-4 text-primary"
-              aria-hidden="true"
-            />
-            <p className="text-xs text-muted-foreground">语音协作次数</p>
-            <p className="mt-1 text-2xl font-semibold">
-              {historyStats?.total_count ?? 0}
-            </p>
-          </section>
-          <section className="rounded-lg border bg-muted/30 p-4">
-            <Clock3Icon
-              className="mb-3 size-4 text-primary"
-              aria-hidden="true"
-            />
-            <p className="text-xs text-muted-foreground">累计口述时间</p>
-            <p className="mt-1 text-2xl font-semibold">
-              {formatDuration(historyStats?.total_duration_ms ?? 0)}
-            </p>
-          </section>
-          <section className="rounded-lg border bg-muted/30 p-4">
-            <PencilIcon
-              className="mb-3 size-4 text-primary"
-              aria-hidden="true"
-            />
-            <p className="text-xs text-muted-foreground">口述生成字数</p>
-            <p className="mt-1 text-2xl font-semibold">
-              {historyStats?.total_output_chars ?? 0}
-            </p>
-          </section>
-          <section className="rounded-lg border bg-muted/30 p-4">
-            <HistoryIcon
-              className="mb-3 size-4 text-primary"
-              aria-hidden="true"
-            />
-            <p className="text-xs text-muted-foreground">预计节省时间</p>
-            <p className="mt-1 text-2xl font-semibold">
-              {formatDuration(historyStats?.estimated_saved_ms ?? 0)}
-            </p>
-          </section>
-          <section className="rounded-lg border bg-muted/30 p-4 sm:col-span-2 lg:col-span-1">
-            <Mic2Icon className="mb-3 size-4 text-primary" aria-hidden="true" />
-            <p className="text-xs text-muted-foreground">常用人格</p>
-            <p className="mt-1 truncate text-lg font-semibold">
-              {historyStats?.top_persona_name ?? "暂无"}
-            </p>
-            {historyStats?.top_persona_name ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                使用 {historyStats.top_persona_count} 次
-              </p>
-            ) : null}
-          </section>
-        </div>
-
-        <div className="grid gap-3 border-t pt-4">
+        </CardHeader>
+        <CardContent className="grid gap-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-6 text-muted-foreground">
               {historyStatus}
             </p>
-            <span className="inline-flex h-8 w-fit items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-              最近 {historyRecords.length} 条
-            </span>
           </div>
 
           {historyRecords.length > 0 ? (
@@ -226,12 +186,12 @@ export function VoiceInputStatsCard({
             })()
           ) : (
             <section className="rounded-lg border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
-              暂无历史记录。完成一次短音频输入后,这里会展示最近结果和统计数据。
+              暂无历史记录。完成一次短音频输入后，这里会展示最近结果和统计数据。
             </section>
           )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

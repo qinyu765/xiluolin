@@ -12,13 +12,12 @@ import {
   WandSparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import type { HistoryRecord, HistoryStatistics } from "@/types";
 
 type VoiceInputStatsCardProps = {
   historyStats: HistoryStatistics | null;
   historyRecords: HistoryRecord[];
-  historyStatus: string;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
   onPlayHistoryRecording: (id: string) => void;
@@ -36,7 +35,6 @@ type VoiceInputStatsCardProps = {
 export function VoiceInputStatsCard({
   historyStats,
   historyRecords,
-  historyStatus,
   onCopyHistoryText,
   onDeleteHistoryRecord,
   onPlayHistoryRecording,
@@ -98,19 +96,7 @@ export function VoiceInputStatsCard({
       </div>
 
       <Card>
-        <CardHeader className="grid-cols-[1fr_auto] items-center">
-          <CardTitle>最近历史</CardTitle>
-          <span className="text-xs text-muted-foreground">
-            最近 {historyRecords.length} 条
-          </span>
-        </CardHeader>
         <CardContent className="grid gap-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted-foreground">
-              {historyStatus}
-            </p>
-          </div>
-
           {historyRecords.length > 0 ? (
             (() => {
               const { todayRecords, yesterdayRecords, olderRecords } =

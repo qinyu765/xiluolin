@@ -13,7 +13,6 @@ export function HomeDashboard() {
       selectedPersona={personas.selected}
       historyStats={history.stats}
       historyRecords={history.records}
-      historyStatus={history.status}
       appConfig={config.appConfig}
       onCopyHistoryText={history.copyText}
       onDeleteHistoryRecord={history.deleteRecord}

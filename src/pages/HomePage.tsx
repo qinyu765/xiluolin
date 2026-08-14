@@ -1,19 +1,18 @@
 import { HomeGreetingCard } from "@/components/home/HomeGreetingCard";
 import { VoiceInputStatsCard } from "@/components/home/VoiceInputStatsCard";
 import type {
-  Persona,
   AppConfig,
   HistoryRecord,
   HistoryStatistics,
+  Persona,
 } from "@/types";
-import { formatDuration, formatCreatedAt } from "@/utils/format";
+import { formatCreatedAt, formatDuration } from "@/utils/format";
 import { groupHistoryByDate } from "@/utils/date";
 
 type HomePageProps = {
   selectedPersona: Persona | undefined;
   historyStats: HistoryStatistics | null;
   historyRecords: HistoryRecord[];
-  historyStatus: string;
   appConfig: AppConfig | null;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
@@ -26,7 +25,6 @@ export function HomePage({
   selectedPersona,
   historyStats,
   historyRecords,
-  historyStatus,
   appConfig,
   onCopyHistoryText,
   onDeleteHistoryRecord,
@@ -46,7 +44,6 @@ export function HomePage({
       <VoiceInputStatsCard
         historyStats={historyStats}
         historyRecords={historyRecords}
-        historyStatus={historyStatus}
         onCopyHistoryText={onCopyHistoryText}
         onDeleteHistoryRecord={onDeleteHistoryRecord}
         onPlayHistoryRecording={onPlayHistoryRecording}

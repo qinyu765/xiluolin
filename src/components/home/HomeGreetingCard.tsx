@@ -49,7 +49,7 @@ export function HomeGreetingCard({
 
       <div className="relative max-w-full space-y-2 sm:max-w-[70%]">
         <p className="text-sm font-medium text-primary">
-          {greetingForHour(hour)} 👋
+          {greetingForHour(hour)}！
         </p>
         <h2 className="text-3xl font-semibold tracking-tight">
           今天想说点什么？

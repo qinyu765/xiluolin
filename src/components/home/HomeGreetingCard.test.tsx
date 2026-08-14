@@ -15,7 +15,7 @@ describe("HomeGreetingCard", () => {
       />,
     );
 
-    expect(screen.getByText("早上好 👋")).toBeInTheDocument();
+    expect(screen.getByText("早上好！")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "今天想说点什么？" }),
     ).toBeInTheDocument();
@@ -28,7 +28,7 @@ describe("HomeGreetingCard", () => {
   it("在未选择人格和快捷键时给出可行动提示", () => {
     render(<HomeGreetingCard hour={21} />);
 
-    expect(screen.getByText("晚上好 👋")).toBeInTheDocument();
+    expect(screen.getByText("晚上好！")).toBeInTheDocument();
     expect(screen.getByText(/还没有选择人格/)).toBeInTheDocument();
     expect(screen.getByText("前往设置配置快捷键")).toBeInTheDocument();
   });

@@ -55,12 +55,7 @@ describe("RealtimePreviewModelCard", () => {
 
   it("renders typed multi-file download progress", async () => {
     mocks.download.mockReturnValue(new Promise(() => {}));
-    render(
-      <RealtimePreviewModelCard
-        onEnabledChange={vi.fn()}
-        onChanged={vi.fn()}
-      />,
-    );
+    render(<RealtimePreviewModelCard onChanged={vi.fn()} />);
 
     expect(await screen.findByText(/实验性功能/)).toBeInTheDocument();
 
@@ -92,17 +87,10 @@ describe("RealtimePreviewModelCard", () => {
     mocks.info.mockResolvedValue(installed);
     mocks.remove.mockResolvedValue(model());
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    const onEnabledChange = vi.fn();
-
-    render(
-      <RealtimePreviewModelCard
-        onEnabledChange={onEnabledChange}
-        onChanged={vi.fn()}
-      />,
-    );
+    render(<RealtimePreviewModelCard onChanged={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "删除" }));
 
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
-    expect(onEnabledChange).toHaveBeenCalledWith(false);
+    expect(screen.getByText(/需要下载约/)).toBeInTheDocument();
   });
 });

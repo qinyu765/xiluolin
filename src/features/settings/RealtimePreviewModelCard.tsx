@@ -18,10 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { commands, events } from "@/generated/tauri-bindings";
-import type {
-  RealtimeModelDownloadProgress,
-  RealtimeModelInfo,
-} from "@/generated/tauri-bindings";
+import type { RealtimeModelDownloadProgress } from "@/generated/tauri-bindings";
 import { useResource } from "@/shared/resource/useResource";
 
 function formatSize(bytes: number) {
@@ -29,10 +26,8 @@ function formatSize(bytes: number) {
 }
 
 export function RealtimePreviewModelCard({
-  onEnabledChange,
   onChanged,
 }: {
-  onEnabledChange: (enabled: boolean) => void;
   onChanged: () => void;
 }) {
   const load = useCallback(() => commands.realtimeAsrModelInfo(), []);
@@ -60,8 +55,9 @@ export function RealtimePreviewModelCard({
     };
   }, []);
 
-  const finish = async (info: RealtimeModelInfo, message: string) => {
-    onEnabledChange(info.enabled);
+  const finish = async (message: string) => {
+    // The model command persists the toggle atomically. Avoid sending the same
+    // config through the general save queue a second time.
     onChanged();
     await resource.reload();
     toast.success(message);
@@ -71,10 +67,8 @@ export function RealtimePreviewModelCard({
     setAction("download");
     setProgress(null);
     try {
-      await finish(
-        await commands.downloadRealtimeAsrModel(),
-        "实时预览模型已安装并启用",
-      );
+      await commands.downloadRealtimeAsrModel();
+      await finish("实时预览模型已安装，请按需启用");
     } catch (error) {
       toast.error(`下载失败：${String(error)}`);
     } finally {
@@ -100,10 +94,8 @@ export function RealtimePreviewModelCard({
   const toggle = async (enabled: boolean) => {
     setAction("toggle");
     try {
-      await finish(
-        await commands.setRealtimePreviewEnabled(enabled),
-        enabled ? "实时预览已启用" : "实时预览已停用",
-      );
+      await commands.setRealtimePreviewEnabled(enabled);
+      await finish(enabled ? "实时预览已启用" : "实时预览已停用");
     } catch (error) {
       toast.error(`更新失败：${String(error)}`);
     } finally {
@@ -116,10 +108,8 @@ export function RealtimePreviewModelCard({
       return;
     setAction("delete");
     try {
-      await finish(
-        await commands.deleteRealtimeAsrModel(),
-        "实时预览模型已删除",
-      );
+      await commands.deleteRealtimeAsrModel();
+      await finish("实时预览模型已删除");
     } catch (error) {
       toast.error(`删除失败：${String(error)}`);
     } finally {
@@ -166,7 +156,7 @@ export function RealtimePreviewModelCard({
                   ? "模型文件损坏，请重新下载或删除。"
                   : installed
                     ? `已安装 · ${formatSize(info.total_size_bytes)} · 固定版本 ${info.revision.slice(0, 8)}`
-                    : `需要下载约 ${formatSize(info?.total_size_bytes ?? 0)}，下载完成后自动启用。`}
+                    : `需要下载约 ${formatSize(info?.total_size_bytes ?? 0)}，下载完成后保持关闭。`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

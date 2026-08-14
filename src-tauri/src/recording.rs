@@ -237,7 +237,12 @@ fn start_audio_capture(
 
     let selected_microphone = context.config.selected_microphone.clone();
     let hotwords = context.asr_hotwords.iter().take(100).cloned().collect();
-    let preview = RealtimePreviewSession::start_if_enabled(app_handle, session_id, hotwords);
+    let preview = RealtimePreviewSession::start_if_enabled(
+        app_handle,
+        session_id,
+        context.config.realtime_preview_enabled,
+        hotwords,
+    );
     let preview_sink = preview.as_ref().map(|(_, sink)| sink.clone());
     let preview_session = preview.map(|(session, _)| session);
     let worker = match AudioWorker::start(output_path.clone(), selected_microphone, preview_sink) {

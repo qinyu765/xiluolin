@@ -72,11 +72,9 @@ impl RealtimePreviewSession {
     pub(crate) fn start_if_enabled(
         app: &tauri::AppHandle,
         session_id: &str,
+        enabled: bool,
         hotwords: Vec<String>,
     ) -> Option<(Self, PreviewAudioSink)> {
-        let enabled = crate::data::read_app_config(app.clone())
-            .map(|config| config.realtime_preview_enabled)
-            .unwrap_or(false);
         if !enabled {
             return None;
         }
@@ -147,10 +145,9 @@ impl RealtimePreviewSession {
     }
 
     fn signal(&self, message: PreviewMessage) {
-        if matches!(
-            self.sender.try_send(message),
-            Err(mpsc::TrySendError::Full(_))
-        ) {
+        if self.sender.send(message).is_err() {
+            // The worker may have failed before the recording stopped. Keep
+            // final WAV processing independent from the optional preview.
             self.overflowed.store(true, Ordering::Release);
         }
     }

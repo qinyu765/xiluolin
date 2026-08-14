@@ -361,7 +361,6 @@ pub async fn download_realtime_asr_model(
     tauri::async_runtime::spawn_blocking(move || download_model(&app_for_download))
         .await
         .map_err(|error| format!("实时模型下载任务失败：{error}"))??;
-    persist_enabled(&app, true)?;
     read_info(&app)
 }
 

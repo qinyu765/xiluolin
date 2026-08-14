@@ -1,5 +1,5 @@
 import type {
-  AppConfig_Serialize,
+  AppConfig as GeneratedAppConfig,
   AudioDevice,
   InputReadiness,
   LocalAsrDownloadProgress,
@@ -8,9 +8,12 @@ import type {
   ReadinessAction,
   ReadinessCheck,
   RecordingStorageInfo,
+  ProviderRoutingConfig,
+  ProviderSettings,
 } from "@/generated/tauri-bindings";
 
-export type AppConfig = AppConfig_Serialize;
+/** Runtime config is normalized after IPC, so all v2 fields are present. */
+export type AppConfig = Required<GeneratedAppConfig>;
 export type {
   AudioDevice,
   InputReadiness,
@@ -20,4 +23,6 @@ export type {
   ReadinessAction,
   ReadinessCheck,
   RecordingStorageInfo,
+  ProviderRoutingConfig,
+  ProviderSettings,
 };

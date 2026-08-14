@@ -5,10 +5,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	transcribeAudioPath: (audioPath: string, provider: string, apiKey: string, baseUrl: string, model: string) => __TAURI_INVOKE<AsrTranscription>("transcribe_audio_path", { audioPath, provider, apiKey, baseUrl, model }),
 	startCapture: () => __TAURI_INVOKE<CaptureSessionStart>("start_capture"),
 	stopCapture: () => __TAURI_INVOKE<CaptureSnapshot>("stop_capture"),
-	polishText: (request: TextPolishRequest, provider: string, apiKey: string, baseUrl: string, model: string) => __TAURI_INVOKE<TextPolishResult>("polish_text", { request, provider, apiKey, baseUrl, model }),
 	listProviderCatalog: () => __TAURI_INVOKE<ProviderCatalog>("list_provider_catalog"),
 	processUploadedAudio: (request: VoiceInputRequest) => __TAURI_INVOKE<VoiceInputResult>("process_uploaded_audio", { request }),
 	readCaptureSnapshot: () => __TAURI_INVOKE<CaptureSnapshot>("read_capture_snapshot"),
@@ -77,8 +75,8 @@ export type AppConfig = AppConfig_Serialize | AppConfig_Deserialize;
 
 export type AppConfig_Deserialize = {
 	config_version?: number,
-	asr?: ProviderRoutingConfig,
-	text?: ProviderRoutingConfig,
+	asr?: ProviderRoutingConfig_Deserialize,
+	text?: ProviderRoutingConfig_Deserialize,
 	default_persona_id: string,
 	longpress_shortcut?: string,
 	toggle_shortcut?: string,
@@ -92,8 +90,8 @@ export type AppConfig_Deserialize = {
 
 export type AppConfig_Serialize = {
 	config_version: number,
-	asr: ProviderRoutingConfig,
-	text: ProviderRoutingConfig,
+	asr: ProviderRoutingConfig_Serialize,
+	text: ProviderRoutingConfig_Serialize,
 	default_persona_id: string,
 	longpress_shortcut: string,
 	toggle_shortcut: string,
@@ -103,13 +101,6 @@ export type AppConfig_Serialize = {
 	selected_microphone: string,
 	retain_recordings: boolean,
 	realtime_preview_enabled: boolean,
-};
-
-export type AsrTranscription = {
-	text: string,
-	provider: string,
-	model: string,
-	used_fallback: boolean,
 };
 
 export type AudioDevice = {
@@ -339,17 +330,34 @@ export type ProviderFieldKind = "api_key" | "text" | "select" | "multi_select" |
 
 export type ProviderOptionValue = { type: "text"; value: string } | { type: "boolean"; value: boolean } | { type: "string_list"; value: string[] };
 
-export type ProviderRoutingConfig = {
+export type ProviderRoutingConfig = ProviderRoutingConfig_Serialize | ProviderRoutingConfig_Deserialize;
+
+export type ProviderRoutingConfig_Deserialize = {
 	primary?: string,
 	fallbacks?: string[],
-	settings?: { [key in string]: ProviderSettings },
+	settings?: { [key in string]: ProviderSettings_Deserialize },
 };
 
-export type ProviderSettings = {
+export type ProviderRoutingConfig_Serialize = {
+	primary: string,
+	fallbacks: string[],
+	settings: { [key in string]: ProviderSettings_Serialize },
+};
+
+export type ProviderSettings = ProviderSettings_Serialize | ProviderSettings_Deserialize;
+
+export type ProviderSettings_Deserialize = {
 	api_key?: string,
 	base_url?: string,
 	model?: string,
 	options?: { [key in string]: ProviderOptionValue },
+};
+
+export type ProviderSettings_Serialize = {
+	api_key?: string,
+	base_url: string,
+	model: string,
+	options: { [key in string]: ProviderOptionValue },
 };
 
 export type ReadinessAction = "request_microphone" | "open_microphone_settings" | "request_accessibility" | "open_accessibility_settings";
@@ -395,21 +403,6 @@ export type RecordingStorageInfo = {
 	file_count: number,
 	total_bytes: number,
 	directory: string,
-};
-
-export type TextPolishRequest = {
-	raw_text: string,
-	persona_id?: string,
-	persona_description: string,
-	hotword_context: string,
-};
-
-export type TextPolishResult = {
-	final_text: string,
-	used_fallback: boolean,
-	error_message: string | null,
-	provider: string,
-	model: string,
 };
 
 export type VoiceInputRequest = {

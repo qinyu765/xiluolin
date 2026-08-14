@@ -161,12 +161,7 @@ function config(): AppConfig {
 }
 
 const requiredProps = {
-  asrStatus: "",
-  textProcessingStatus: "",
-  isAsrSaving: false,
-  isTextProcessingSaving: false,
-  onSaveAsrConfig: vi.fn(),
-  onSaveTextProcessingConfig: vi.fn(),
+  onConfigBlur: vi.fn(),
   onModelChanged: vi.fn(),
 };
 
@@ -236,9 +231,12 @@ test("将 fallback 切换为 primary 时自动去重", async () => {
   );
   await user.click(await screen.findByRole("option", { name: "本地 Whisper" }));
 
-  expect(updateConfig).toHaveBeenLastCalledWith({
-    asr: expect.objectContaining({ primary: "local", fallbacks: [] }),
-  });
+  expect(updateConfig).toHaveBeenLastCalledWith(
+    {
+      asr: expect.objectContaining({ primary: "local", fallbacks: [] }),
+    },
+    "immediate",
+  );
 });
 
 test("切换为 local primary 且保留云 fallback 时要求隐私确认", async () => {

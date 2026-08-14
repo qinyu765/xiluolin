@@ -1,13 +1,8 @@
 import { useEffect, useState } from "react";
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  Loader2Icon,
-  SaveIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, Trash2Icon } from "lucide-react";
 
 import { LocalAsrSettings } from "@/components/settings/LocalAsrSettings";
+import type { SettingsSaveMode } from "@/components/settings/settings-schema";
 import { RealtimePreviewModelCard } from "@/features/settings/RealtimePreviewModelCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,13 +35,8 @@ import type { AppConfig } from "@/types";
 
 type ModelSettingsProps = {
   appConfig: AppConfig | null;
-  asrStatus: string;
-  textProcessingStatus: string;
-  isAsrSaving: boolean;
-  isTextProcessingSaving: boolean;
-  onSaveAsrConfig: (event: React.FormEvent<HTMLFormElement>) => void;
-  onSaveTextProcessingConfig: (event: React.FormEvent<HTMLFormElement>) => void;
-  updateConfig: (patch: Partial<AppConfig>) => void;
+  updateConfig: (patch: Partial<AppConfig>, saveMode: SettingsSaveMode) => void;
+  onConfigBlur: () => void;
   onModelChanged: () => void;
 };
 
@@ -82,22 +72,17 @@ export function ModelSettings(props: ModelSettingsProps) {
 
   return (
     <>
-      <RealtimePreviewModelCard
-        onEnabledChange={(enabled) =>
-          props.updateConfig({ realtime_preview_enabled: enabled })
-        }
-        onChanged={props.onModelChanged}
-      />
+      <RealtimePreviewModelCard onChanged={props.onModelChanged} />
       <ProviderCard
         capability="asr"
         title="语音识别服务"
         description="按顺序配置 ASR primary 与 fallback；每个 Provider 每次只尝试一次"
         descriptors={catalog.asr}
         routing={props.appConfig.asr}
-        status={props.asrStatus}
-        saving={props.isAsrSaving}
-        onSubmit={props.onSaveAsrConfig}
-        onChange={(routing) => props.updateConfig({ asr: routing })}
+        onChange={(routing, saveMode) =>
+          props.updateConfig({ asr: routing }, saveMode)
+        }
+        onConfigBlur={props.onConfigBlur}
         onModelChanged={props.onModelChanged}
       />
       <ProviderCard
@@ -106,10 +91,10 @@ export function ModelSettings(props: ModelSettingsProps) {
         description="所有文本 Provider 失败时保留 ASR 原文，不影响历史保存"
         descriptors={catalog.text}
         routing={props.appConfig.text}
-        status={props.textProcessingStatus}
-        saving={props.isTextProcessingSaving}
-        onSubmit={props.onSaveTextProcessingConfig}
-        onChange={(routing) => props.updateConfig({ text: routing })}
+        onChange={(routing, saveMode) =>
+          props.updateConfig({ text: routing }, saveMode)
+        }
+        onConfigBlur={props.onConfigBlur}
         onModelChanged={props.onModelChanged}
       />
     </>
@@ -122,10 +107,8 @@ function ProviderCard({
   description,
   descriptors,
   routing,
-  status,
-  saving,
-  onSubmit,
   onChange,
+  onConfigBlur,
   onModelChanged,
 }: {
   capability: Capability;
@@ -133,10 +116,11 @@ function ProviderCard({
   description: string;
   descriptors: ProviderDescriptor[];
   routing: ProviderRoutingConfig;
-  status: string;
-  saving: boolean;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-  onChange: (routing: ProviderRoutingConfig) => void;
+  onChange: (
+    routing: ProviderRoutingConfig,
+    saveMode: SettingsSaveMode,
+  ) => void;
+  onConfigBlur: () => void;
   onModelChanged: () => void;
 }) {
   const primary = routing.primary ?? "";
@@ -159,12 +143,15 @@ function ProviderCard({
     ) {
       return;
     }
-    onChange({
-      ...routing,
-      primary: descriptor.id,
-      fallbacks: nextFallbacks,
-      settings: ensureSettings(settings, descriptor),
-    });
+    onChange(
+      {
+        ...routing,
+        primary: descriptor.id,
+        fallbacks: nextFallbacks,
+        settings: ensureSettings(settings, descriptor),
+      },
+      "immediate",
+    );
   };
 
   const addFallback = (providerId: string) => {
@@ -178,16 +165,19 @@ function ProviderCard({
     ) {
       return;
     }
-    onChange({
-      ...routing,
-      primary,
-      fallbacks: [...fallbacks, descriptor.id],
-      settings: ensureSettings(settings, descriptor),
-    });
+    onChange(
+      {
+        ...routing,
+        primary,
+        fallbacks: [...fallbacks, descriptor.id],
+        settings: ensureSettings(settings, descriptor),
+      },
+      "immediate",
+    );
   };
 
   const setFallbacks = (next: string[]) =>
-    onChange({ ...routing, fallbacks: next });
+    onChange({ ...routing, fallbacks: next }, "immediate");
 
   return (
     <Card>
@@ -196,7 +186,7 @@ function ProviderCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-5" onSubmit={onSubmit}>
+        <div className="grid gap-5">
           <div className="grid gap-2">
             <Label htmlFor={`${capability}-primary`}>Primary Provider</Label>
             <Select
@@ -319,32 +309,21 @@ function ProviderCard({
                 descriptor={descriptor}
                 settings={settings[providerId] ?? defaultSettings(descriptor)}
                 routeLabel={index === 0 ? "Primary" : `Fallback ${index}`}
-                onChange={(next) =>
-                  onChange({
-                    ...routing,
-                    settings: { ...settings, [providerId]: next },
-                  })
+                onChange={(next, saveMode) =>
+                  onChange(
+                    {
+                      ...routing,
+                      settings: { ...settings, [providerId]: next },
+                    },
+                    saveMode,
+                  )
                 }
+                onConfigBlur={onConfigBlur}
                 onModelChanged={onModelChanged}
               />
             );
           })}
-
-          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted-foreground">{status}</p>
-            <Button type="submit" size="sm" disabled={saving || !primary}>
-              {saving ? (
-                <Loader2Icon
-                  className="size-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <SaveIcon className="size-4" aria-hidden="true" />
-              )}
-              保存{capability === "asr" ? " ASR" : "文本处理"}配置
-            </Button>
-          </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );
@@ -356,13 +335,15 @@ function ProviderFields({
   settings,
   routeLabel,
   onChange,
+  onConfigBlur,
   onModelChanged,
 }: {
   capability: Capability;
   descriptor: ProviderDescriptor;
   settings: ProviderSettings;
   routeLabel: string;
-  onChange: (settings: ProviderSettings) => void;
+  onChange: (settings: ProviderSettings, saveMode: SettingsSaveMode) => void;
+  onConfigBlur: () => void;
   onModelChanged: () => void;
 }) {
   return (
@@ -390,6 +371,7 @@ function ProviderFields({
           providerId={descriptor.id}
           settings={settings}
           onChange={onChange}
+          onConfigBlur={onConfigBlur}
         />
       ))}
     </section>
@@ -402,12 +384,14 @@ function ProviderField({
   providerId,
   settings,
   onChange,
+  onConfigBlur,
 }: {
   capability: Capability;
   field: ProviderFieldDescriptor;
   providerId: string;
   settings: ProviderSettings;
-  onChange: (settings: ProviderSettings) => void;
+  onChange: (settings: ProviderSettings, saveMode: SettingsSaveMode) => void;
+  onConfigBlur: () => void;
 }) {
   const id = `${capability}-${providerId}-${field.key}`;
   const options = settings.options ?? {};
@@ -417,7 +401,12 @@ function ProviderField({
       field.key === "base_url" ||
       field.key === "model"
     ) {
-      onChange({ ...settings, [field.key]: String(value) });
+      onChange(
+        { ...settings, [field.key]: String(value) },
+        field.kind === "text" || field.kind === "api_key"
+          ? "debounced"
+          : "immediate",
+      );
       return;
     }
     const option: ProviderOptionValue =
@@ -426,7 +415,10 @@ function ProviderField({
         : Array.isArray(value)
           ? { type: "string_list", value }
           : { type: "text", value };
-    onChange({ ...settings, options: { ...options, [field.key]: option } });
+    onChange(
+      { ...settings, options: { ...options, [field.key]: option } },
+      field.kind === "multi_select" ? "debounced" : "immediate",
+    );
   };
   const value = fieldValue(field, settings);
 
@@ -459,6 +451,7 @@ function ProviderField({
           placeholder={field.placeholder}
           autoComplete={field.secret ? "off" : undefined}
           required={field.required}
+          onBlur={onConfigBlur}
           onChange={(event) =>
             update(
               field.kind === "multi_select"

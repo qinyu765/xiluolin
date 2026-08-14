@@ -1,15 +1,20 @@
-import type { AppConfig, AudioDevice } from "@/types";
+import type {
+  AppConfig,
+  AudioDevice,
+  ProviderRoutingConfig,
+  ProviderSettings,
+} from "@/types";
 
 export type SettingsSaveMode = "immediate" | "debounced";
 export type SettingsSchemaContext = { audioDevices: AudioDevice[] };
 
+type ConfigStringKey = Extract<keyof AppConfig, string>;
 type StringConfigKey = {
-  [Key in keyof AppConfig]: AppConfig[Key] extends string ? Key : never;
-}[keyof AppConfig];
-
+  [Key in ConfigStringKey]: AppConfig[Key] extends string ? Key : never;
+}[ConfigStringKey];
 type BooleanConfigKey = {
-  [Key in keyof AppConfig]: AppConfig[Key] extends boolean ? Key : never;
-}[keyof AppConfig];
+  [Key in ConfigStringKey]: AppConfig[Key] extends boolean ? Key : never;
+}[ConfigStringKey];
 
 type FieldBase = {
   id: string;
@@ -46,7 +51,7 @@ export type SwitchSettingsField = FieldBase & {
 export type CustomSettingsField = FieldBase & {
   control: "slot";
   slot:
-    "longpress-shortcut" | "fn-hold" | "toggle-shortcut" | "local-asr-settings";
+    "longpress-shortcut" | "fn-hold" | "toggle-shortcut" | "provider-catalog";
   configKeys: readonly (keyof AppConfig)[];
 };
 
@@ -58,32 +63,22 @@ export type SettingsFieldSchema =
 
 export type SettingsFieldOption = { label: string; value: string };
 
-export type SettingsSectionSchema =
-  | {
-      type: "fields";
-      id: string;
-      title: string;
-      description: string;
-      fields: readonly SettingsFieldSchema[];
-    }
-  | {
-      type: "slot";
-      id: string;
-      slot: "recording-storage";
-      configKeys: readonly (keyof AppConfig)[];
-    };
+export type SettingsSectionSchema = {
+  type: "fields";
+  id: string;
+  title: string;
+  description: string;
+  fields: readonly SettingsFieldSchema[];
+};
 
 export type SettingsSchema = {
   general: readonly SettingsSectionSchema[];
   models: readonly SettingsSectionSchema[];
 };
 
-const required = (label: string) => (value: string) =>
-  value.trim() ? null : `${label}不能为空。`;
-
 const trim = (value: string) => value.trim();
 
-export const settingsSchema = {
+export const settingsSchema: SettingsSchema = {
   general: [
     {
       type: "fields",
@@ -160,209 +155,54 @@ export const settingsSchema = {
           key: "retain_recordings",
           label: "保留原始录音",
           description: "默认关闭。仅在自动保存历史成功时保留应用录制的 WAV",
-          disabled: (currentConfig) => !currentConfig.auto_save_history,
+          disabled: (config) => !config.auto_save_history,
           saveMode: "immediate",
           span: "full",
         },
       ],
-    },
-    {
-      type: "slot",
-      id: "recording-storage",
-      slot: "recording-storage",
-      configKeys: [],
     },
   ],
   models: [
     {
       type: "fields",
-      id: "asr",
-      title: "语音识别服务",
-      description: "配置 ASR 服务，用于把短音频转换为原始识别文本",
+      id: "models",
+      title: "模型配置",
+      description: "按 Provider catalog 配置 primary、fallback 和专用模型选项",
       fields: [
         {
-          id: "asr-provider",
-          control: "select",
-          key: "asr_provider",
-          label: "服务商",
-          description: "模型名可自行配置；切换服务商不会覆盖已有模型名",
-          options: [
-            { label: "智谱 AI", value: "zhipu" },
-            { label: "OpenAI 兼容", value: "openai" },
-            { label: "本地（离线）", value: "local" },
-          ],
-          saveMode: "immediate",
-          span: "full",
-        },
-        {
-          id: "asr-api-key",
-          control: "password",
-          key: "asr_api_key",
-          label: "智谱 API Key",
-          placeholder: "本地保存，不写入仓库",
-          visible: (currentConfig) => currentConfig.asr_provider === "zhipu",
-          normalize: trim,
-          saveMode: "debounced",
-          span: "full",
-        },
-        {
-          id: "asr-base-url",
-          control: "text",
-          key: "asr_base_url",
-          label: "Base URL",
-          visible: (currentConfig) => currentConfig.asr_provider === "zhipu",
-          normalize: trim,
-          validate: required("Base URL"),
-          saveMode: "debounced",
-        },
-        {
-          id: "asr-model",
-          control: "text",
-          key: "asr_model",
-          label: "模型",
-          visible: (currentConfig) => currentConfig.asr_provider === "zhipu",
-          normalize: trim,
-          validate: required("模型名"),
-          saveMode: "debounced",
-        },
-        {
-          id: "openai-asr-api-key",
-          control: "password",
-          key: "openai_api_key",
-          label: "OpenAI API Key",
-          placeholder: "本地保存，不写入仓库",
-          visible: (currentConfig) => currentConfig.asr_provider === "openai",
-          normalize: trim,
-          saveMode: "debounced",
-          span: "full",
-        },
-        {
-          id: "openai-asr-base-url",
-          control: "text",
-          key: "openai_base_url",
-          label: "Base URL",
-          visible: (currentConfig) => currentConfig.asr_provider === "openai",
-          normalize: trim,
-          validate: required("Base URL"),
-          saveMode: "debounced",
-        },
-        {
-          id: "openai-asr-model",
-          control: "text",
-          key: "openai_asr_model",
-          label: "模型",
-          visible: (currentConfig) => currentConfig.asr_provider === "openai",
-          normalize: trim,
-          validate: required("模型名"),
-          saveMode: "debounced",
-        },
-        {
-          id: "local-asr-settings",
+          id: "provider-catalog",
           control: "slot",
-          slot: "local-asr-settings",
-          configKeys: [
-            "local_asr_model",
-            "allow_cloud_fallback",
-            "fallback_asr_provider",
-          ],
-          visible: (currentConfig) => currentConfig.asr_provider === "local",
+          slot: "provider-catalog",
+          configKeys: ["asr", "text", "realtime_preview_enabled"],
           saveMode: "immediate",
           span: "full",
-        },
-      ],
-    },
-    {
-      type: "fields",
-      id: "text-processing",
-      title: "文本整理服务",
-      description: "配置文本处理 API，用于把原始识别文本整理成可直接使用的结果",
-      fields: [
-        {
-          id: "text-provider",
-          control: "select",
-          key: "text_provider",
-          label: "服务商",
-          description: "模型名可自行配置；切换服务商不会覆盖已有模型名",
-          options: [
-            { label: "智谱 AI", value: "zhipu" },
-            { label: "OpenAI 兼容", value: "openai" },
-          ],
-          saveMode: "immediate",
-          span: "full",
-        },
-        {
-          id: "zhipu-api-key",
-          control: "password",
-          key: "zhipu_api_key",
-          label: "智谱 API Key",
-          placeholder: "本地保存，不写入仓库",
-          visible: (currentConfig) => currentConfig.text_provider === "zhipu",
-          normalize: trim,
-          saveMode: "debounced",
-          span: "full",
-        },
-        {
-          id: "zhipu-base-url",
-          control: "text",
-          key: "zhipu_base_url",
-          label: "Base URL",
-          visible: (currentConfig) => currentConfig.text_provider === "zhipu",
-          normalize: trim,
-          validate: required("Base URL"),
-          saveMode: "debounced",
-        },
-        {
-          id: "zhipu-model",
-          control: "text",
-          key: "zhipu_model",
-          label: "模型",
-          visible: (currentConfig) => currentConfig.text_provider === "zhipu",
-          normalize: trim,
-          validate: required("模型名"),
-          saveMode: "debounced",
-        },
-        {
-          id: "openai-api-key",
-          control: "password",
-          key: "openai_api_key",
-          label: "OpenAI API Key",
-          placeholder: "本地保存，不写入仓库",
-          visible: (currentConfig) => currentConfig.text_provider === "openai",
-          normalize: trim,
-          saveMode: "debounced",
-          span: "full",
-        },
-        {
-          id: "openai-base-url",
-          control: "text",
-          key: "openai_base_url",
-          label: "Base URL",
-          visible: (currentConfig) => currentConfig.text_provider === "openai",
-          normalize: trim,
-          validate: required("Base URL"),
-          saveMode: "debounced",
-        },
-        {
-          id: "openai-model",
-          control: "text",
-          key: "openai_model",
-          label: "模型",
-          visible: (currentConfig) => currentConfig.text_provider === "openai",
-          normalize: trim,
-          validate: required("模型名"),
-          saveMode: "debounced",
         },
       ],
     },
   ],
-} satisfies SettingsSchema;
+};
+
+export function collectSchemaConfigKeys(schema: SettingsSchema) {
+  const keys = new Set<string>();
+  for (const section of [...schema.general, ...schema.models]) {
+    for (const field of section.fields) {
+      if (field.control === "slot") {
+        field.configKeys.forEach((key) => keys.add(String(key)));
+      } else {
+        keys.add(field.key);
+      }
+    }
+  }
+  return [...keys];
+}
 
 export function getVisibleFields(
   section: SettingsSectionSchema | undefined,
   config: AppConfig,
 ) {
-  if (!section || section.type !== "fields") return [];
-  return section.fields.filter((field) => field.visible?.(config) ?? true);
+  return (section?.fields ?? []).filter(
+    (field) => !field.visible || field.visible(config),
+  );
 }
 
 export function resolveFieldOptions(
@@ -375,57 +215,65 @@ export function resolveFieldOptions(
     : field.options;
 }
 
-export function collectSchemaConfigKeys(schema: SettingsSchema) {
-  const keys = new Set<keyof AppConfig>();
-  for (const sections of [schema.general, schema.models]) {
-    for (const section of sections) {
-      if (section.type === "slot") {
-        section.configKeys.forEach((key) => keys.add(key));
-        continue;
-      }
-      for (const field of section.fields) {
-        if (field.control === "slot") {
-          field.configKeys.forEach((key) => keys.add(key));
-        } else {
-          keys.add(field.key);
-        }
-      }
-    }
-  }
-  return [...keys];
+export function prepareSettingsConfig(config: AppConfig): AppConfig {
+  return {
+    ...config,
+    longpress_shortcut: trim(config.longpress_shortcut),
+    toggle_shortcut: trim(config.toggle_shortcut),
+    selected_microphone: trim(config.selected_microphone),
+    asr: normalizeRoute(config.asr),
+    text: normalizeRoute(config.text),
+  };
 }
 
-export function prepareSettingsConfig(config: AppConfig) {
-  const prepared = { ...config };
-  for (const sections of [settingsSchema.general, settingsSchema.models]) {
-    for (const section of sections) {
-      if (section.type !== "fields") continue;
-      for (const field of section.fields) {
-        if (
-          (field.control === "text" || field.control === "password") &&
-          field.normalize
-        ) {
-          prepared[field.key] = field.normalize(prepared[field.key]);
-        }
-      }
+export function validateSettingsConfig(config: AppConfig): string | null {
+  for (const [label, route] of [
+    ["ASR", config.asr],
+    ["文本", config.text],
+  ] as const) {
+    const primary = route.primary?.trim() ?? "";
+    const fallbacks = route.fallbacks ?? [];
+    const routeIds = [primary, ...fallbacks].filter(Boolean);
+    if (!primary) return `${label} Provider 尚未选择。`;
+    if (routeIds.length > 3) return `${label} Provider 调用链最多包含 3 项。`;
+    if (new Set(routeIds).size !== routeIds.length) {
+      return `${label} Provider 调用链不能包含重复项。`;
     }
-  }
-  return prepared;
-}
-
-export function validateSettingsConfig(config: AppConfig) {
-  for (const sections of [settingsSchema.general, settingsSchema.models]) {
-    for (const section of sections) {
-      for (const field of getVisibleFields(section, config)) {
-        if (
-          (field.control === "text" || field.control === "password") &&
-          field.validate
-        ) {
-          const error = field.validate(config[field.key], config);
-          if (error) return error;
-        }
+    for (const provider of routeIds) {
+      if (provider === "local") continue;
+      const settings = route.settings?.[provider];
+      if (!settings?.base_url?.trim()) {
+        return `${provider} 的 Base URL 待补全。`;
+      }
+      if (!settings.model?.trim()) {
+        return `${provider} 的模型名待补全。`;
       }
     }
   }
   return null;
+}
+
+function normalizeRoute(route: ProviderRoutingConfig): ProviderRoutingConfig {
+  return {
+    primary: route.primary?.trim() ?? "",
+    fallbacks: [...(route.fallbacks ?? [])],
+    settings: Object.fromEntries(
+      Object.entries(route.settings ?? {}).map(([provider, settings]) => [
+        provider,
+        normalizeProviderSettings(settings),
+      ]),
+    ),
+  };
+}
+
+function normalizeProviderSettings(
+  settings: ProviderSettings,
+): ProviderSettings {
+  return {
+    ...settings,
+    api_key: settings.api_key?.trim() ?? "",
+    base_url: settings.base_url?.trim() ?? "",
+    model: settings.model?.trim() ?? "",
+    options: settings.options ?? {},
+  };
 }

@@ -118,6 +118,23 @@ impl AppCredentials {
     }
 }
 
+fn decode_bundled_credentials(raw: serde_json::Value) -> Result<AppCredentials, String> {
+    // AppCredentials uses defaults, so deserializing a legacy flat object directly would
+    // silently succeed as an empty v2 bundle. Inspect the shape before choosing the parser.
+    if raw.get("asr").is_some() || raw.get("text").is_some() {
+        return serde_json::from_value(raw)
+            .map_err(|error| format!("解析 v2 系统凭据失败：{error}"));
+    }
+
+    let legacy: LegacyBundledCredentials =
+        serde_json::from_value(raw).map_err(|error| format!("解析旧版系统凭据失败：{error}"))?;
+    let mut credentials = AppCredentials::default();
+    credentials.set_legacy(CredentialKey::Asr, legacy.asr_api_key);
+    credentials.set_legacy(CredentialKey::OpenAi, legacy.openai_api_key);
+    credentials.set_legacy(CredentialKey::Zhipu, legacy.zhipu_api_key);
+    Ok(credentials)
+}
+
 pub trait CredentialStore {
     fn get(&self, key: CredentialKey) -> Result<Option<String>, String>;
     fn set(&self, key: CredentialKey, value: &str) -> Result<(), String>;
@@ -150,16 +167,7 @@ impl SystemCredentialStore {
             Ok(value) => {
                 let raw: serde_json::Value = serde_json::from_str(&value)
                     .map_err(|error| format!("解析系统凭据失败：{error}"))?;
-                if let Ok(credentials) = serde_json::from_value::<AppCredentials>(raw.clone()) {
-                    return Ok(Some(credentials));
-                }
-                let legacy: LegacyBundledCredentials = serde_json::from_value(raw)
-                    .map_err(|error| format!("解析旧版系统凭据失败：{error}"))?;
-                let mut credentials = AppCredentials::default();
-                credentials.set_legacy(CredentialKey::Asr, legacy.asr_api_key);
-                credentials.set_legacy(CredentialKey::OpenAi, legacy.openai_api_key);
-                credentials.set_legacy(CredentialKey::Zhipu, legacy.zhipu_api_key);
-                Ok(Some(credentials))
+                decode_bundled_credentials(raw).map(Some)
             }
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(format!("读取系统凭据失败：{error}")),
@@ -556,6 +564,33 @@ mod tests {
         assert!(encoded.contains("asr-secret"));
         assert!(encoded.contains("openai-secret"));
         assert!(encoded.contains("zhipu-secret"));
+    }
+
+    #[test]
+    fn legacy_flat_bundle_uses_the_legacy_parser() {
+        let raw = serde_json::json!({
+            "asr_api_key": "asr-secret",
+            "openai_api_key": "openai-secret",
+            "zhipu_api_key": "zhipu-secret"
+        });
+
+        let credentials = decode_bundled_credentials(raw).expect("legacy bundle should decode");
+
+        assert_eq!(credentials.asr["zhipu"], "asr-secret");
+        assert_eq!(credentials.asr["openai"], "openai-secret");
+        assert_eq!(credentials.text["openai"], "openai-secret");
+        assert_eq!(credentials.text["zhipu"], "zhipu-secret");
+    }
+
+    #[test]
+    fn v2_bundle_with_empty_maps_stays_an_explicit_empty_bundle() {
+        let credentials = decode_bundled_credentials(serde_json::json!({
+            "asr": {},
+            "text": {}
+        }))
+        .expect("empty v2 bundle should decode");
+
+        assert_eq!(credentials, AppCredentials::default());
     }
 
     #[test]

@@ -1,11 +1,11 @@
 import React from "react";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -17,20 +17,18 @@ const GENERAL_PERSONA_ID = "general";
 
 type PersonaPageProps = {
   personas: Persona[];
-  status: string;
   onCreatePersona: () => void;
   onEditPersona: (persona: Persona) => void;
-  onDeletePersona: (id: string) => void;
-  onSetDefaultPersona: (personaId: string) => void;
+  onRequestDeletePersona: (persona: Persona) => void;
+  onSelectPersona: (personaId: string) => void;
 };
 
 export function PersonaPage({
   personas,
-  status,
   onCreatePersona,
   onEditPersona,
-  onDeletePersona,
-  onSetDefaultPersona,
+  onRequestDeletePersona,
+  onSelectPersona,
 }: PersonaPageProps) {
   const renderPersonaIcon = (iconName: string) => {
     const IconComponent = getPersonaIcon(iconName);
@@ -44,12 +42,7 @@ export function PersonaPage({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle className="text-2xl">人格管理</CardTitle>
-            <CardDescription className="mt-2">
-              管理人格并设置默认人格。通用人格由系统维护，其他人格可以编辑和删除。
-            </CardDescription>
-          </div>
+          <CardTitle className="text-2xl">人格管理</CardTitle>
           <CardAction>
             <Button type="button" size="sm" onClick={onCreatePersona}>
               <PlusIcon className="size-4" aria-hidden="true" />
@@ -58,11 +51,12 @@ export function PersonaPage({
           </CardAction>
         </CardHeader>
 
-        <CardContent className="space-y-5">
+        <CardContent>
           <div className="grid gap-3">
             {personas.length > 0 ? (
               personas.map((persona) => {
                 const isGeneralPersona = persona.id === GENERAL_PERSONA_ID;
+                const canDelete = persona.is_default && !isGeneralPersona;
                 return (
                   <section
                     key={persona.id}
@@ -78,15 +72,14 @@ export function PersonaPage({
                       aria-pressed={persona.is_default}
                       aria-label={`选择 ${persona.name} 作为默认人格`}
                       onClick={() => {
-                        if (!persona.is_default) {
-                          onSetDefaultPersona(persona.id);
-                        }
+                        if (!persona.is_default) onSelectPersona(persona.id);
                       }}
                     >
                       <span className="sr-only">选择 {persona.name}</span>
                     </button>
+
                     <div className="pointer-events-none relative z-10 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 flex-1 flex items-start gap-3">
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
                         <div className="mt-0.5">
                           {renderPersonaIcon(persona.icon)}
                         </div>
@@ -111,22 +104,13 @@ export function PersonaPage({
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {persona.processing_mode === "verbatim"
-                              ? "原文听写：保留 ASR 原文，仅清理首尾和连续空白"
+                              ? "原文听写"
                               : "文本润色"}
                           </p>
                         </div>
                       </div>
+
                       <div className="pointer-events-auto flex items-center gap-2">
-                        {!persona.is_default ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onSetDefaultPersona(persona.id)}
-                          >
-                            设为默认
-                          </Button>
-                        ) : null}
                         <Button
                           type="button"
                           variant="outline"
@@ -142,19 +126,15 @@ export function PersonaPage({
                         >
                           <PencilIcon className="size-4" aria-hidden="true" />
                         </Button>
-                        {!persona.is_default ? (
+                        {canDelete ? (
                           <Button
                             type="button"
                             variant="outline"
                             size="icon"
-                            onClick={() => onDeletePersona(persona.id)}
-                            disabled={isGeneralPersona}
-                            title={
-                              isGeneralPersona
-                                ? "系统内置人格不可删除"
-                                : undefined
-                            }
+                            className="text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                            onClick={() => onRequestDeletePersona(persona)}
                             aria-label={`删除 ${persona.name}`}
+                            title="删除"
                           >
                             <Trash2Icon className="size-4" aria-hidden="true" />
                           </Button>
@@ -169,13 +149,6 @@ export function PersonaPage({
                 暂无人格。可以新建人格来定义自己的文本整理风格。
               </section>
             )}
-          </div>
-
-          <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted-foreground">{status}</p>
-            <span className="inline-flex h-8 w-fit items-center rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-              共 {personas.length} 个人格
-            </span>
           </div>
         </CardContent>
       </Card>

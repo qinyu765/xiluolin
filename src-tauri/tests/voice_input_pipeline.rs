@@ -68,10 +68,6 @@ fn verbatim_pipeline_sends_hotwords_to_asr_without_persona_prompt_or_text_provid
     database
         .set_default_persona("verbatim")
         .expect("verbatim persona should become default");
-    let delete_error = database
-        .delete_persona("verbatim")
-        .expect_err("the active verbatim persona should not be deletable");
-    assert!(delete_error.contains("默认人格不可删除"));
     for text in ["  XiLuoLin ", "智谱", "XiLuoLin"] {
         database
             .create_hotword(HotwordDraft {

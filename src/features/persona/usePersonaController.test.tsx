@@ -99,4 +99,70 @@ describe("usePersonaController", () => {
     expect(onConfigLoaded).not.toHaveBeenCalled();
     expect(mocks.commands.readAppConfig).not.toHaveBeenCalled();
   });
+
+  it("deletes the selected custom default and applies the returned fallback config", async () => {
+    const generalPersona = {
+      ...verbatimPersona,
+      id: "general",
+      name: "通用人格",
+      is_default: false,
+    };
+    const customPersona = {
+      ...verbatimPersona,
+      id: "custom",
+      name: "自定义人格",
+      is_default: true,
+      processing_mode: "polish",
+    };
+    const fallbackConfig = {
+      ...refreshedConfig,
+      default_persona_id: "general",
+    };
+    mocks.commands.listPersonas.mockResolvedValue([
+      generalPersona,
+      customPersona,
+    ]);
+    mocks.commands.deletePersona.mockResolvedValue({
+      personas: [{ ...generalPersona, is_default: true }],
+      config: fallbackConfig,
+    });
+    const onConfigLoaded = vi.fn();
+    const { result } = renderHook(() => usePersonaController(onConfigLoaded));
+
+    await waitFor(() => expect(result.current.selectedId).toBe("custom"));
+
+    act(() => result.current.requestDelete(customPersona));
+    expect(result.current.deleteTarget).toEqual(customPersona);
+
+    await act(async () => {
+      await result.current.confirmDelete();
+    });
+
+    expect(mocks.commands.deletePersona).toHaveBeenCalledWith("custom");
+    expect(result.current.selectedId).toBe("general");
+    expect(result.current.deleteTarget).toBeNull();
+    expect(onConfigLoaded).toHaveBeenCalledWith(fallbackConfig);
+  });
+
+  it("keeps the delete confirmation open when deletion fails", async () => {
+    const customPersona = {
+      ...verbatimPersona,
+      id: "custom",
+      name: "自定义人格",
+      is_default: true,
+    };
+    mocks.commands.listPersonas.mockResolvedValue([customPersona]);
+    mocks.commands.deletePersona.mockRejectedValue(new Error("删除失败"));
+    const { result } = renderHook(() => usePersonaController(vi.fn()));
+
+    await waitFor(() => expect(result.current.selectedId).toBe("custom"));
+    act(() => result.current.requestDelete(customPersona));
+
+    await act(async () => {
+      await result.current.confirmDelete();
+    });
+
+    expect(result.current.deleteTarget).toEqual(customPersona);
+    expect(result.current.isDeleting).toBe(false);
+  });
 });

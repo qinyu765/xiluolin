@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 
 import { commands } from "@/generated/tauri-bindings";
 import type { AppConfig, Persona, PersonaDraft } from "@/types";
@@ -10,11 +11,12 @@ export function usePersonaController(
 ) {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [status, setStatus] = useState("正在读取本地人格配置...");
   const [draft, setDraft] = useState<PersonaDraft>(emptyPersonaDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -26,10 +28,9 @@ export function usePersonaController(
           nextPersonas.find((persona) => persona.is_default) ?? nextPersonas[0];
         setPersonas(nextPersonas);
         setSelectedId(defaultPersona?.id ?? "");
-        setStatus("已加载内置人格，可选择默认整理风格。");
       })
       .catch((error) => {
-        if (active) setStatus(`读取人格失败：${toErrorMessage(error)}`);
+        if (active) toast.error(`读取人格失败：${toErrorMessage(error)}`);
       });
     return () => {
       active = false;
@@ -53,7 +54,7 @@ export function usePersonaController(
     setDialogOpen(true);
   };
 
-  const save = async (event: React.FormEvent<HTMLFormElement>) => {
+  const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextDraft = {
       name: draft.name.trim(),
@@ -62,45 +63,57 @@ export function usePersonaController(
       processing_mode: draft.processing_mode,
     };
     if (!nextDraft.name || !nextDraft.description) {
-      setStatus("人格名称和描述不能为空。");
+      toast.error("人格名称和描述不能为空");
       return;
     }
 
     setIsSaving(true);
-    setStatus("正在保存人格...");
     try {
       if (editingId) await commands.updatePersona(editingId, nextDraft);
       else await commands.createPersona(nextDraft);
-      setPersonas(await commands.listPersonas());
-      setStatus("人格已保存。");
+      const nextPersonas = await commands.listPersonas();
+      setPersonas(nextPersonas);
       setDialogOpen(false);
+      toast.success("人格已保存");
     } catch (error) {
-      setStatus(`保存人格失败：${toErrorMessage(error)}`);
+      toast.error(`保存人格失败：${toErrorMessage(error)}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const deletePersona = async (id: string) => {
-    setStatus("正在删除人格...");
-    try {
-      setPersonas(await commands.deletePersona(id));
-      setStatus("人格已删除。");
-    } catch (error) {
-      setStatus(`删除人格失败：${toErrorMessage(error)}`);
-    }
-  };
-
   const setDefault = async (personaId: string) => {
-    setStatus("正在设置默认人格...");
     try {
       const update = await commands.setDefaultPersona(personaId);
       setPersonas(update.personas);
       setSelectedId(personaId);
       onConfigLoaded(update.config as AppConfig);
-      setStatus("默认人格已设置。");
+      toast.success("默认人格已切换");
     } catch (error) {
-      setStatus(`设置默认人格失败：${toErrorMessage(error)}`);
+      toast.error(`切换默认人格失败：${toErrorMessage(error)}`);
+    }
+  };
+
+  const requestDelete = (persona: Persona) => {
+    if (persona.id === "general" || !persona.is_default) return;
+    setDeleteTarget(persona);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || isDeleting) return;
+
+    setIsDeleting(true);
+    try {
+      const update = await commands.deletePersona(deleteTarget.id);
+      setPersonas(update.personas);
+      setSelectedId(update.config.default_persona_id);
+      onConfigLoaded(update.config as AppConfig);
+      setDeleteTarget(null);
+      toast.success("人格已删除，已切换为通用人格");
+    } catch (error) {
+      toast.error(`删除人格失败：${toErrorMessage(error)}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -113,18 +126,20 @@ export function usePersonaController(
     personas,
     selected,
     selectedId,
-    status,
     draft,
     editingId,
     isDialogOpen,
     isSaving,
-    setSelectedId,
+    deleteTarget,
+    isDeleting,
     setDraft,
     setDialogOpen,
+    setDeleteTarget,
     openCreate,
     openEdit,
     save,
-    deletePersona,
     setDefault,
+    requestDelete,
+    confirmDelete,
   };
 }

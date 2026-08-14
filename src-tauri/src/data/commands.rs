@@ -106,13 +106,44 @@ pub fn update_persona(
 
 #[tauri::command]
 #[specta::specta]
-pub fn delete_persona(app: tauri::AppHandle, id: String) -> Result<Vec<Persona>, String> {
+pub fn delete_persona(app: tauri::AppHandle, id: String) -> Result<DefaultPersonaUpdate, String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
-    database
-        .delete_persona(&id)
-        .map_err(|error| error.to_string())?;
-    database.list_personas().map_err(|error| error.to_string())
+    let previous_config = read_app_config(app.clone())?;
+    let target_is_default = database
+        .list_personas()
+        .map_err(|error| error.to_string())?
+        .iter()
+        .find(|persona| persona.id == id)
+        .ok_or_else(|| "人格不存在".to_string())?
+        .is_default;
+
+    if target_is_default {
+        let mut next_config = previous_config.clone();
+        next_config.default_persona_id = GENERAL_PERSONA_ID.to_string();
+        let persisted_config = next_config.clone();
+        let restored_config = previous_config.clone();
+        let persist_app = app.clone();
+        let restore_app = app.clone();
+        let personas = database.delete_default_persona_with_persistence(
+            &id,
+            || update_app_config(persist_app, persisted_config).map(|_| ()),
+            || update_app_config(restore_app, restored_config).map(|_| ()),
+        )?;
+        Ok(DefaultPersonaUpdate {
+            personas,
+            config: next_config,
+        })
+    } else {
+        database.delete_persona(&id)?;
+        let personas = database
+            .list_personas()
+            .map_err(|error| error.to_string())?;
+        Ok(DefaultPersonaUpdate {
+            personas,
+            config: previous_config,
+        })
+    }
 }
 
 #[tauri::command]
@@ -693,6 +724,51 @@ mod tests {
                 .updated_at,
             "2000-01-01 00:00:00"
         );
+    }
+
+    #[test]
+    fn failed_default_persona_deletion_rolls_back_database_after_config_failure() {
+        let database = test_database("delete-default-rollback");
+        database.set_default_persona(VERBATIM_PERSONA_ID).unwrap();
+        let mut previous_config = default_app_config();
+        previous_config.default_persona_id = VERBATIM_PERSONA_ID.to_string();
+        let mut next_config = previous_config.clone();
+        next_config.default_persona_id = GENERAL_PERSONA_ID.to_string();
+        let cache = RefCell::new(previous_config.clone());
+        let fail_next_save = Cell::new(true);
+
+        let error = database
+            .delete_default_persona_with_persistence(
+                VERBATIM_PERSONA_ID,
+                || {
+                    let previous = cache.borrow().clone();
+                    save_store_value_transactionally(
+                        Some(previous),
+                        next_config.clone(),
+                        |value| *cache.borrow_mut() = value,
+                        || unreachable!("the pre-existing config must be restored"),
+                        || {
+                            if fail_next_save.replace(false) {
+                                Err("injected config write failure".to_string())
+                            } else {
+                                Ok(())
+                            }
+                        },
+                    )
+                },
+                || unreachable!("the SQLite transaction must not commit"),
+            )
+            .expect_err("a configuration persistence failure should abort deletion");
+
+        assert!(error.contains("injected config write failure"));
+        let personas = database.list_personas().unwrap();
+        assert!(personas
+            .iter()
+            .any(|persona| persona.id == VERBATIM_PERSONA_ID && persona.is_default));
+        assert!(personas
+            .iter()
+            .any(|persona| persona.id == GENERAL_PERSONA_ID));
+        assert_eq!(cache.borrow().default_persona_id, VERBATIM_PERSONA_ID);
     }
 
     #[test]

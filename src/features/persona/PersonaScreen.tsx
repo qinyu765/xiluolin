@@ -1,4 +1,5 @@
 import { useConfigController } from "@/features/settings/useConfigController";
+import { PersonaDeleteDialog } from "@/components/dialogs/PersonaDeleteDialog";
 import { usePersonaController } from "./usePersonaController";
 import { PersonaDialog } from "@/components/dialogs/PersonaDialog";
 import { PersonaPage } from "@/pages/PersonaPage";
@@ -11,11 +12,10 @@ export function PersonaScreen() {
     <>
       <PersonaPage
         personas={personas.personas}
-        status={personas.status}
         onCreatePersona={personas.openCreate}
         onEditPersona={personas.openEdit}
-        onDeletePersona={personas.deletePersona}
-        onSetDefaultPersona={personas.setDefault}
+        onRequestDeletePersona={personas.requestDelete}
+        onSelectPersona={personas.setDefault}
       />
       <PersonaDialog
         open={personas.isDialogOpen}
@@ -25,6 +25,15 @@ export function PersonaScreen() {
         onOpenChange={personas.setDialogOpen}
         onDraftChange={personas.setDraft}
         onSave={personas.save}
+      />
+      <PersonaDeleteDialog
+        open={personas.deleteTarget !== null}
+        persona={personas.deleteTarget}
+        isDeleting={personas.isDeleting}
+        onOpenChange={(open) => {
+          if (!open && !personas.isDeleting) personas.setDeleteTarget(null);
+        }}
+        onConfirm={() => void personas.confirmDelete()}
       />
     </>
   );

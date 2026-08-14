@@ -494,36 +494,3 @@ fn validate_audio_file(audio_path: &Path, config: &AsrConfig) -> Result<(), AsrE
 fn transcriptions_url(base_url: &str) -> String {
     format!("{}/audio/transcriptions", base_url.trim_end_matches('/'))
 }
-
-#[tauri::command]
-#[specta::specta]
-pub fn transcribe_audio_path(
-    audio_path: String,
-    provider: String,
-    api_key: String,
-    base_url: String,
-    model: String,
-) -> Result<AsrTranscription, String> {
-    let config = AsrConfig {
-        provider,
-        api_key,
-        base_url,
-        model,
-        local_model_path: None,
-        allow_cloud_fallback: false,
-        fallback_provider: String::new(),
-        fallback_api_key: String::new(),
-        fallback_base_url: String::new(),
-        fallback_model: String::new(),
-    };
-
-    transcribe_audio_file(
-        &AsrRequest {
-            audio_path: PathBuf::from(audio_path),
-            hotwords: Vec::new(),
-            context_prompt: None,
-        },
-        &config,
-    )
-    .map_err(|error| error.to_string())
-}

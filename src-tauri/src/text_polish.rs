@@ -342,22 +342,3 @@ pub(crate) fn build_input(request: &TextPolishRequest) -> String {
 fn chat_completions_url(base_url: &str) -> String {
     format!("{}/chat/completions", base_url.trim_end_matches('/'))
 }
-
-#[tauri::command]
-#[specta::specta]
-pub fn polish_text(
-    request: TextPolishRequest,
-    provider: String,
-    api_key: String,
-    base_url: String,
-    model: String,
-) -> Result<TextPolishResult, String> {
-    let config = TextPolishConfig {
-        provider,
-        api_key,
-        base_url,
-        model,
-    };
-
-    polish_text_with_provider(&request, &config).map_err(|error| error.to_string())
-}

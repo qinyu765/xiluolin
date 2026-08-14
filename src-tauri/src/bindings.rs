@@ -1,19 +1,17 @@
 use tauri_specta::{collect_commands, collect_events, Builder, ErrorHandlingMode};
 
 use crate::{
-    asr, capture_coordinator, capture_session, data, events, history_reprocessing, hotkey,
-    indicator, local_asr_model, macos_permissions, output, pipeline, providers, readiness,
-    realtime_asr_model, recording, recording_storage, text_polish,
+    capture_coordinator, capture_session, data, events, history_reprocessing, hotkey, indicator,
+    local_asr_model, macos_permissions, output, pipeline, providers, readiness, realtime_asr_model,
+    recording, recording_storage,
 };
 
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)
         .commands(collect_commands![
-            asr::transcribe_audio_path,
             capture_coordinator::start_capture,
             capture_coordinator::stop_capture,
-            text_polish::polish_text,
             providers::list_provider_catalog,
             pipeline::process_uploaded_audio,
             capture_session::read_capture_snapshot,

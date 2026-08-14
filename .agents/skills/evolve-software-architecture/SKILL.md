@@ -1,6 +1,6 @@
 ---
 name: evolve-software-architecture
-description: Evidence-based software architecture guidance for understanding a repository, identifying structural friction, and choosing a durable evolution path across project types. Use when the user asks for architecture evaluation, module boundaries, extensibility, long-term maintainability, technical-debt direction, cross-module or cross-process design, major refactoring strategy, or architecture trade-offs. Invoke explicitly for a repository health review or a new-system design. Keep ordinary local fixes, styling, renames, and routine dependency updates focused unless they expose an architectural decision.
+description: Evidence-based software architecture guidance for understanding an existing repository, identifying structural friction, and choosing a durable evolution path across project types. Use when the user asks for architecture evaluation, module boundaries, extensibility, long-term maintainability, technical-debt direction, cross-module or cross-process design within an existing system, major refactoring strategy, or architecture trade-offs. Invoke explicitly for a repository health review. Keep ordinary local fixes, styling, renames, and routine dependency updates focused unless they expose an architectural decision.
 ---
 
 # Evolve Software Architecture

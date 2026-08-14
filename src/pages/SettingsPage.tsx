@@ -7,20 +7,15 @@ import { InputReadinessCard } from "@/components/settings/InputReadinessCard";
 import { ModelSettings } from "@/components/settings/ModelSettings";
 import { RecordingStorageCard } from "@/components/settings/RecordingStorageCard";
 import { SettingsFieldList } from "@/components/settings/SettingsFieldList";
-import { settingsSchema } from "@/components/settings/settings-schema";
-import { usePreservedTabScroll } from "@/components/settings/usePreservedTabScroll";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  settingsSchema,
+  type SettingsSaveMode,
+} from "@/components/settings/settings-schema";
+import { usePreservedTabScroll } from "@/components/settings/usePreservedTabScroll";
 import { Label } from "@/components/ui/label";
 import { ShortcutInput } from "@/components/ui/shortcut-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AppConfig, AudioDevice } from "@/types";
-import type { SettingsSaveMode } from "@/components/settings/settings-schema";
 
 type SettingsPageProps = {
   appConfig: AppConfig | null;
@@ -30,6 +25,7 @@ type SettingsPageProps = {
     patch: Partial<AppConfig>,
     saveMode: SettingsSaveMode,
   ) => void;
+  onConfigSync: (patch: Partial<AppConfig>) => void;
   onConfigBlur: () => void;
   onRetryConfigSave: () => void;
   configRevision: number;
@@ -41,6 +37,7 @@ export function SettingsPage({
   audioDevices,
   saveState,
   onConfigChange,
+  onConfigSync,
   onConfigBlur,
   onRetryConfigSave,
   configRevision,
@@ -52,37 +49,55 @@ export function SettingsPage({
   const renderSlot = (slot: string, saveMode: SettingsSaveMode) => {
     if (slot === "longpress-shortcut") {
       return (
-        <div className="grid gap-2">
-          <Label htmlFor="longpress-shortcut">长按模式快捷键</Label>
-          <ShortcutInput
-            value={appConfig?.longpress_shortcut ?? ""}
-            defaultValue="CommandOrControl+Shift+R"
-            onChange={(value) =>
-              onConfigChange({ longpress_shortcut: value }, saveMode)
-            }
-            placeholder="点击后按下快捷键"
-          />
-          <p className="text-xs text-muted-foreground">
-            按住快捷键录音，松开停止。默认：Ctrl+Shift+R
-          </p>
+        <div className="flex min-h-16 flex-col items-stretch gap-3 border-b border-border/70 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0 space-y-1">
+            <Label
+              htmlFor="longpress-shortcut"
+              className="text-sm font-medium leading-5"
+            >
+              长按模式
+            </Label>
+            <p className="text-sm leading-5 text-muted-foreground">
+              按住说话，松开停止 · 默认 Ctrl+Shift+R
+            </p>
+          </div>
+          <div className="w-full sm:w-64">
+            <ShortcutInput
+              value={appConfig?.longpress_shortcut ?? ""}
+              defaultValue="CommandOrControl+Shift+R"
+              onChange={(value) =>
+                onConfigChange({ longpress_shortcut: value }, saveMode)
+              }
+              placeholder="点击后按下快捷键"
+            />
+          </div>
         </div>
       );
     }
     if (slot === "toggle-shortcut") {
       return (
-        <div className="grid gap-2">
-          <Label htmlFor="toggle-shortcut">切换模式快捷键</Label>
-          <ShortcutInput
-            value={appConfig?.toggle_shortcut ?? ""}
-            defaultValue="Alt+Space"
-            onChange={(value) =>
-              onConfigChange({ toggle_shortcut: value }, saveMode)
-            }
-            placeholder="点击后按下快捷键"
-          />
-          <p className="text-xs text-muted-foreground">
-            按一次开始录音，再按一次停止。默认：Alt+空格
-          </p>
+        <div className="flex min-h-16 flex-col items-stretch gap-3 border-b border-border/70 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0 space-y-1">
+            <Label
+              htmlFor="toggle-shortcut"
+              className="text-sm font-medium leading-5"
+            >
+              免按模式
+            </Label>
+            <p className="text-sm leading-5 text-muted-foreground">
+              按一次开始，再按一次结束 · 默认 Alt+空格
+            </p>
+          </div>
+          <div className="w-full sm:w-64">
+            <ShortcutInput
+              value={appConfig?.toggle_shortcut ?? ""}
+              defaultValue="Alt+Space"
+              onChange={(value) =>
+                onConfigChange({ toggle_shortcut: value }, saveMode)
+              }
+              placeholder="点击后按下快捷键"
+            />
+          </div>
         </div>
       );
     }
@@ -97,50 +112,51 @@ export function SettingsPage({
   };
 
   return (
-    <div ref={rootRef} className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">设置</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            管理应用配置和模型服务，修改会自动保存
-          </p>
-        </div>
+    <div ref={rootRef} className="mx-auto max-w-4xl space-y-6">
+      <div className="flex justify-end">
         <ConfigSaveStatus state={saveState} onRetry={onRetryConfigSave} />
       </div>
 
       <InputReadinessCard refreshRevision={configRevision + modelRevision} />
 
       <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="general">通用</TabsTrigger>
-          <TabsTrigger value="models">模型配置</TabsTrigger>
+        <TabsList className="h-9 w-fit gap-0.5 rounded-lg border bg-muted/55 p-0.5">
+          <TabsTrigger
+            value="general"
+            className="h-8 min-w-16 rounded-md border-transparent px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
+            通用
+          </TabsTrigger>
+          <TabsTrigger
+            value="models"
+            className="h-8 min-w-16 rounded-md border-transparent px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
+            模型配置
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          {settingsSchema.general.map((section) => (
-            <Card key={section.id}>
-              <CardHeader>
-                <CardTitle>{section.title}</CardTitle>
-                <CardDescription>{section.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {appConfig ? (
-                  <SettingsFieldList
-                    section={section}
-                    config={appConfig}
-                    context={{ audioDevices }}
-                    onChange={onConfigChange}
-                    onBlur={onConfigBlur}
-                    renderSlot={renderSlot}
-                  />
-                ) : null}
-              </CardContent>
-            </Card>
-          ))}
-          <RecordingStorageCard key={historyRevision} />
+          {appConfig
+            ? settingsSchema.general.map((section) => (
+                <SettingsFieldList
+                  key={section.id}
+                  section={section}
+                  config={appConfig}
+                  context={{ audioDevices }}
+                  onChange={onConfigChange}
+                  onBlur={onConfigBlur}
+                  renderSlot={renderSlot}
+                />
+              ))
+            : null}
+          <RecordingStorageCard
+            key={historyRevision}
+            appConfig={appConfig}
+            onConfigChange={onConfigChange}
+          />
         </TabsContent>
 
-        <TabsContent value="models" className="space-y-6">
+        <TabsContent value="models" className="space-y-5">
           {settingsSchema.models.map((section) =>
             section.fields.map((field) =>
               field.control === "slot" && field.slot === "provider-catalog" ? (
@@ -148,6 +164,7 @@ export function SettingsPage({
                   key={field.id}
                   appConfig={appConfig}
                   updateConfig={onConfigChange}
+                  onConfigSync={onConfigSync}
                   onConfigBlur={onConfigBlur}
                   onModelChanged={() => setModelRevision((value) => value + 1)}
                 />

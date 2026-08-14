@@ -117,10 +117,15 @@ export function InputReadinessCard({
   );
 
   const summary = readiness?.can_dictate
-    ? "语音输入已就绪"
+    ? ""
     : readiness?.can_process
       ? "录音和模型已就绪，请检查全局快捷键"
       : "存在阻断项，请按下方提示完善配置";
+  const detail = error
+    ? `检查失败：${error}`
+    : isLoading && !readiness
+      ? "正在检查语音输入环境…"
+      : summary;
   const checks = readiness
     ? CHECK_LABELS.map(({ key, label }) => ({
         key,
@@ -132,126 +137,130 @@ export function InputReadinessCard({
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <CardContent className="p-4 sm:p-5">
-        <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-xl",
-              readiness?.can_dictate
-                ? "bg-emerald-500/10 text-emerald-600"
-                : "bg-amber-500/10 text-amber-600",
-            )}
-          >
-            {readiness?.can_dictate ? (
-              <CheckCircle2Icon className="size-5" aria-hidden="true" />
-            ) : (
-              <AlertTriangleIcon className="size-5" aria-hidden="true" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">语音输入就绪检查</p>
-            <p
+      <CardContent className="p-3 sm:p-4">
+        <div className="grid gap-2 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(0,1.6fr)_auto] sm:items-center">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div
               className={cn(
-                "mt-0.5 text-xs leading-5 text-muted-foreground",
-                error && "text-destructive",
+                "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                readiness?.can_dictate
+                  ? "bg-emerald-500/10 text-emerald-600"
+                  : "bg-amber-500/10 text-amber-600",
               )}
             >
-              {error
-                ? `检查失败：${error}`
-                : isLoading && !readiness
-                  ? "正在检查语音输入环境…"
-                  : summary}
-            </p>
+              {readiness?.can_dictate ? (
+                <CheckCircle2Icon className="size-4" aria-hidden="true" />
+              ) : (
+                <AlertTriangleIcon className="size-4" aria-hidden="true" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">语音输入就绪检查</p>
+              {detail ? (
+                <p
+                  className={cn(
+                    "mt-0.5 text-xs leading-4 text-muted-foreground",
+                    error && "text-destructive",
+                  )}
+                >
+                  {detail}
+                </p>
+              ) : null}
+            </div>
           </div>
+
+          {readiness ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {checks.map(({ key, label, check }) => (
+                <div
+                  key={key}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium",
+                    check.ready
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : check.blocking
+                        ? "border-destructive/20 bg-destructive/5 text-destructive"
+                        : "border-amber-200 bg-amber-50 text-amber-700",
+                  )}
+                >
+                  <StatusIcon check={check} />
+                  {label}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-7 justify-self-end"
             aria-label="重新检查"
             onClick={() => void refresh(true)}
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+              <Loader2Icon
+                className="size-3.5 animate-spin"
+                aria-hidden="true"
+              />
             ) : (
-              <RefreshCwIcon className="size-4" aria-hidden="true" />
+              <RefreshCwIcon className="size-3.5" aria-hidden="true" />
             )}
           </Button>
-        </div>
 
-        {readiness ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {checks.map(({ key, label, check }) => (
-              <div
-                key={key}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-                  check.ready
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : check.blocking
-                      ? "border-destructive/20 bg-destructive/5 text-destructive"
-                      : "border-amber-200 bg-amber-50 text-amber-700",
-                )}
-              >
-                <StatusIcon check={check} />
-                {label}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {problemChecks.length > 0 ? (
-          <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2">
-            {problemChecks.map(({ key, label, check }) => (
-              <div
-                key={key}
-                className="flex gap-2.5 rounded-lg bg-muted/45 p-3"
-              >
-                <StatusIcon check={check} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{label}</p>
-                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                    {check.detail}
-                  </p>
-                  {check.actions.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {check.actions.map((action) => (
-                        <Button
-                          key={action}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          disabled={pendingAction !== null}
-                          onClick={() => void runAction(action)}
-                        >
-                          {pendingAction === action ? (
-                            <Loader2Icon
-                              className="size-3.5 animate-spin"
-                              aria-hidden="true"
-                            />
-                          ) : action.startsWith("request_") ? (
-                            <ShieldCheckIcon
-                              className="size-3.5"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <ExternalLinkIcon
-                              className="size-3.5"
-                              aria-hidden="true"
-                            />
-                          )}
-                          {ACTION_LABELS[action]}
-                        </Button>
-                      ))}
-                    </div>
-                  ) : null}
+          {problemChecks.length > 0 ? (
+            <div className="mt-3 grid gap-3 border-t pt-3 sm:col-span-3 sm:grid-cols-2">
+              {problemChecks.map(({ key, label, check }) => (
+                <div
+                  key={key}
+                  className="flex gap-2.5 rounded-lg bg-muted/45 p-3"
+                >
+                  <StatusIcon check={check} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                      {check.detail}
+                    </p>
+                    {check.actions.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {check.actions.map((action) => (
+                          <Button
+                            key={action}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            disabled={pendingAction !== null}
+                            onClick={() => void runAction(action)}
+                          >
+                            {pendingAction === action ? (
+                              <Loader2Icon
+                                className="size-3.5 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : action.startsWith("request_") ? (
+                              <ShieldCheckIcon
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <ExternalLinkIcon
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
+                            )}
+                            {ACTION_LABELS[action]}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
+              ))}
+            </div>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

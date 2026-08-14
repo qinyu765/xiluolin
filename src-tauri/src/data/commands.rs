@@ -406,6 +406,8 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
     }
     config.asr.validate()?;
     config.text.validate()?;
+    // 为每次配置提交分配版本；较早的异步热更新任务即使晚完成，也不能覆盖最新配置。
+    let hotkey_revision = crate::hotkey::next_hotkey_registration_revision();
 
     let store = app
         .store(APP_CONFIG_STORE)
@@ -476,6 +478,7 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
     }
 
     // 热更新快捷键
+    crate::hotkey::publish_hotkey_registration_revision(hotkey_revision);
     let app_clone = app.clone();
     let config_clone = config.clone();
     tauri::async_runtime::spawn(async move {
@@ -489,7 +492,18 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
         } else {
             Some(config_clone.toggle_shortcut)
         };
-        let _ = crate::hotkey::register_both_hotkeys(app_clone, longpress, toggle).await;
+        if let Err(error) = crate::hotkey::register_both_hotkeys_if_current(
+            app_clone.clone(),
+            longpress,
+            toggle,
+            hotkey_revision,
+        )
+        .await
+        {
+            eprintln!("快捷键热更新失败：{error}");
+            let _ = crate::events::RecordingErrorEvent(format!("快捷键热更新失败：{error}"))
+                .emit(&app_clone);
+        }
     });
 
     Ok(config)

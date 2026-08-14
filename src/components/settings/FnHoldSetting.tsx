@@ -21,17 +21,19 @@ export function FnHoldSetting({
   if (!isMacOS) return null;
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-      <div className="space-y-0.5">
-        <Label htmlFor="app-fn-hold">按住 Fn 录音</Label>
-        <p className="text-xs text-muted-foreground">
-          仅处理独立 Fn：按下立即录音，松开识别；短于 300 毫秒会取消。需要 macOS
-          辅助功能权限，权限不足时组合快捷键仍可使用。
+    <div className="flex min-h-16 flex-col items-start justify-between gap-3 border-b border-border/70 py-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor="app-fn-hold" className="text-sm font-medium leading-5">
+          按住 Fn 录音
+        </Label>
+        <p className="text-sm leading-5 text-muted-foreground">
+          需要辅助功能权限；组合快捷键仍可使用
         </p>
       </div>
       <Switch
         id="app-fn-hold"
         checked={enabled}
+        className="self-end sm:self-auto"
         onCheckedChange={onCheckedChange}
       />
     </div>

@@ -1,4 +1,5 @@
 use super::{database::LocalDatabase, models::*};
+use serde_json::{Map, Value};
 use tauri::Manager;
 use tauri_specta::Event;
 
@@ -229,16 +230,17 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
-    let mut config = match store.get(APP_CONFIG_KEY) {
-        Some(value) => serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
-        None => default_app_config(),
+    let stored_value = store.get(APP_CONFIG_KEY);
+    let (mut config, migrated_from_provider_routes) = match stored_value.as_ref() {
+        Some(value) => decode_stored_app_config(value.clone())?,
+        None => (default_app_config(), false),
     };
 
     let legacy_credentials = AppCredentials::from_config(&config);
     let credentials = load_system_credentials(&legacy_credentials)?;
     let sanitized = sanitized_config(&config);
 
-    if sanitized != config {
+    if migrated_from_provider_routes || sanitized != config {
         let value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
         save_store_value_transactionally(
             store.get(APP_CONFIG_KEY),
@@ -254,6 +256,192 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     config = sanitized;
     credentials.apply_to(&mut config);
     Ok(config)
+}
+
+fn decode_stored_app_config(value: Value) -> Result<(AppConfig, bool), String> {
+    if value.get("asr").is_some() || value.get("text").is_some() {
+        Ok((migrate_provider_route_config(&value)?, true))
+    } else {
+        serde_json::from_value(value)
+            .map(|config| (config, false))
+            .map_err(|error| error.to_string())
+    }
+}
+
+fn migrate_provider_route_config(value: &Value) -> Result<AppConfig, String> {
+    let mut config = default_app_config();
+    copy_string(value, "default_persona_id", &mut config.default_persona_id);
+    copy_string(value, "longpress_shortcut", &mut config.longpress_shortcut);
+    copy_string(value, "toggle_shortcut", &mut config.toggle_shortcut);
+    copy_bool(value, "fn_hold_enabled", &mut config.fn_hold_enabled);
+    copy_bool(value, "auto_save_history", &mut config.auto_save_history);
+    copy_bool(value, "mute_system_audio", &mut config.mute_system_audio);
+    copy_bool(value, "retain_recordings", &mut config.retain_recordings);
+    copy_string(
+        value,
+        "selected_microphone",
+        &mut config.selected_microphone,
+    );
+
+    let asr_route = value
+        .get("asr")
+        .ok_or_else(|| "Provider 配置缺少 asr 路由".to_string())?;
+    let asr_settings = route_settings(asr_route);
+    config.asr_provider = select_supported_provider(
+        route_primary(asr_route),
+        &asr_settings,
+        &["zhipu", "openai", "local"],
+        "zhipu",
+    );
+    apply_asr_settings(&mut config, &asr_settings);
+
+    if let Some(fallback) = route_fallbacks(asr_route).first().copied() {
+        if ["zhipu", "openai"].contains(&fallback) && fallback != config.asr_provider {
+            config.allow_cloud_fallback = true;
+            config.fallback_asr_provider = fallback.to_string();
+            apply_asr_fallback_settings(&mut config, fallback, &asr_settings);
+        }
+    }
+
+    if let Some(text_route) = value.get("text") {
+        let text_settings = route_settings(text_route);
+        config.text_provider = select_supported_provider(
+            route_primary(text_route),
+            &text_settings,
+            &["zhipu", "openai"],
+            "zhipu",
+        );
+        apply_text_settings(&mut config, &text_settings);
+    }
+
+    Ok(config)
+}
+
+fn route_primary(route: &Value) -> Option<&str> {
+    route.get("primary").and_then(Value::as_str)
+}
+
+fn route_fallbacks(route: &Value) -> Vec<&str> {
+    route
+        .get("fallbacks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect()
+}
+
+fn route_settings(route: &Value) -> Map<String, Value> {
+    route
+        .get("settings")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn select_supported_provider(
+    primary: Option<&str>,
+    settings: &Map<String, Value>,
+    supported: &[&str],
+    fallback: &str,
+) -> String {
+    primary
+        .filter(|provider| supported.contains(provider))
+        .or_else(|| {
+            supported
+                .iter()
+                .copied()
+                .find(|provider| settings.contains_key(*provider))
+        })
+        .unwrap_or(fallback)
+        .to_string()
+}
+
+fn provider_setting<'a>(
+    settings: &'a Map<String, Value>,
+    provider: &str,
+) -> Option<&'a Map<String, Value>> {
+    settings.get(provider).and_then(Value::as_object)
+}
+
+fn setting_string(settings: &Map<String, Value>, provider: &str, key: &str) -> Option<String> {
+    provider_setting(settings, provider)
+        .and_then(|settings| settings.get(key))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn apply_asr_settings(config: &mut AppConfig, settings: &Map<String, Value>) {
+    if let Some(value) = setting_string(settings, "zhipu", "api_key") {
+        config.asr_api_key = value;
+    }
+    if let Some(value) = setting_string(settings, "zhipu", "base_url") {
+        config.asr_base_url = value;
+    }
+    if let Some(value) = setting_string(settings, "zhipu", "model") {
+        config.asr_model = value;
+    }
+    if let Some(value) = setting_string(settings, "openai", "api_key") {
+        config.openai_api_key = value;
+    }
+    if let Some(value) = setting_string(settings, "openai", "base_url") {
+        config.openai_base_url = value;
+    }
+    if let Some(value) = setting_string(settings, "openai", "model") {
+        config.openai_asr_model = value;
+    }
+    if let Some(value) = setting_string(settings, "local", "model") {
+        config.local_asr_model = value;
+    }
+}
+
+fn apply_asr_fallback_settings(
+    config: &mut AppConfig,
+    provider: &str,
+    settings: &Map<String, Value>,
+) {
+    if provider == "zhipu" {
+        config.asr_api_key = setting_string(settings, provider, "api_key").unwrap_or_default();
+        config.asr_base_url = setting_string(settings, provider, "base_url").unwrap_or_default();
+        config.asr_model = setting_string(settings, provider, "model").unwrap_or_default();
+    } else if provider == "openai" {
+        config.openai_api_key = setting_string(settings, provider, "api_key").unwrap_or_default();
+        config.openai_base_url = setting_string(settings, provider, "base_url").unwrap_or_default();
+        config.openai_asr_model = setting_string(settings, provider, "model").unwrap_or_default();
+    }
+}
+
+fn apply_text_settings(config: &mut AppConfig, settings: &Map<String, Value>) {
+    if let Some(value) = setting_string(settings, "zhipu", "api_key") {
+        config.zhipu_api_key = value;
+    }
+    if let Some(value) = setting_string(settings, "zhipu", "base_url") {
+        config.zhipu_base_url = value;
+    }
+    if let Some(value) = setting_string(settings, "zhipu", "model") {
+        config.zhipu_model = value;
+    }
+    if let Some(value) = setting_string(settings, "openai", "api_key") {
+        config.openai_api_key = value;
+    }
+    if let Some(value) = setting_string(settings, "openai", "base_url") {
+        config.openai_base_url = value;
+    }
+    if let Some(value) = setting_string(settings, "openai", "model") {
+        config.openai_model = value;
+    }
+}
+
+fn copy_string(value: &Value, key: &str, target: &mut String) {
+    if let Some(source) = value.get(key).and_then(Value::as_str) {
+        *target = source.to_string();
+    }
+}
+
+fn copy_bool(value: &Value, key: &str, target: &mut bool) {
+    if let Some(source) = value.get(key).and_then(Value::as_bool) {
+        *target = source;
+    }
 }
 
 #[tauri::command]
@@ -357,6 +545,91 @@ mod tests {
         let database = LocalDatabase::open(path).unwrap();
         database.initialize().unwrap();
         database
+    }
+
+    #[test]
+    fn nested_provider_config_migrates_to_the_flat_main_contract() {
+        let value = serde_json::json!({
+            "config_version": 2,
+            "default_persona_id": "translator",
+            "asr": {
+                "primary": "openai",
+                "fallbacks": ["zhipu"],
+                "settings": {
+                    "openai": {
+                        "api_key": "openai-key",
+                        "base_url": "https://example.test/v1",
+                        "model": "whisper-1"
+                    },
+                    "zhipu": {
+                        "api_key": "zhipu-key",
+                        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+                        "model": "glm-asr-2512"
+                    }
+                }
+            },
+            "text": {
+                "primary": "openai",
+                "fallbacks": [],
+                "settings": {
+                    "openai": {
+                        "api_key": "openai-key",
+                        "base_url": "https://example.test/v1",
+                        "model": "gpt-4o-mini"
+                    }
+                }
+            },
+            "longpress_shortcut": "CommandOrControl+Shift+R",
+            "toggle_shortcut": "Alt+Space",
+            "fn_hold_enabled": true,
+            "auto_save_history": true,
+            "mute_system_audio": true,
+            "retain_recordings": false,
+            "selected_microphone": "USB Mic"
+        });
+
+        let (config, migrated) = decode_stored_app_config(value).expect("nested config migrates");
+
+        assert!(migrated);
+        assert_eq!(config.default_persona_id, "translator");
+        assert_eq!(config.asr_provider, "openai");
+        assert_eq!(config.openai_asr_model, "whisper-1");
+        assert_eq!(config.asr_api_key, "zhipu-key");
+        assert!(config.allow_cloud_fallback);
+        assert_eq!(config.fallback_asr_provider, "zhipu");
+        assert_eq!(config.text_provider, "openai");
+        assert_eq!(config.openai_model, "gpt-4o-mini");
+        assert!(config.fn_hold_enabled);
+        assert!(config.mute_system_audio);
+        assert_eq!(config.selected_microphone, "USB Mic");
+    }
+
+    #[test]
+    fn unsupported_nested_provider_falls_back_to_a_supported_main_provider() {
+        let value = serde_json::json!({
+            "asr": {
+                "primary": "qwen-audio",
+                "fallbacks": [],
+                "settings": {
+                    "qwen-audio": {
+                        "api_key": "qwen-key",
+                        "base_url": "https://dashscope.aliyuncs.com",
+                        "model": "qwen-audio-3.0-asr-flash"
+                    }
+                }
+            },
+            "text": {
+                "primary": "qwen",
+                "fallbacks": [],
+                "settings": {}
+            }
+        });
+
+        let (config, migrated) = decode_stored_app_config(value).expect("nested config migrates");
+
+        assert!(migrated);
+        assert_eq!(config.asr_provider, "zhipu");
+        assert_eq!(config.text_provider, "zhipu");
     }
 
     #[test]

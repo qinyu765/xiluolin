@@ -171,7 +171,15 @@ pub fn start_recording_for_source(
     source: CaptureSource,
 ) -> Result<CaptureSessionStart, String> {
     let session_state = app_handle.state::<CaptureSessionState>();
-    let started = session_state.begin(source)?;
+    let started = match crate::capture_session::capture_context(app_handle) {
+        Ok(context) => session_state.begin_with_captured_context(source, context)?,
+        Err(error) => {
+            // 保留旧录音入口的可用性：数据迁移或本地数据库暂时不可用时，
+            // 仍允许录音，处理阶段会回退到当前配置读取路径。
+            eprintln!("录音会话快照捕获失败，将使用兼容读取路径：{error}");
+            session_state.begin(source)?
+        }
+    };
 
     if let Err(error) = start_audio_capture(state, app_handle, &started.session_id) {
         session_state.cancel(&started.session_id);

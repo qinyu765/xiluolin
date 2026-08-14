@@ -1,9 +1,19 @@
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use uuid::Uuid;
 
+use crate::data::{AppConfig, LocalDatabase, Persona};
 use crate::focus_capture::{capture_focus, FocusSnapshot};
+
+#[derive(Debug, Clone)]
+pub struct CapturedSessionContext {
+    pub config: AppConfig,
+    pub persona: Persona,
+    pub asr_hotwords: Vec<String>,
+    pub hotword_context: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -42,6 +52,7 @@ struct CaptureSession {
     status: CaptureStatus,
     focus: Option<FocusSnapshot>,
     history_id: Option<String>,
+    context: Option<CapturedSessionContext>,
 }
 
 pub struct CaptureSessionState {
@@ -61,13 +72,36 @@ impl CaptureSessionState {
         } else {
             None
         };
-        self.begin_with_focus(source, focus)
+        self.begin_with_focus_and_context(source, focus, None)
     }
 
+    pub fn begin_with_captured_context(
+        &self,
+        source: CaptureSource,
+        context: CapturedSessionContext,
+    ) -> Result<CaptureSessionStart, String> {
+        let focus = if source == CaptureSource::Hotkey {
+            capture_focus()?
+        } else {
+            None
+        };
+        self.begin_with_focus_and_context(source, focus, Some(context))
+    }
+
+    #[cfg(test)]
     fn begin_with_focus(
         &self,
         source: CaptureSource,
         focus: Option<FocusSnapshot>,
+    ) -> Result<CaptureSessionStart, String> {
+        self.begin_with_focus_and_context(source, focus, None)
+    }
+
+    fn begin_with_focus_and_context(
+        &self,
+        source: CaptureSource,
+        focus: Option<FocusSnapshot>,
+        context: Option<CapturedSessionContext>,
     ) -> Result<CaptureSessionStart, String> {
         let mut current = self
             .current
@@ -84,6 +118,7 @@ impl CaptureSessionState {
             status: CaptureStatus::Recording,
             focus,
             history_id: None,
+            context,
         });
         Ok(CaptureSessionStart { session_id })
     }
@@ -140,6 +175,18 @@ impl CaptureSessionState {
         })
     }
 
+    pub fn processing_context(&self, session_id: &str) -> Result<CapturedSessionContext, String> {
+        let current = self
+            .current
+            .lock()
+            .map_err(|error| format!("CaptureSession 状态锁定失败：{error}"))?;
+        current
+            .as_ref()
+            .filter(|session| session.id == session_id)
+            .and_then(|session| session.context.clone())
+            .ok_or_else(|| "CaptureSession 缺少固定处理配置".to_string())
+    }
+
     pub fn finish(&self, session_id: &str, status: CaptureStatus) -> Result<(), String> {
         if !matches!(status, CaptureStatus::Completed | CaptureStatus::Failed) {
             return Err("结束状态必须是 completed 或 failed".to_string());
@@ -186,6 +233,34 @@ impl CaptureSessionState {
             }
         }
     }
+}
+
+pub fn capture_context(app: &tauri::AppHandle) -> Result<CapturedSessionContext, String> {
+    let config = crate::data::read_app_config(app.clone())?;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
+    let database = LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
+        .map_err(|error| error.to_string())?;
+    database.initialize().map_err(|error| error.to_string())?;
+    let persona = database
+        .list_personas()
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .find(|persona| persona.is_default)
+        .ok_or_else(|| "默认人格不存在".to_string())?;
+    let hotwords = database
+        .enabled_hotword_snapshot()
+        .map_err(|error| error.to_string())?;
+
+    Ok(CapturedSessionContext {
+        config,
+        persona,
+        asr_hotwords: hotwords.asr_hotwords,
+        hotword_context: hotwords.hotword_context,
+    })
 }
 
 #[tauri::command]
@@ -252,6 +327,44 @@ mod tests {
         assert!(state.begin_with_focus(CaptureSource::App, None).is_err());
         state.cancel(&started.session_id);
         assert!(state.begin_with_focus(CaptureSource::App, None).is_ok());
+    }
+
+    #[test]
+    fn captured_context_is_kept_for_processing_after_start() {
+        let state = CaptureSessionState::new();
+        let context = CapturedSessionContext {
+            config: crate::data::default_app_config(),
+            persona: Persona {
+                id: "general".to_string(),
+                name: "通用".to_string(),
+                description: "自然清晰".to_string(),
+                icon: "sparkles".to_string(),
+                is_default: true,
+                processing_mode: "polish".to_string(),
+                created_at: "now".to_string(),
+                updated_at: "now".to_string(),
+            },
+            asr_hotwords: vec!["开始时热词".to_string()],
+            hotword_context: "开始时热词".to_string(),
+        };
+        let started = state
+            .begin_with_captured_context(CaptureSource::App, context.clone())
+            .expect("session should start with a captured context");
+
+        assert_eq!(
+            state
+                .processing_context(&started.session_id)
+                .unwrap()
+                .asr_hotwords,
+            context.asr_hotwords
+        );
+        assert_eq!(
+            state
+                .processing_context(&started.session_id)
+                .unwrap()
+                .config,
+            context.config
+        );
     }
 
     #[test]

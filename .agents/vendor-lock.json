@@ -1,8 +1,8 @@
 {
   "evolve-software-architecture": {
     "source": "https://github.com/qinyu765/evolve-software-architecture",
-    "version": "v0.1.0",
-    "commit": "11a24abd34d3686ec53939e1295009faddce7aae",
+    "version": "v0.1.1",
+    "commit": "6d65a2160f53d67ae9e8aac6a541b4186ded6e0a",
     "package": "skills/evolve-software-architecture"
   }
 }

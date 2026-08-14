@@ -1,41 +1,51 @@
 import { useEffect, useRef, useState } from "react";
-import { AudioLinesIcon, CheckIcon, LoaderCircleIcon } from "lucide-react";
 
 import type { CaptureSnapshot } from "@/generated/tauri-bindings";
-import { captureDisplayText } from "./captureSnapshot";
+import { indicatorPresentation } from "./captureSnapshot";
 import { useCaptureSnapshot } from "./useCaptureSnapshot";
 
-const PHASE_LABEL: Record<CaptureSnapshot["phase"], string> = {
-  idle: "等待输入",
-  recording: "聆听中",
-  transcribing: "转写中",
-  refining: "润色中",
-  delivering: "正在输入",
-  completed: "已输入",
-  failed: "处理失败",
+type IndicatorNotice = {
+  text: string;
+  tone: "copied" | "failed";
 };
 
-function formatElapsed(elapsedMs: number) {
-  const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+function parseIndicatorNotice(value: unknown): IndicatorNotice | null {
+  if (typeof value !== "object" || value === null) return null;
+  const detail = value as Record<string, unknown>;
+  if (typeof detail.text !== "string") return null;
+  if (detail.tone !== "copied" && detail.tone !== "failed") return null;
+  return { text: detail.text, tone: detail.tone };
 }
 
 export function IndicatorContent({ snapshot }: { snapshot: CaptureSnapshot }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const text = captureDisplayText(snapshot);
-  const [liveElapsed, setLiveElapsed] = useState(snapshot.elapsed_ms);
+  const [notice, setNotice] = useState<IndicatorNotice | null>(null);
+  const presentation = indicatorPresentation(snapshot);
 
   useEffect(() => {
-    setLiveElapsed(snapshot.elapsed_ms);
-    if (snapshot.phase !== "recording") return;
-    const startedAt = Date.now() - snapshot.elapsed_ms;
-    const timer = window.setInterval(() => {
-      setLiveElapsed(Date.now() - startedAt);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [snapshot.elapsed_ms, snapshot.phase, snapshot.session_id]);
+    const handleNotice = (event: Event) => {
+      const nextNotice = parseIndicatorNotice(
+        (event as CustomEvent<unknown>).detail,
+      );
+      if (nextNotice) setNotice(nextNotice);
+    };
+    window.addEventListener("capture-indicator-notice", handleNotice);
+    return () =>
+      window.removeEventListener("capture-indicator-notice", handleNotice);
+  }, []);
 
   useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 1_500);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
+  const mode = notice ? "notice" : presentation.mode;
+  const text = notice?.text ?? presentation.text;
+  const isTranscript = mode === "transcript";
+
+  useEffect(() => {
+    if (!isTranscript) return;
     const node = transcriptRef.current;
     if (!node) return;
     const reducedMotion = window.matchMedia?.(
@@ -49,49 +59,23 @@ export function IndicatorContent({ snapshot }: { snapshot: CaptureSnapshot }) {
     } else {
       node.scrollLeft = node.scrollWidth;
     }
-  }, [text]);
-
-  const completed = snapshot.phase === "completed";
-  const failed = snapshot.phase === "failed";
-  const processing = ["transcribing", "refining", "delivering"].includes(
-    snapshot.phase,
-  );
+  }, [isTranscript, text]);
 
   return (
     <div
-      className={`indicator-shell ${completed ? "indicator-completed" : ""} ${failed ? "indicator-failed" : ""}`}
+      className={`indicator-shell indicator-shell--${mode}${
+        notice ? ` indicator-shell--notice-${notice.tone}` : ""
+      }`}
     >
-      <span className="indicator-signal" aria-hidden="true">
-        {completed ? (
-          <CheckIcon />
-        ) : processing ? (
-          <LoaderCircleIcon className="indicator-spinner" />
-        ) : (
-          <AudioLinesIcon />
-        )}
-      </span>
-
       <div
-        ref={transcriptRef}
-        data-testid="indicator-transcript"
-        className="indicator-transcript"
+        ref={isTranscript ? transcriptRef : undefined}
+        data-testid={
+          isTranscript ? "indicator-transcript" : "indicator-message"
+        }
+        className={isTranscript ? "indicator-transcript" : "indicator-message"}
         aria-live="polite"
       >
-        {failed && snapshot.failure?.detail
-          ? snapshot.failure.detail
-          : text ||
-            (snapshot.preview_state === "unavailable"
-              ? "实时预览不可用，录音仍在继续"
-              : snapshot.phase === "recording"
-                ? "请开始说话"
-                : "正在处理语音")}
-      </div>
-
-      <div className="indicator-status">
-        <span>{PHASE_LABEL[snapshot.phase]}</span>
-        {snapshot.phase === "recording" ? (
-          <time>{formatElapsed(liveElapsed)}</time>
-        ) : null}
+        {text}
       </div>
     </div>
   );

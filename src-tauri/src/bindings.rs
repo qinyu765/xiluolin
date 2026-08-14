@@ -2,7 +2,7 @@ use tauri_specta::{collect_commands, collect_events, Builder, ErrorHandlingMode}
 
 use crate::{
     capture_coordinator, capture_session, data, events, history_reprocessing, hotkey, indicator,
-    local_asr_model, macos_permissions, output, pipeline, providers, readiness, realtime_asr_model,
+    local_asr_model, macos_permissions, pipeline, providers, readiness, realtime_asr_model,
     recording, recording_storage,
 };
 
@@ -56,9 +56,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             hotkey::register_both_hotkeys,
             hotkey::unregister_hotkey,
             indicator::update_indicator_status,
-            output::read_fallback_result,
-            output::copy_fallback_result,
-            output::dismiss_fallback_result,
         ])
         .events(collect_events![
             events::CaptureSnapshotEvent,

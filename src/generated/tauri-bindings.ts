@@ -51,13 +51,6 @@ export const commands = {
 	registerBothHotkeys: (longpressShortcut: string | null, toggleShortcut: string | null) => __TAURI_INVOKE<null>("register_both_hotkeys", { longpressShortcut, toggleShortcut }),
 	unregisterHotkey: () => __TAURI_INVOKE<null>("unregister_hotkey"),
 	updateIndicatorStatus: (status: string) => __TAURI_INVOKE<null>("update_indicator_status", { status }),
-	readFallbackResult: () => __TAURI_INVOKE<{
-	text: string,
-	reason: string,
-	copied: boolean,
-} | null>("read_fallback_result"),
-	copyFallbackResult: () => __TAURI_INVOKE<null>("copy_fallback_result"),
-	dismissFallbackResult: () => __TAURI_INVOKE<null>("dismiss_fallback_result"),
 };
 
 /** Events */
@@ -148,12 +141,6 @@ export type DefaultPersonaUpdate_Deserialize = {
 export type DefaultPersonaUpdate_Serialize = {
 	personas: Persona[],
 	config: AppConfig_Serialize,
-};
-
-export type FallbackResult = {
-	text: string,
-	reason: string,
-	copied: boolean,
 };
 
 export type HistoryChangedEvent = {

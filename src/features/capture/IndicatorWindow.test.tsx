@@ -1,10 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { idleCaptureSnapshot } from "./captureSnapshot";
 import { IndicatorContent } from "./IndicatorWindow";
 
 describe("IndicatorContent", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
       configurable: true,
@@ -34,21 +36,129 @@ describe("IndicatorContent", () => {
     );
   });
 
-  it("shows the pipeline phase beside the frozen preview", () => {
+  it.each([
+    ["transcribing", "识别中"],
+    ["refining", "整理中"],
+    ["delivering", "输入中"],
+  ] as const)("shows the centered message for %s", (phase, message) => {
     render(
       <IndicatorContent
         snapshot={{
           ...idleCaptureSnapshot,
           session_id: "session-1",
           revision: 4,
-          phase: "refining",
+          phase,
           stable_text: "冻结结果",
           preview_state: "active",
         }}
       />,
     );
 
-    expect(screen.getByText("润色中")).toBeInTheDocument();
-    expect(screen.getByText("冻结结果")).toBeInTheDocument();
+    const indicator = screen.getByTestId("indicator-message");
+    expect(indicator).toHaveTextContent(message);
+    expect(
+      screen.queryByTestId("indicator-transcript"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("冻结结果")).not.toBeInTheDocument();
+  });
+
+  it.each(["disabled", "loading", "unavailable"] as const)(
+    "shows recognition while realtime preview is %s",
+    (previewState) => {
+      render(
+        <IndicatorContent
+          snapshot={{
+            ...idleCaptureSnapshot,
+            session_id: "session-1",
+            revision: 5,
+            phase: "recording",
+            preview_state: previewState,
+            stable_text: "已有文本",
+          }}
+        />,
+      );
+
+      expect(screen.getByTestId("indicator-message")).toHaveTextContent(
+        "识别中",
+      );
+    },
+  );
+
+  it("shows recognition until an active preview has text", () => {
+    render(
+      <IndicatorContent
+        snapshot={{
+          ...idleCaptureSnapshot,
+          session_id: "session-1",
+          revision: 6,
+          phase: "recording",
+          preview_state: "active",
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("indicator-message")).toHaveTextContent("识别中");
+  });
+
+  it("keeps short terminal messages without side status or a timer", () => {
+    const { rerender } = render(
+      <IndicatorContent
+        snapshot={{
+          ...idleCaptureSnapshot,
+          revision: 7,
+          phase: "completed",
+        }}
+      />,
+    );
+
+    const completed = screen.getByTestId("indicator-message");
+    expect(completed).toHaveTextContent("已输入");
+    expect(screen.queryByText("00:00")).not.toBeInTheDocument();
+
+    rerender(
+      <IndicatorContent
+        snapshot={{
+          ...idleCaptureSnapshot,
+          revision: 8,
+          phase: "failed",
+          failure: {
+            code: "network",
+            stage: "transcribing",
+            recoverable: true,
+            detail: "网络异常",
+          },
+        }}
+      />,
+    );
+
+    const failed = screen.getByTestId("indicator-message");
+    expect(failed).toHaveTextContent("网络异常");
+  });
+
+  it("shows a colored clipboard notice in the floating indicator", () => {
+    render(
+      <IndicatorContent
+        snapshot={{
+          ...idleCaptureSnapshot,
+          revision: 9,
+          phase: "completed",
+        }}
+      />,
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("capture-indicator-notice", {
+          detail: { text: "结果已复制", tone: "copied" },
+        }),
+      );
+    });
+
+    expect(screen.getByTestId("indicator-message")).toHaveTextContent(
+      "结果已复制",
+    );
+    expect(screen.getByTestId("indicator-message").parentElement).toHaveClass(
+      "indicator-shell--notice-copied",
+    );
   });
 });

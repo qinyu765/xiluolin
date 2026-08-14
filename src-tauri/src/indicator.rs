@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{AppHandle, Manager, Monitor, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 const INDICATOR_LABEL: &str = "recording-indicator";
-const INDICATOR_WIDTH: f64 = 480.0;
-const INDICATOR_HEIGHT: f64 = 72.0;
+const INDICATOR_WIDTH: f64 = 160.0;
+const INDICATOR_HEIGHT: f64 = 44.0;
 const INDICATOR_TOP_RATIO: f64 = 0.04;
 static INDICATOR_REVISION: AtomicU64 = AtomicU64::new(0);
 const VALID_STATUSES: [&str; 6] = [
@@ -223,6 +223,30 @@ pub fn finish_indicator(app: &AppHandle, status: &str) -> Result<(), String> {
     refresh_result
 }
 
+pub fn finish_indicator_with_notice(
+    app: &AppHandle,
+    status: &str,
+    text: &str,
+    tone: &str,
+) -> Result<(), String> {
+    finish_indicator(app, status)?;
+    dispatch_indicator_notice(app, text, tone)
+}
+
+fn dispatch_indicator_notice(app: &AppHandle, text: &str, tone: &str) -> Result<(), String> {
+    let window = app
+        .get_webview_window(INDICATOR_LABEL)
+        .ok_or_else(|| "录音指示器窗口不存在".to_string())?;
+    let text = serde_json::to_string(text).map_err(|error| format!("编码提示文本失败：{error}"))?;
+    let tone = serde_json::to_string(tone).map_err(|error| format!("编码提示类型失败：{error}"))?;
+    let script = format!(
+        "window.dispatchEvent(new CustomEvent('capture-indicator-notice', {{ detail: {{ text: {text}, tone: {tone} }} }}));"
+    );
+    window
+        .eval(&script)
+        .map_err(|error| format!("显示录音指示器提示失败：{error}"))
+}
+
 fn indicator_hide_delay(status: &str) -> u64 {
     if status == "failed" {
         4_000
@@ -266,23 +290,23 @@ mod tests {
     #[test]
     fn indicator_is_centered_near_the_top_of_the_primary_monitor() {
         assert_eq!(
-            indicator_position(0, 0, 1920, 1080, 480),
-            tauri::PhysicalPosition { x: 720, y: 43 }
+            indicator_position(0, 0, 1920, 1080, 160),
+            tauri::PhysicalPosition { x: 880, y: 43 }
         );
     }
 
     #[test]
     fn indicator_position_includes_secondary_monitor_origin() {
         assert_eq!(
-            indicator_position(-2560, -120, 2560, 1440, 480),
-            tauri::PhysicalPosition { x: -1520, y: -62 }
+            indicator_position(-2560, -120, 2560, 1440, 160),
+            tauri::PhysicalPosition { x: -1360, y: -62 }
         );
     }
 
     #[test]
     fn indicator_width_leaves_a_margin_on_narrow_displays() {
-        assert_eq!(indicator_width(460, 1.0), 428);
-        assert_eq!(indicator_width(1920, 2.0), 960);
+        assert_eq!(indicator_width(460, 1.0), 160);
+        assert_eq!(indicator_width(1920, 2.0), 320);
     }
 
     #[test]

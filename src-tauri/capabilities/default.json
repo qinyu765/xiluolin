@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default desktop capability for the main and fallback result windows.",
-  "windows": ["main", "fallback-result"],
+  "description": "Default desktop capability for the main and recording indicator windows.",
+  "windows": ["main", "recording-indicator"],
   "permissions": [
     "opener:default",
     "sql:default",

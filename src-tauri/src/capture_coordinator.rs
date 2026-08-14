@@ -9,7 +9,6 @@ use crate::{
         CaptureSource,
     },
     events::HistoryChangedEvent,
-    output::FallbackResultState,
     pipeline::VoiceInputResult,
     recording::{self, RecordingResult, RecordingState},
 };
@@ -135,20 +134,10 @@ async fn process_recording(
     }
 
     let sessions = app.state::<CaptureSessionState>();
-    let fallback = app.state::<FallbackResultState>();
     let (processed, _) = run_pipeline_steps(
         || Ok(processed),
         |result: &VoiceInputResult| result.final_text.clone(),
-        |text| {
-            crate::output::deliver_text_internal(
-                &app,
-                &sessions,
-                &fallback,
-                Some(session_id),
-                None,
-                text,
-            )
-        },
+        |text| crate::output::deliver_text_internal(&app, &sessions, Some(session_id), None, text),
     )
     .await?;
     let _ = processed;

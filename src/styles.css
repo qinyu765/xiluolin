@@ -32,47 +32,53 @@
   display: grid;
   min-height: 100vh;
   place-items: center;
-  padding: 8px;
+  padding: 6px;
   background: transparent;
 }
 
 .indicator-shell {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+  display: inline-flex;
   align-items: center;
-  width: 100%;
-  min-height: 48px;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 14px;
-  color: #f7faff;
-  background: rgb(20 27 38 / 94%);
-  box-shadow: 0 14px 38px rgb(3 8 18 / 24%);
-  backdrop-filter: blur(18px) saturate(130%);
+  border-radius: 12px;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 75%) 0%,
+    rgb(255 255 255 / 8%) 35%,
+    rgb(255 255 255 / 4%) 65%,
+    rgb(255 255 255 / 50%) 100%
+  );
+  box-shadow:
+    0 0 16px rgb(255 255 255 / 8%),
+    0 0 32px rgb(255 255 255 / 4%);
 }
 
-.indicator-signal {
-  display: grid;
-  width: 32px;
-  height: 100%;
-  place-items: center;
-  color: #72a7ff;
-  background: rgb(114 167 255 / 10%);
-}
-
-.indicator-signal svg {
-  width: 16px;
-  height: 16px;
+.indicator-transcript,
+.indicator-message {
+  display: block;
+  min-width: 96px;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 11px;
+  padding: 7px 12px 6px;
+  background: rgb(0 0 0 / 25%);
+  color: rgb(255 255 255 / 95%);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .indicator-transcript {
-  min-width: 0;
   overflow-x: auto;
-  padding: 0 12px;
-  font-size: 14px;
-  font-weight: 520;
-  line-height: 48px;
-  white-space: nowrap;
   scrollbar-width: none;
 }
 
@@ -80,51 +86,51 @@
   display: none;
 }
 
-.indicator-status {
-  display: grid;
-  min-width: 74px;
-  align-self: stretch;
-  align-content: center;
-  gap: 1px;
-  border-left: 1px solid rgb(255 255 255 / 10%);
-  padding: 0 12px;
-  color: #b7c4d7;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
+.indicator-message {
+  text-overflow: ellipsis;
 }
 
-.indicator-status time {
-  color: #718198;
-  font-variant-numeric: tabular-nums;
+.indicator-shell--message .indicator-message {
+  animation: indicator-breathe 1.8s ease-in-out infinite;
 }
 
-.indicator-completed .indicator-signal {
-  color: #65d3a6;
-  background: rgb(101 211 166 / 10%);
-}
-
-.indicator-completed {
+.indicator-shell--completed {
   animation: indicator-completed-exit 1.2s ease forwards;
 }
 
-.indicator-failed {
+.indicator-shell--completed .indicator-message {
+  color: rgb(255 255 255 / 95%);
+}
+
+.indicator-shell--failed {
   animation: indicator-failed-exit 4s ease forwards;
 }
 
-.indicator-failed .indicator-signal {
-  color: #ff8e86;
-  background: rgb(255 142 134 / 10%);
+.indicator-shell--failed .indicator-message {
+  color: rgb(255 255 255 / 95%);
 }
 
-.indicator-spinner {
-  animation: indicator-spin 900ms linear infinite;
+.indicator-shell--notice .indicator-message {
+  animation: indicator-breathe 1.8s ease-in-out infinite;
 }
 
-@keyframes indicator-spin {
-  to {
-    transform: rotate(360deg);
+.indicator-shell--notice-copied .indicator-message {
+  color: rgb(102 239 182 / 100%);
+}
+
+.indicator-shell--notice-failed .indicator-message {
+  color: rgb(255 137 128 / 100%);
+}
+
+@keyframes indicator-breathe {
+  0%,
+  100% {
+    opacity: 0.68;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
   }
 }
 
@@ -151,12 +157,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .indicator-spinner {
-    animation: none;
-  }
-
-  .indicator-completed,
-  .indicator-failed {
+  .indicator-shell--message .indicator-message,
+  .indicator-shell--notice .indicator-message,
+  .indicator-shell--completed,
+  .indicator-shell--failed {
     animation: none;
   }
 

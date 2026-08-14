@@ -57,7 +57,8 @@ pub struct ProviderRoutingConfig {
 
 impl ProviderRoutingConfig {
     pub fn provider_ids(&self) -> impl Iterator<Item = &str> {
-        std::iter::once(self.primary.as_str()).chain(self.fallbacks.iter().map(String::as_str))
+        std::iter::once(self.primary.trim())
+            .chain(self.fallbacks.iter().map(|provider| provider.trim()))
     }
 
     pub fn validate(&self) -> Result<(), String> {

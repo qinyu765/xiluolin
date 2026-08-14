@@ -256,7 +256,7 @@ export function validateSettingsConfig(config: AppConfig): string | null {
 function normalizeRoute(route: ProviderRoutingConfig): ProviderRoutingConfig {
   return {
     primary: route.primary?.trim() ?? "",
-    fallbacks: [...(route.fallbacks ?? [])],
+    fallbacks: [...(route.fallbacks ?? [])].map(trim),
     settings: Object.fromEntries(
       Object.entries(route.settings ?? {}).map(([provider, settings]) => [
         provider,

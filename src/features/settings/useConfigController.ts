@@ -65,6 +65,8 @@ export function useConfigController() {
       .catch(() => undefined);
     return () => {
       active = false;
+      // 离开设置页前先冲刷防抖队列，避免 600ms 内的最后一次修改丢失。
+      void saveQueue.flush();
       saveQueue.dispose();
     };
   }, [saveQueue]);

@@ -10,6 +10,7 @@ export function SettingsScreen() {
       audioDevices={config.audioDevices}
       saveState={config.saveState}
       onConfigChange={config.updateConfig}
+      onConfigSync={config.syncConfig}
       onConfigBlur={config.flushConfigSave}
       onRetryConfigSave={config.retryConfigSave}
       configRevision={config.revision}

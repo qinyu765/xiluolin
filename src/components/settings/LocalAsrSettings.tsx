@@ -70,7 +70,7 @@ export function LocalAsrSettings({
   };
 
   return (
-    <div className="grid gap-4 rounded-lg border p-4">
+    <div className="grid gap-3 rounded-lg border p-3">
       <div>
         <p className="text-sm font-medium">Whisper Base Q5_1</p>
         <p className="mt-1 break-all text-xs text-muted-foreground">

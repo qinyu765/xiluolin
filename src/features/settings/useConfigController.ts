@@ -87,6 +87,13 @@ export function useConfigController() {
     setAppConfig(config);
   }, []);
 
+  const syncConfig = useCallback((patch: Partial<AppConfig>) => {
+    if (!configRef.current) return;
+    const next = { ...configRef.current, ...patch };
+    configRef.current = next;
+    setAppConfig(next);
+  }, []);
+
   const flushConfigSave = useCallback(() => {
     void saveQueue.flush();
   }, [saveQueue]);
@@ -101,6 +108,7 @@ export function useConfigController() {
     saveState,
     revision,
     setAppConfig: replaceAppConfig,
+    syncConfig,
     updateConfig,
     flushConfigSave,
     retryConfigSave,

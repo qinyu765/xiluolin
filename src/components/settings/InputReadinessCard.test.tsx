@@ -40,11 +40,12 @@ afterEach(() => {
 });
 
 describe("InputReadinessCard", () => {
-  it("全部就绪时只显示紧凑摘要和五个状态胶囊", async () => {
+  it("全部就绪时只显示紧凑状态和五个检查项", async () => {
     vi.mocked(commands.readInputReadiness).mockResolvedValue(readyState);
     render(<InputReadinessCard />);
 
-    expect(await screen.findByText("语音输入已就绪")).toBeInTheDocument();
+    expect(await screen.findByText("语音输入就绪检查")).toBeInTheDocument();
+    expect(screen.queryByText("语音输入已就绪")).not.toBeInTheDocument();
     for (const label of [
       "麦克风",
       "语音识别",

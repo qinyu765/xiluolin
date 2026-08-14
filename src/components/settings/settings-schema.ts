@@ -20,6 +20,7 @@ type FieldBase = {
   id: string;
   label?: string;
   description?: string;
+  group?: "shortcuts" | "recording" | "history";
   span?: "full";
   visible?: (config: AppConfig) => boolean;
   disabled?: (config: AppConfig) => boolean;
@@ -67,7 +68,7 @@ export type SettingsSectionSchema = {
   type: "fields";
   id: string;
   title: string;
-  description: string;
+  description?: string;
   fields: readonly SettingsFieldSchema[];
 };
 
@@ -83,8 +84,7 @@ export const settingsSchema: SettingsSchema = {
     {
       type: "fields",
       id: "general",
-      title: "通用设置",
-      description: "配置快捷键、录音模式、输出方式和历史记录保存选项",
+      title: "通用",
       fields: [
         {
           id: "longpress-shortcut",
@@ -92,6 +92,7 @@ export const settingsSchema: SettingsSchema = {
           slot: "longpress-shortcut",
           configKeys: ["longpress_shortcut"],
           saveMode: "immediate",
+          group: "shortcuts",
           span: "full",
         },
         {
@@ -100,6 +101,7 @@ export const settingsSchema: SettingsSchema = {
           slot: "fn-hold",
           configKeys: ["fn_hold_enabled"],
           saveMode: "immediate",
+          group: "shortcuts",
           span: "full",
         },
         {
@@ -108,6 +110,7 @@ export const settingsSchema: SettingsSchema = {
           slot: "toggle-shortcut",
           configKeys: ["toggle_shortcut"],
           saveMode: "immediate",
+          group: "shortcuts",
           span: "full",
         },
         {
@@ -115,7 +118,7 @@ export const settingsSchema: SettingsSchema = {
           control: "select",
           key: "selected_microphone",
           label: "麦克风设备",
-          description: "选择用于录音的麦克风设备。留空则使用系统默认麦克风。",
+          description: "留空使用系统默认麦克风",
           options: ({ audioDevices }) => [
             { label: "使用默认麦克风", value: "" },
             ...audioDevices.map((device) => ({
@@ -124,6 +127,7 @@ export const settingsSchema: SettingsSchema = {
             })),
           ],
           saveMode: "immediate",
+          group: "recording",
           span: "full",
         },
         {
@@ -131,9 +135,9 @@ export const settingsSchema: SettingsSchema = {
           control: "switch",
           key: "mute_system_audio",
           label: "录音时静音其他应用",
-          description:
-            "开启后，语音输入时会暂停系统音频播放，输入完成后自动恢复",
+          description: "输入完成后自动恢复",
           saveMode: "immediate",
+          group: "recording",
           span: "full",
         },
         {
@@ -141,23 +145,13 @@ export const settingsSchema: SettingsSchema = {
           control: "switch",
           key: "auto_save_history",
           label: "自动保存历史",
-          description: "每次语音输入完成后自动保存到历史记录",
           saveMode: "immediate",
+          group: "history",
           span: "full",
           toPatch: (value, config) => ({
             auto_save_history: value,
             retain_recordings: value ? config.retain_recordings : false,
           }),
-        },
-        {
-          id: "retain-recordings",
-          control: "switch",
-          key: "retain_recordings",
-          label: "保留原始录音",
-          description: "默认关闭。仅在自动保存历史成功时保留应用录制的 WAV",
-          disabled: (config) => !config.auto_save_history,
-          saveMode: "immediate",
-          span: "full",
         },
       ],
     },
@@ -167,7 +161,6 @@ export const settingsSchema: SettingsSchema = {
       type: "fields",
       id: "models",
       title: "模型配置",
-      description: "按 Provider catalog 配置 primary、fallback 和专用模型选项",
       fields: [
         {
           id: "provider-catalog",

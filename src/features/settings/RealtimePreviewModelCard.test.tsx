@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -57,7 +63,7 @@ describe("RealtimePreviewModelCard", () => {
     mocks.download.mockReturnValue(new Promise(() => {}));
     render(<RealtimePreviewModelCard onChanged={vi.fn()} />);
 
-    expect(await screen.findByText(/实验性功能/)).toBeInTheDocument();
+    expect(await screen.findByText(/录音时显示增量字幕/)).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: "下载模型" }));
     await waitFor(() => expect(mocks.progressListener).toBeDefined());
@@ -91,6 +97,31 @@ describe("RealtimePreviewModelCard", () => {
     fireEvent.click(await screen.findByRole("button", { name: "删除" }));
 
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
-    expect(screen.getByText(/需要下载约/)).toBeInTheDocument();
+    expect(screen.getByText(/下载约/)).toBeInTheDocument();
+  });
+
+  it("syncs a persisted toggle into the config controller snapshot", async () => {
+    mocks.info.mockResolvedValue(model({ state: "ready" }));
+    mocks.toggle.mockResolvedValue(model({ state: "ready", enabled: true }));
+    const onConfigSync = vi.fn();
+    const view = render(
+      <RealtimePreviewModelCard
+        onChanged={vi.fn()}
+        onConfigSync={onConfigSync}
+      />,
+    );
+
+    fireEvent.click(
+      await within(view.container).findByRole("switch", {
+        name: "启用实时预览",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.toggle).toHaveBeenCalledWith(true);
+      expect(onConfigSync).toHaveBeenCalledWith({
+        realtime_preview_enabled: true,
+      });
+    });
   });
 });

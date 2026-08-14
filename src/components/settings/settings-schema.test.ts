@@ -49,7 +49,7 @@ const config: AppConfig = {
 };
 
 describe("settingsSchema", () => {
-  it("覆盖通用设置消费的配置字段", () => {
+  it("覆盖通用页消费的配置字段", () => {
     expect(collectSchemaConfigKeys(settingsSchema).sort()).toEqual(
       [
         "asr",
@@ -57,7 +57,6 @@ describe("settingsSchema", () => {
         "fn_hold_enabled",
         "longpress_shortcut",
         "mute_system_audio",
-        "retain_recordings",
         "realtime_preview_enabled",
         "selected_microphone",
         "text",
@@ -77,18 +76,16 @@ describe("settingsSchema", () => {
     const microphone = getVisibleFields(generalSection, config).find(
       (field) => field.id === "selected-microphone",
     );
-    const retainRecordings = getVisibleFields(generalSection, config).find(
-      (field) => field.id === "retain-recordings",
-    );
-
     expect(resolveFieldOptions(microphone, { audioDevices: devices })).toEqual([
       { label: "使用默认麦克风", value: "" },
       { label: "Studio Mic（默认）", value: "Studio Mic" },
       { label: "USB Mic", value: "USB Mic" },
     ]);
     expect(
-      retainRecordings?.disabled?.({ ...config, auto_save_history: false }),
-    ).toBe(true);
+      getVisibleFields(generalSection, config).some(
+        (field) => field.id === "retain-recordings",
+      ),
+    ).toBe(false);
   });
 
   it("保存前清理通用字段和嵌套 Provider 设置", () => {

@@ -16,7 +16,7 @@ export function AppShell({
         aria-label="页面内容"
         className="h-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
       >
-        <div className="mx-auto max-w-4xl px-6 py-8">{children}</div>
+        <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
       </section>
     </main>
   );

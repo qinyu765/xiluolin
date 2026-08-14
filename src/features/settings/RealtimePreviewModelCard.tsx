@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { commands, events } from "@/generated/tauri-bindings";
 import type { RealtimeModelDownloadProgress } from "@/generated/tauri-bindings";
 import { useResource } from "@/shared/resource/useResource";
+import type { AppConfig } from "@/types";
 
 function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -27,8 +28,10 @@ function formatSize(bytes: number) {
 
 export function RealtimePreviewModelCard({
   onChanged,
+  onConfigSync,
 }: {
   onChanged: () => void;
+  onConfigSync?: (patch: Partial<AppConfig>) => void;
 }) {
   const load = useCallback(() => commands.realtimeAsrModelInfo(), []);
   const resource = useResource(load);
@@ -55,9 +58,10 @@ export function RealtimePreviewModelCard({
     };
   }, []);
 
-  const finish = async (message: string) => {
+  const finish = async (message: string, configPatch?: Partial<AppConfig>) => {
     // The model command persists the toggle atomically. Avoid sending the same
     // config through the general save queue a second time.
+    if (configPatch) onConfigSync?.(configPatch);
     onChanged();
     await resource.reload();
     toast.success(message);
@@ -95,7 +99,9 @@ export function RealtimePreviewModelCard({
     setAction("toggle");
     try {
       await commands.setRealtimePreviewEnabled(enabled);
-      await finish(enabled ? "实时预览已启用" : "实时预览已停用");
+      await finish(enabled ? "实时预览已启用" : "实时预览已停用", {
+        realtime_preview_enabled: enabled,
+      });
     } catch (error) {
       toast.error(`更新失败：${String(error)}`);
     } finally {
@@ -109,7 +115,7 @@ export function RealtimePreviewModelCard({
     setAction("delete");
     try {
       await commands.deleteRealtimeAsrModel();
-      await finish("实时预览模型已删除");
+      await finish("实时预览模型已删除", { realtime_preview_enabled: false });
     } catch (error) {
       toast.error(`删除失败：${String(error)}`);
     } finally {
@@ -122,14 +128,13 @@ export function RealtimePreviewModelCard({
   const busy = action !== null;
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="gap-4 py-4">
+      <CardHeader className="px-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <CardTitle>录音实时预览</CardTitle>
             <CardDescription className="mt-1.5">
-              实验性功能，默认关闭。本地 Zipformer
-              只生成增量字幕；最终结果仍由上方 ASR 服务生成。
+              录音时显示增量字幕，最终结果仍由 ASR 生成。
             </CardDescription>
           </div>
           <Switch
@@ -140,8 +145,8 @@ export function RealtimePreviewModelCard({
           />
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 rounded-lg border bg-muted/25 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+      <CardContent className="space-y-3 px-5">
+        <div className="grid gap-3 rounded-lg border bg-muted/25 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-medium">
               {installed ? (
@@ -155,8 +160,8 @@ export function RealtimePreviewModelCard({
                 : info?.state === "invalid"
                   ? "模型文件损坏，请重新下载或删除。"
                   : installed
-                    ? `已安装 · ${formatSize(info.total_size_bytes)} · 固定版本 ${info.revision.slice(0, 8)}`
-                    : `需要下载约 ${formatSize(info?.total_size_bytes ?? 0)}，下载完成后保持关闭。`}
+                    ? `已安装 · ${formatSize(info.total_size_bytes)}`
+                    : `下载约 ${formatSize(info?.total_size_bytes ?? 0)} 后启用。`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -225,8 +230,7 @@ export function RealtimePreviewModelCard({
           </div>
         ) : null}
         <p className="text-xs leading-5 text-muted-foreground">
-          候选模型的训练数据许可链、真实录音质量和目标设备稳定性尚未完成验证；模型需显式下载。
-          预览异常、模型缺失或队列积压时会自动降级为阶段提示，不影响录音、最终识别、历史和投递。
+          预览异常时会自动降级为阶段提示，不影响最终识别、历史和投递。
         </p>
       </CardContent>
     </Card>

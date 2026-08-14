@@ -1,0 +1,6 @@
+interface:
+  display_name: "Evolve Software Architecture"
+  short_description: "Long-term architecture guidance across project types"
+  default_prompt: "Use $evolve-software-architecture to evaluate this repository and propose a durable, evidence-based architecture direction."
+policy:
+  allow_implicit_invocation: true

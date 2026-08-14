@@ -1,4 +1,4 @@
-use super::{database::LocalDatabase, models::*};
+use super::{database::LocalDatabase, decode_config, models::*, sanitized_legacy_backup};
 use tauri::Manager;
 use tauri_specta::Event;
 
@@ -232,21 +232,28 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
-    let stored_config = match store.get(APP_CONFIG_KEY) {
-        Some(value) => serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
-        None => default_app_config(),
+    let stored_value = store.get(APP_CONFIG_KEY);
+    let (mut config, migrated) = match stored_value.clone() {
+        Some(value) => decode_config(value.clone())?,
+        None => (default_app_config(), false),
     };
-    let mut config = migrate_config_to_v2(stored_config.clone())?;
+
+    if migrated {
+        let raw = stored_value
+            .as_ref()
+            .ok_or_else(|| "旧版配置迁移缺少原始值".to_string())?;
+        write_sanitized_v1_backup(&app, &sanitized_legacy_backup(raw))?;
+    }
 
     let legacy_credentials = AppCredentials::from_config(&config);
     let credentials = load_system_credentials(&legacy_credentials)?;
     let sanitized = sanitized_config(&config);
 
-    if sanitized != stored_config {
-        let value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
+    let persisted_value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
+    if migrated || stored_value.as_ref() != Some(&persisted_value) {
         save_store_value_transactionally(
             store.get(APP_CONFIG_KEY),
-            value,
+            persisted_value.clone(),
             |value| store.set(APP_CONFIG_KEY.to_string(), value),
             || {
                 store.delete(APP_CONFIG_KEY);
@@ -254,11 +261,60 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
             || store.save().map_err(|error| error.to_string()),
         )?;
     }
-    finalize_system_credentials_migration()?;
+    if migrated {
+        if let Err(cleanup_error) = finalize_system_credentials_migration() {
+            // The cleanup helper restores every legacy entry when a delete
+            // fails. Restore the old Store value as well so the next launch
+            // can retry the same migration instead of treating a half-migrated
+            // v2 document as complete.
+            let rollback = save_store_value_transactionally(
+                Some(persisted_value.clone()),
+                stored_value
+                    .clone()
+                    .ok_or_else(|| "旧版配置迁移回滚缺少原始值".to_string())?,
+                |value| store.set(APP_CONFIG_KEY.to_string(), value),
+                || {
+                    store.delete(APP_CONFIG_KEY);
+                },
+                || store.save().map_err(|error| error.to_string()),
+            );
+            return match rollback {
+                Ok(()) => Err(format!("清理旧版凭据失败，配置已回滚：{cleanup_error}")),
+                Err(rollback_error) => Err(format!(
+                    "清理旧版凭据失败且配置回滚失败：{cleanup_error}; {rollback_error}"
+                )),
+            };
+        }
+    }
 
     config = sanitized;
     credentials.apply_to(&mut config);
     Ok(config)
+}
+
+fn write_sanitized_v1_backup(
+    app: &tauri::AppHandle,
+    value: &serde_json::Value,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    let target = directory.join("settings.v1.backup.json");
+    if target.exists() {
+        return Ok(());
+    }
+    let temporary = directory.join("settings.v1.backup.json.tmp");
+    let encoded = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
+    std::fs::write(&temporary, encoded).map_err(|error| error.to_string())?;
+    if let Err(error) = std::fs::rename(&temporary, &target) {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(format!("写入旧版配置脱敏备份失败：{error}"));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -268,6 +324,12 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
         load_system_credentials, sanitized_config, save_system_credentials, AppCredentials,
     };
     use tauri_plugin_store::StoreExt;
+
+    if config.config_version < 2 {
+        return Err("仅支持 v2 配置".to_string());
+    }
+    config.asr.validate()?;
+    config.text.validate()?;
 
     let credentials = AppCredentials::from_config(&config);
     let previous_credentials = load_system_credentials(&AppCredentials::default())?;
@@ -538,8 +600,8 @@ mod tests {
             .unwrap();
         let mut config = default_app_config();
         config.default_persona_id = "missing-persona".to_string();
-        config.asr_model = "keep-asr-model".to_string();
-        config.openai_model = "keep-text-model".to_string();
+        config.asr.settings.get_mut("zhipu").unwrap().model = "keep-asr-model".to_string();
+        config.text.settings.get_mut("openai").unwrap().model = "keep-text-model".to_string();
         config.retain_recordings = true;
         let mut persisted = None;
 
@@ -551,8 +613,14 @@ mod tests {
 
         assert_eq!(reconciled.default_persona_id, GENERAL_PERSONA_ID);
         assert_eq!(persisted, Some(reconciled.clone()));
-        assert_eq!(reconciled.asr_model, config.asr_model);
-        assert_eq!(reconciled.openai_model, config.openai_model);
+        assert_eq!(
+            reconciled.asr.settings["zhipu"].model,
+            config.asr.settings["zhipu"].model
+        );
+        assert_eq!(
+            reconciled.text.settings["openai"].model,
+            config.text.settings["openai"].model
+        );
         assert_eq!(reconciled.retain_recordings, config.retain_recordings);
         assert_eq!(
             database

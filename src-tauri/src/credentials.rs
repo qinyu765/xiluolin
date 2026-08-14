@@ -39,58 +39,37 @@ pub struct AppCredentials {
     pub asr: BTreeMap<String, String>,
     #[serde(default)]
     pub text: BTreeMap<String, String>,
-    #[serde(default, skip_serializing)]
-    #[specta(skip)]
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct LegacyBundledCredentials {
+    #[serde(default)]
     asr_api_key: String,
-    #[serde(default, skip_serializing)]
-    #[specta(skip)]
+    #[serde(default)]
     openai_api_key: String,
-    #[serde(default, skip_serializing)]
-    #[specta(skip)]
+    #[serde(default)]
     zhipu_api_key: String,
 }
 
 impl AppCredentials {
     pub fn from_config(config: &AppConfig) -> Self {
-        let mut credentials = Self {
+        let credentials = Self {
             asr: config
                 .asr
                 .settings
                 .iter()
-                .filter(|(_, settings)| !settings.api_key.is_empty())
-                .map(|(provider, settings)| (provider.clone(), settings.api_key.clone()))
+                .filter(|(_, settings)| !settings.api_key.trim().is_empty())
+                .map(|(provider, settings)| (provider.clone(), settings.api_key.trim().to_string()))
                 .collect(),
             text: config
                 .text
                 .settings
                 .iter()
-                .filter(|(_, settings)| !settings.api_key.is_empty())
-                .map(|(provider, settings)| (provider.clone(), settings.api_key.clone()))
+                .filter(|(_, settings)| !settings.api_key.trim().is_empty())
+                .map(|(provider, settings)| (provider.clone(), settings.api_key.trim().to_string()))
                 .collect(),
             ..Self::default()
         };
-        if !config.asr_api_key.is_empty() {
-            credentials
-                .asr
-                .entry("zhipu".to_string())
-                .or_insert_with(|| config.asr_api_key.clone());
-        }
-        if !config.openai_api_key.is_empty() {
-            credentials
-                .asr
-                .entry("openai".to_string())
-                .or_insert_with(|| config.openai_api_key.clone());
-            credentials
-                .text
-                .entry("openai".to_string())
-                .or_insert_with(|| config.openai_api_key.clone());
-        }
-        if !config.zhipu_api_key.is_empty() {
-            credentials
-                .text
-                .entry("zhipu".to_string())
-                .or_insert_with(|| config.zhipu_api_key.clone());
-        }
         credentials
     }
 
@@ -105,39 +84,6 @@ impl AppCredentials {
                 settings.api_key.clone_from(api_key);
             }
         }
-        config.asr_api_key = self.asr.get("zhipu").cloned().unwrap_or_default();
-        config.openai_api_key = self
-            .text
-            .get("openai")
-            .or_else(|| self.asr.get("openai"))
-            .cloned()
-            .unwrap_or_default();
-        config.zhipu_api_key = self.text.get("zhipu").cloned().unwrap_or_default();
-    }
-
-    fn normalize_legacy(mut self) -> Self {
-        if !self.asr_api_key.is_empty() {
-            self.asr
-                .entry("zhipu".to_string())
-                .or_insert(self.asr_api_key.clone());
-        }
-        if !self.openai_api_key.is_empty() {
-            self.asr
-                .entry("openai".to_string())
-                .or_insert(self.openai_api_key.clone());
-            self.text
-                .entry("openai".to_string())
-                .or_insert(self.openai_api_key.clone());
-        }
-        if !self.zhipu_api_key.is_empty() {
-            self.text
-                .entry("zhipu".to_string())
-                .or_insert(self.zhipu_api_key.clone());
-        }
-        self.asr_api_key.clear();
-        self.openai_api_key.clear();
-        self.zhipu_api_key.clear();
-        self
     }
 
     fn get_legacy(&self, key: CredentialKey) -> &str {
@@ -201,9 +147,20 @@ impl SystemCredentialStore {
 
     fn read_bundled(account: &str) -> Result<Option<AppCredentials>, String> {
         match Self::bundled_entry(account)?.get_password() {
-            Ok(value) => serde_json::from_str(&value)
-                .map(|credentials: AppCredentials| Some(credentials.normalize_legacy()))
-                .map_err(|error| format!("解析系统凭据失败：{error}")),
+            Ok(value) => {
+                let raw: serde_json::Value = serde_json::from_str(&value)
+                    .map_err(|error| format!("解析系统凭据失败：{error}"))?;
+                if let Ok(credentials) = serde_json::from_value::<AppCredentials>(raw.clone()) {
+                    return Ok(Some(credentials));
+                }
+                let legacy: LegacyBundledCredentials = serde_json::from_value(raw)
+                    .map_err(|error| format!("解析旧版系统凭据失败：{error}"))?;
+                let mut credentials = AppCredentials::default();
+                credentials.set_legacy(CredentialKey::Asr, legacy.asr_api_key);
+                credentials.set_legacy(CredentialKey::OpenAi, legacy.openai_api_key);
+                credentials.set_legacy(CredentialKey::Zhipu, legacy.zhipu_api_key);
+                Ok(Some(credentials))
+            }
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(format!("读取系统凭据失败：{error}")),
         }
@@ -443,9 +400,6 @@ pub fn sanitized_config(config: &AppConfig) -> AppConfig {
     for settings in sanitized.text.settings.values_mut() {
         settings.api_key.clear();
     }
-    sanitized.asr_api_key.clear();
-    sanitized.openai_api_key.clear();
-    sanitized.zhipu_api_key.clear();
     sanitized
 }
 
@@ -508,9 +462,10 @@ mod tests {
 
     fn config_with_credentials() -> AppConfig {
         let mut config = default_app_config();
-        config.asr_api_key = "asr-secret".to_string();
-        config.openai_api_key = "openai-secret".to_string();
-        config.zhipu_api_key = "zhipu-secret".to_string();
+        config.asr.settings.get_mut("zhipu").unwrap().api_key = "asr-secret".to_string();
+        config.asr.settings.get_mut("openai").unwrap().api_key = "openai-secret".to_string();
+        config.text.settings.get_mut("openai").unwrap().api_key = "openai-secret".to_string();
+        config.text.settings.get_mut("zhipu").unwrap().api_key = "zhipu-secret".to_string();
         config
     }
 
@@ -519,10 +474,20 @@ mod tests {
         let config = config_with_credentials();
         let sanitized = sanitized_config(&config);
 
-        assert!(sanitized.asr_api_key.is_empty());
-        assert!(sanitized.openai_api_key.is_empty());
-        assert!(sanitized.zhipu_api_key.is_empty());
-        assert_eq!(sanitized.asr_model, config.asr_model);
+        assert!(sanitized
+            .asr
+            .settings
+            .values()
+            .all(|settings| settings.api_key.is_empty()));
+        assert!(sanitized
+            .text
+            .settings
+            .values()
+            .all(|settings| settings.api_key.is_empty()));
+        assert_eq!(
+            sanitized.asr.settings["zhipu"].model,
+            config.asr.settings["zhipu"].model
+        );
 
         let persisted_json = serde_json::to_string(&sanitized).expect("config should serialize");
         assert!(!persisted_json.contains("asr-secret"));
@@ -576,8 +541,8 @@ mod tests {
         let result = load_credentials(&legacy, &store);
 
         assert!(result.is_err());
-        assert_eq!(config.openai_api_key, "openai-secret");
-        assert_eq!(config.zhipu_api_key, "zhipu-secret");
+        assert_eq!(config.asr.settings["openai"].api_key, "openai-secret");
+        assert_eq!(config.text.settings["zhipu"].api_key, "zhipu-secret");
     }
 
     #[test]

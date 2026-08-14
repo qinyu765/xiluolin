@@ -416,29 +416,40 @@ pub fn build_asr_config(
     app: &tauri::AppHandle,
     config: &crate::data::AppConfig,
 ) -> Result<AsrConfig, String> {
-    if config.asr_provider == "local" {
-        let (fallback_api_key, fallback_base_url, fallback_model) =
-            config.cloud_asr_config(&config.fallback_asr_provider);
+    let provider = config.asr.primary.trim().to_string();
+    let settings = config
+        .asr
+        .settings
+        .get(&provider)
+        .cloned()
+        .ok_or_else(|| format!("缺少 ASR Provider 配置：{provider}"))?;
+    if provider == "local" {
+        let fallback_provider = config.asr.fallbacks.first().cloned().unwrap_or_default();
+        let fallback = config
+            .asr
+            .settings
+            .get(&fallback_provider)
+            .cloned()
+            .unwrap_or_default();
         return Ok(AsrConfig {
             provider: "local".to_string(),
             api_key: String::new(),
             base_url: String::new(),
-            model: config.local_asr_model.clone(),
+            model: settings.model,
             local_model_path: Some(crate::local_asr_model::model_path(app)?),
-            allow_cloud_fallback: config.allow_cloud_fallback,
-            fallback_provider: config.fallback_asr_provider.clone(),
-            fallback_api_key: fallback_api_key.to_string(),
-            fallback_base_url: fallback_base_url.to_string(),
-            fallback_model: fallback_model.to_string(),
+            allow_cloud_fallback: !fallback_provider.is_empty(),
+            fallback_provider,
+            fallback_api_key: fallback.api_key,
+            fallback_base_url: fallback.base_url,
+            fallback_model: fallback.model,
         });
     }
 
-    let (api_key, base_url, model) = config.selected_asr_config();
     Ok(AsrConfig {
-        provider: config.asr_provider.clone(),
-        api_key: api_key.to_string(),
-        base_url: base_url.to_string(),
-        model: model.to_string(),
+        provider,
+        api_key: settings.api_key,
+        base_url: settings.base_url,
+        model: settings.model,
         local_model_path: None,
         allow_cloud_fallback: false,
         fallback_provider: String::new(),

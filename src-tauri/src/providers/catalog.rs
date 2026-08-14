@@ -35,7 +35,7 @@ impl ProviderOptionValue {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct ProviderSettings {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub api_key: String,
     #[serde(default)]
     pub base_url: String,
@@ -61,14 +61,22 @@ impl ProviderRoutingConfig {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if self.primary.trim().is_empty() {
+        let primary = self.primary.trim();
+        if primary.is_empty() {
             return Err("必须选择 primary Provider".to_string());
         }
         if self.fallbacks.len() > 2 {
             return Err("Provider 调用链最多包含 3 项".to_string());
         }
         let mut seen = HashSet::new();
-        for provider in self.provider_ids() {
+        if !seen.insert(primary) {
+            return Err(format!("Provider 调用链不能包含重复项：{primary}"));
+        }
+        for provider in &self.fallbacks {
+            let provider = provider.trim();
+            if provider.is_empty() {
+                return Err("fallback Provider 不能为空".to_string());
+            }
             if !seen.insert(provider) {
                 return Err(format!("Provider 调用链不能包含重复项：{provider}"));
             }

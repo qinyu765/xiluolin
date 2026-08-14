@@ -147,8 +147,9 @@ fn request(audio_path: PathBuf) -> AsrRequest {
 fn default_config_uses_zhipu_asr_endpoint_and_model() {
     let config = default_app_config();
 
-    assert_eq!(config.asr_base_url, "https://open.bigmodel.cn/api/paas/v4");
-    assert_eq!(config.asr_model, "glm-asr-2512");
+    let settings = &config.asr.settings["zhipu"];
+    assert_eq!(settings.base_url, "https://open.bigmodel.cn/api/paas/v4");
+    assert_eq!(settings.model, "glm-asr-2512");
 }
 
 #[test]

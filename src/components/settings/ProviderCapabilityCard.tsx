@@ -359,7 +359,7 @@ function ProviderEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(90vh,48rem)] max-h-[calc(100vh-2rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="!flex h-[min(90vh,48rem)] max-h-[calc(100vh-2rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b px-5 py-4 pr-12 sm:px-6">
           <DialogTitle className="flex items-center gap-2 text-base">
             <span>{title}</span>

@@ -349,7 +349,7 @@ test("Provider 弹窗保留可滚动内容区并提供更大的关闭按钮", as
 
   expect(screen.getByRole("dialog")).toHaveClass(
     "h-[min(90vh,48rem)]",
-    "flex",
+    "!flex",
     "flex-col",
   );
   expect(screen.getByTestId("provider-editor-body")).toHaveClass(

@@ -178,16 +178,54 @@ impl SystemCredentialStore {
         let value = serde_json::to_string(credentials)
             .map_err(|error| format!("序列化系统凭据失败：{error}"))?;
         let entry = Self::bundled_entry(BUNDLED_CREDENTIAL_ACCOUNT)?;
-        entry
-            .set_password(&value)
-            .map_err(|error| format!("保存系统凭据失败：{error}"))?;
-        let persisted = entry
-            .get_password()
-            .map_err(|error| format!("校验系统凭据失败：{error}"))?;
-        if persisted != value {
-            return Err("校验系统凭据失败：回读内容不一致".to_string());
+        let previous = match entry.get_password() {
+            Ok(value) => Some(value),
+            Err(keyring::Error::NoEntry) => None,
+            Err(error) => return Err(format!("读取系统凭据失败：{error}")),
+        };
+
+        if let Err(error) = entry.set_password(&value) {
+            return Err(Self::bundled_write_error(
+                format!("保存系统凭据失败：{error}"),
+                &entry,
+                previous.as_deref(),
+            ));
         }
-        Ok(())
+
+        match entry.get_password() {
+            Ok(persisted) if persisted == value => Ok(()),
+            Ok(_) => Err(Self::bundled_write_error(
+                "校验系统凭据失败：回读内容不一致".to_string(),
+                &entry,
+                previous.as_deref(),
+            )),
+            Err(error) => Err(Self::bundled_write_error(
+                format!("校验系统凭据失败：{error}"),
+                &entry,
+                previous.as_deref(),
+            )),
+        }
+    }
+
+    fn bundled_write_error(
+        error: String,
+        entry: &keyring::Entry,
+        previous: Option<&str>,
+    ) -> String {
+        let restore_result = match previous {
+            Some(value) => entry
+                .set_password(value)
+                .map_err(|restore_error| format!("恢复系统凭据失败：{restore_error}")),
+            None => match entry.delete_credential() {
+                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+                Err(restore_error) => Err(format!("恢复系统凭据失败：{restore_error}")),
+            },
+        };
+
+        match restore_result {
+            Ok(()) => error,
+            Err(restore_error) => format!("{error}; {restore_error}"),
+        }
     }
 
     fn delete_bundled() -> Result<(), String> {

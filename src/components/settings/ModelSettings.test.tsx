@@ -91,7 +91,25 @@ const { catalog } = vi.hoisted(() => ({
         },
       },
     ],
-    text: [],
+    text: [
+      {
+        id: "openai-text",
+        name: "OpenAI-compatible 文本",
+        capability: "text",
+        protocol: "openai-chat",
+        default_base_url: "https://api.openai.com/v1",
+        default_model: "gpt-4o-mini",
+        fields: [],
+        capabilities: {
+          native_hotwords: false,
+          max_hotwords: null,
+          supports_prompt: false,
+          max_duration_ms: null,
+          local_model_management: false,
+          max_language_hints: null,
+        },
+      },
+    ],
   } as ProviderCatalog,
 }));
 
@@ -148,7 +166,18 @@ function config(): AppConfig {
         },
       },
     },
-    text: { primary: "", fallbacks: [], settings: {} },
+    text: {
+      primary: "openai-text",
+      fallbacks: [],
+      settings: {
+        "openai-text": {
+          api_key: "",
+          base_url: "https://api.openai.com/v1",
+          model: "gpt-4o-mini",
+          options: {},
+        },
+      },
+    },
     longpress_shortcut: "",
     toggle_shortcut: "",
     fn_hold_enabled: false,
@@ -168,6 +197,7 @@ const requiredProps = {
 afterEach(cleanup);
 
 test("catalog 驱动 Qwen 字段渲染", async () => {
+  const user = userEvent.setup();
   const next = config();
   next.asr.primary = "qwen-audio";
   render(
@@ -178,8 +208,15 @@ test("catalog 驱动 Qwen 字段渲染", async () => {
     />,
   );
 
+  expect(await screen.findByText("Qwen-Audio 3.0 ASR")).toBeInTheDocument();
+  expect(screen.getAllByText("待补充").length).toBeGreaterThan(0);
+  expect(screen.queryByLabelText(/API Key/)).not.toBeInTheDocument();
+  expect(screen.queryByText("未配置备用 Provider")).not.toBeInTheDocument();
+  await user.click(
+    await screen.findByRole("button", { name: /Qwen-Audio 3\.0 ASR/ }),
+  );
   expect(
-    await screen.findByText("Qwen-Audio 3.0 ASR 配置"),
+    await screen.findByRole("heading", { name: "Qwen-Audio 3.0 ASR" }),
   ).toBeInTheDocument();
   expect(screen.getByLabelText(/API Key/)).toBeInTheDocument();
   expect(screen.getByLabelText("语言提示")).toBeInTheDocument();
@@ -198,8 +235,11 @@ test("local 加入云端 fallback 前要求隐私确认", async () => {
     />,
   );
 
+  await user.click(await screen.findByRole("button", { name: /本地 Whisper/ }));
   await screen.findByText("本地模型管理");
-  await user.click(screen.getByRole("combobox", { name: "添加 ASR fallback" }));
+  await user.click(
+    screen.getByRole("combobox", { name: "添加 ASR 备用 Provider" }),
+  );
   await user.click(
     await screen.findByRole("option", { name: "Qwen-Audio 3.0 ASR" }),
   );
@@ -225,10 +265,10 @@ test("将 fallback 切换为 primary 时自动去重", async () => {
     />,
   );
 
-  await screen.findByText("本地模型管理");
   await user.click(
-    screen.getByLabelText("Primary Provider", { selector: "#asr-primary" }),
+    await screen.findByRole("button", { name: /Qwen-Audio 3\.0 ASR/ }),
   );
+  await user.click(screen.getByRole("combobox", { name: "主 Provider" }));
   await user.click(await screen.findByRole("option", { name: "本地 Whisper" }));
 
   expect(updateConfig).toHaveBeenLastCalledWith(
@@ -254,10 +294,10 @@ test("切换为 local primary 且保留云 fallback 时要求隐私确认", asyn
     />,
   );
 
-  await screen.findByText("本地模型管理");
   await user.click(
-    screen.getByLabelText("Primary Provider", { selector: "#asr-primary" }),
+    await screen.findByRole("button", { name: /Qwen-Audio 3\.0 ASR/ }),
   );
+  await user.click(screen.getByRole("combobox", { name: "主 Provider" }));
   await user.click(await screen.findByRole("option", { name: "本地 Whisper" }));
 
   expect(confirm).toHaveBeenCalledWith(
@@ -265,4 +305,85 @@ test("切换为 local primary 且保留云 fallback 时要求隐私确认", asyn
   );
   expect(updateConfig).not.toHaveBeenCalled();
   confirm.mockRestore();
+});
+
+test("只在弹窗中显示所选 Provider 的完整配置", async () => {
+  const user = userEvent.setup();
+  const next = config();
+  next.asr.primary = "local";
+  next.asr.fallbacks = ["qwen-audio"];
+  render(
+    <ModelSettings
+      {...requiredProps}
+      appConfig={next}
+      updateConfig={vi.fn()}
+    />,
+  );
+
+  await screen.findByRole("button", { name: /Qwen-Audio 3\.0 ASR/ });
+  expect(screen.queryByLabelText(/API Key/)).not.toBeInTheDocument();
+  await user.click(
+    await screen.findByRole("button", { name: /Qwen-Audio 3\.0 ASR/ }),
+  );
+
+  expect(screen.getByLabelText(/API Key/)).toBeInTheDocument();
+  expect(screen.getAllByText("备用 1").length).toBeGreaterThan(0);
+  expect(screen.getByText("语言提示")).toBeInTheDocument();
+});
+
+test("Provider 弹窗保留可滚动内容区并提供更大的关闭按钮", async () => {
+  const user = userEvent.setup();
+  const next = config();
+  next.asr.primary = "qwen-audio";
+  render(
+    <ModelSettings
+      {...requiredProps}
+      appConfig={next}
+      updateConfig={vi.fn()}
+    />,
+  );
+
+  await user.click(
+    await screen.findByRole("button", { name: /Qwen-Audio 3\.0 ASR/ }),
+  );
+
+  expect(screen.getByRole("dialog")).toHaveClass(
+    "h-[min(90vh,48rem)]",
+    "flex",
+    "flex-col",
+  );
+  expect(screen.getByTestId("provider-editor-body")).toHaveClass(
+    "flex-1",
+    "overflow-y-auto",
+  );
+  expect(screen.getByRole("button", { name: "关闭" })).toHaveClass("size-9");
+});
+
+test("弹窗内调整备用顺序仍沿用原有路由更新", async () => {
+  const user = userEvent.setup();
+  const updateConfig = vi.fn();
+  const next = config();
+  next.asr.primary = "openai";
+  next.asr.fallbacks = ["local", "qwen-audio"];
+  render(
+    <ModelSettings
+      {...requiredProps}
+      appConfig={next}
+      updateConfig={updateConfig}
+    />,
+  );
+
+  const manageButtons = await screen.findAllByRole("button", { name: "管理" });
+  await user.click(manageButtons[0]);
+  await user.click(screen.getByRole("button", { name: "上移 qwen-audio" }));
+
+  expect(updateConfig).toHaveBeenLastCalledWith(
+    {
+      asr: expect.objectContaining({
+        primary: "openai",
+        fallbacks: ["qwen-audio", "local"],
+      }),
+    },
+    "immediate",
+  );
 });

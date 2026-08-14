@@ -40,6 +40,76 @@ impl LocalDatabase {
         rows.collect()
     }
 
+    pub fn add_hotwords(&self, texts: Vec<String>) -> rusqlite::Result<Vec<Hotword>> {
+        let normalized = normalize_hotword_texts(texts);
+        let existing = self.list_hotwords()?;
+        let transaction = self.connection.unchecked_transaction()?;
+
+        for text in normalized {
+            if existing.iter().any(|hotword| hotword.text.trim() == text) {
+                continue;
+            }
+            transaction.execute(
+                r#"
+                INSERT INTO hotwords (id, text, category, enabled)
+                VALUES (?1, ?2, '', 1)
+                "#,
+                params![Uuid::new_v4().to_string(), text],
+            )?;
+        }
+
+        transaction.commit()?;
+        self.list_hotwords()
+    }
+
+    pub fn replace_hotwords(&self, texts: Vec<String>) -> rusqlite::Result<Vec<Hotword>> {
+        let normalized = normalize_hotword_texts(texts);
+        let existing = self.list_hotwords()?;
+        let transaction = self.connection.unchecked_transaction()?;
+        let mut kept_ids = Vec::new();
+
+        for text in &normalized {
+            if let Some(existing_hotword) = existing
+                .iter()
+                .find(|hotword| hotword.text.trim() == text && !kept_ids.contains(&hotword.id))
+            {
+                if existing_hotword.text != *text {
+                    transaction.execute(
+                        "UPDATE hotwords SET text = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+                        params![&existing_hotword.id, text],
+                    )?;
+                }
+                kept_ids.push(existing_hotword.id.clone());
+            } else {
+                transaction.execute(
+                    r#"
+                    INSERT INTO hotwords (id, text, category, enabled)
+                    VALUES (?1, ?2, '', 1)
+                    "#,
+                    params![Uuid::new_v4().to_string(), text],
+                )?;
+            }
+        }
+
+        for hotword in existing {
+            if !kept_ids.contains(&hotword.id) {
+                transaction.execute("DELETE FROM hotwords WHERE id = ?1", [hotword.id])?;
+            }
+        }
+
+        transaction.commit()?;
+        let hotwords = self.list_hotwords()?;
+        Ok(normalized
+            .into_iter()
+            .filter_map(|text| {
+                hotwords
+                    .iter()
+                    .find(|hotword| hotword.text == text)
+                    .cloned()
+            })
+            .collect())
+    }
+
     pub fn update_hotword(&self, id: &str, draft: HotwordDraft) -> rusqlite::Result<Hotword> {
         let updated = self.connection.execute(
             r#"
@@ -122,6 +192,17 @@ fn normalize_enabled_hotwords(hotwords: Vec<Hotword>) -> Vec<Hotword> {
                 .any(|existing: &Hotword| existing.text == hotword.text)
         {
             normalized.push(hotword);
+        }
+    }
+    normalized
+}
+
+fn normalize_hotword_texts(texts: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::new();
+    for text in texts {
+        let text = text.trim().to_string();
+        if !text.is_empty() && !normalized.contains(&text) {
+            normalized.push(text);
         }
     }
     normalized

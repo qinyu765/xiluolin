@@ -24,6 +24,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             data::delete_persona,
             data::create_hotword,
             data::list_hotwords,
+            data::add_hotwords,
+            data::replace_hotwords,
             data::update_hotword,
             data::delete_hotword,
             data::enabled_hotword_context,

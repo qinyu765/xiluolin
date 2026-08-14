@@ -39,9 +39,8 @@ export function HotwordDialog({
         <form onSubmit={onSave} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{isEditing ? "编辑热词" : "新增热词"}</DialogTitle>
-            <DialogDescription>
-              定义需要 AI 准确识别的专业术语、技术词汇或特定表达。必填字段标记为
-              *。
+            <DialogDescription className="sr-only">
+              编辑热词内容、分类和启用状态。
             </DialogDescription>
           </DialogHeader>
 
@@ -59,7 +58,7 @@ export function HotwordDialog({
                     text: event.target.value,
                   })
                 }
-                placeholder="输入热词，如「Kubernetes」、「Node.js」、「TypeScript」"
+                placeholder="如 Kubernetes、Node.js、TypeScript"
                 required
               />
             </div>

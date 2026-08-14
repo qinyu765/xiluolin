@@ -166,6 +166,26 @@ pub fn list_hotwords(app: tauri::AppHandle) -> Result<Vec<Hotword>, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn add_hotwords(app: tauri::AppHandle, texts: Vec<String>) -> Result<Vec<Hotword>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .add_hotwords(texts)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn replace_hotwords(app: tauri::AppHandle, texts: Vec<String>) -> Result<Vec<Hotword>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .replace_hotwords(texts)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn update_hotword(
     app: tauri::AppHandle,
     id: String,

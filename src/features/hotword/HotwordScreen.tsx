@@ -9,9 +9,14 @@ export function HotwordScreen() {
     <>
       <HotwordPage
         hotwords={hotwords.hotwords}
-        hotwordContext={hotwords.context}
-        hotwordStatus={hotwords.status}
-        enabledHotwordCount={hotwords.enabledCount}
+        bulkText={hotwords.bulkText}
+        bulkCount={hotwords.bulkCount}
+        isLoading={hotwords.isLoading}
+        isBulkDirty={hotwords.isBulkDirty}
+        isBulkSaving={hotwords.isBulkSaving}
+        onBulkTextChange={hotwords.setBulkText}
+        onSaveBulk={() => void hotwords.saveBulk()}
+        onClearBulk={hotwords.clearBulk}
         onCreateHotword={hotwords.openCreate}
         onEditHotword={hotwords.openEdit}
         onDeleteHotword={hotwords.deleteHotword}

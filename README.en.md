@@ -130,6 +130,8 @@ GitHub Actions runs frontend, Windows/macOS Rust, dependency-security, and secre
 7. Add project names, personal names, and technical terms that require more accurate recognition.
 8. Place the cursor in a target application and use a global shortcut to start voice input.
 
+Settings are saved automatically: switches, selects, and shortcuts save immediately; text and API key fields save about 600 ms after typing stops and flush on blur. If a save fails, retry it from the Settings status indicator.
+
 See the [usage and verification guide](docs/usage-guide.md) for detailed setup, validation paths, and failure scenarios.
 
 ## Privacy and Security

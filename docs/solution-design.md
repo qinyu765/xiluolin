@@ -107,7 +107,7 @@ Tauri 后端负责系统能力和核心编排：
 3. 用户配置 OpenAI 文本模型 Provider，包括 API Key、模型名和必要生成参数。
 4. 用户选择默认人格。
 5. 用户按需配置快捷键、输出方式和热词词典。
-6. 系统保存配置，并进入主界面。
+6. 配置修改会自动保存，保存完成后进入主界面。
 
 首次使用不强制用户配置自定义人格。系统内置人格用于保证应用首次启动后即可进入实际使用流程。
 
@@ -404,7 +404,7 @@ Rust 数据层按 `models`、`database`、`persona_repository`、`hotword_reposi
 - SQLite：保存结构化业务数据。
 - Tauri Store：保存 Provider、Base URL、模型名、默认人格 ID、快捷键等非敏感轻量配置。
 - 系统凭据库：保存 ASR、OpenAI 和智谱文本 Provider 的 API Key；Windows 使用 Credential Manager，macOS 使用 Keychain。
-- 兼容迁移：读取旧版明文配置时，先写入系统凭据库；全部写入成功后再清空 Tauri Store 中的密钥字段，迁移失败时保留旧配置并返回错误。
+- v2 一次性迁移：读取旧版扁平配置后先生成脱敏备份，再事务写入嵌套配置和 `app_credentials_v2`；任一步失败都恢复旧 Store 内容，旧凭据清理失败会保留待重试状态。
 
 ### 5.1 personas
 
@@ -578,7 +578,7 @@ Prompt 工程师人格示例目标：
 - 通用：长按模式快捷键、切换模式快捷键、macOS 独立 Fn、麦克风设备、录音时静音其他应用、输出方式、自动保存历史。
 - 模型配置：catalog 驱动的 ASR/Text primary、fallback 顺序，以及各 Provider 的 Key、Base URL、模型和能力选项。
 
-设置保存后通过 toast 提示结果。API Key 输入框使用密码模式，后端将密钥写入系统凭据库，前端配置结构保持兼容。
+设置变更自动进入串行保存队列：开关、下拉和快捷键立即保存，文本和 API Key 停止输入 600ms 后保存，失焦会立即 flush；成功显示“已保存”，失败保留待写配置并提供重试。API Key 输入框使用密码模式，后端将密钥写入系统凭据库。
 
 设置页顶部提供输入就绪卡片，通过 `read_input_readiness` 检查：
 

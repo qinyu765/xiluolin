@@ -56,7 +56,7 @@
 - 检查 Base URL 是否属于所选 Provider，模型名是否受该服务支持。
 - 按 primary → fallback 顺序逐项检查，错误提示会指出失败的 Provider、模型、分类与 HTTP 状态；不要假定报错项一定是 primary。
 - 千问应确认 API Key、Workspace 与公共/专属地域地址匹配。Base URL 可以包含兼容模式前缀，应用会避免重复追加能力端点。
-- 重新保存配置后再测试，不要把 API Key 写入仓库、Issue 或截图。
+- 修改字段后等待设置页显示“已保存”再测试；如果显示失败，可使用同一位置的“重试”，不要把 API Key 写入仓库、Issue 或截图。
 
 ### 超时、限流或服务异常
 

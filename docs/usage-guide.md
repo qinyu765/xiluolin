@@ -55,13 +55,13 @@ pnpm tauri dev
 - ASR 支持智谱、OpenAI-compatible、本地 Whisper、Qwen-Audio 3.0 和 Qwen3-ASR；文本支持智谱、OpenAI-compatible 与千问。
 - ASR 和文本各自选择一个 primary，并可追加最多两个有序 fallback。每项只尝试一次；文本链全部失败时返回 ASR 原文。
 - 使用智谱 `audio/transcriptions` 时，应用录音会在 25 秒提示并于 28 秒自动停止；超过 30 秒的外部音频会在请求前被拒绝。
-- 启用热词会同时影响 ASR 和文本整理：智谱与 Qwen-Audio 接收前 100 个稳定去重原生热词，Qwen-Audio 权重为 5；Qwen3-ASR 使用 system glossary；OpenAI 和本地 Whisper 使用软提示。相似技术词可能互相竞争，临时测试热词应在验证后停用。
+- 启用热词会同时影响 ASR 和文本整理：智谱与 Qwen-Audio 接收前 100 个稳定去重原生热词，Qwen-Audio 权重为 5；Qwen3-ASR 使用 system glossary；OpenAI 和本地 Whisper 使用软提示。
 - Qwen-Audio 可填写最多 4 个语言提示；Qwen3-ASR 可选择单语言并开关 ITN（默认关闭）；千问文本固定关闭 thinking。
 - 每类服务都需要选择 Provider，并填写对应的 API Key、Base URL 和模型名。
 - 千问 Base URL 可填写公共地域或 Workspace 专属地域地址，应用会自动追加能力端点。Key、Workspace 与地域必须匹配；接口和可用模型以[阿里云 Qwen-Audio 文档](https://help.aliyun.com/zh/model-studio/non-real-time-speech-recognition-for-fun-asr-flash)、[Qwen-ASR 文档](https://help.aliyun.com/en/model-studio/qwen-asr-api-reference)及[文本生成文档](https://help.aliyun.com/en/model-studio/text-generation)为准。
 - 当 primary 为本地 Whisper 时，加入云端 fallback 会显示隐私确认；拒绝后不会保存该 fallback。
-- 优先通过设置页保存配置，不要直接编辑应用数据文件或把密钥写入仓库。
-- 保存后先用短语音验证 ASR，再验证文本整理和跨应用输出，便于定位失败环节。
+- 设置页会在开关、下拉和快捷键变更后立即保存；文本和 API Key 停止输入约 600ms 后自动保存，失焦会立即提交。不要直接编辑应用数据文件或把密钥写入仓库。
+- 看到“已保存”后先用短语音验证 ASR，再验证文本整理和跨应用输出，便于定位失败环节。
 
 API Key 通过操作系统凭据库保存；普通配置保存在本地应用数据中。音频和文本会发送到用户主动配置的 Provider。提交 Issue 或日志时，请勿附带密钥、完整录音路径或私人文本。更多恢复步骤见 [`troubleshooting.md`](./troubleshooting.md)。
 

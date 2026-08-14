@@ -399,6 +399,20 @@ mod tests {
     }
 
     #[test]
+    fn nested_v2_credentials_are_read_as_legacy_provider_keys() {
+        let encoded = r#"{
+            "asr": {"zhipu": "asr-zhipu", "openai": "asr-openai", "qwen-audio": "qwen"},
+            "text": {"zhipu": "text-zhipu", "openai": "text-openai"}
+        }"#;
+
+        let decoded = parse_bundled_credentials(encoded).expect("v2 credentials should parse");
+
+        assert_eq!(decoded.asr_api_key, "asr-zhipu");
+        assert_eq!(decoded.openai_api_key, "text-openai");
+        assert_eq!(decoded.zhipu_api_key, "text-zhipu");
+    }
+
+    #[test]
     fn saving_empty_credentials_deletes_existing_entries() {
         let store = MemoryCredentialStore::default();
         store.set(CredentialKey::Asr, "secret").unwrap();

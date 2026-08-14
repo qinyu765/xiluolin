@@ -189,6 +189,13 @@ impl SystemCredentialStore {
         }
         Ok(())
     }
+
+    fn delete_bundled() -> Result<(), String> {
+        match Self::bundled_entry(BUNDLED_CREDENTIAL_ACCOUNT)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(format!("回滚 v2 系统凭据失败：{error}")),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -322,30 +329,51 @@ impl CredentialStore for SystemCredentialStore {
 /// process. Older releases stored three separate items and called this path from several
 /// startup commands, which could produce six or more macOS authorization dialogs.
 pub fn load_system_credentials(legacy: &AppCredentials) -> Result<AppCredentials, String> {
+    load_system_credentials_with_status(legacy).map(|(credentials, _)| credentials)
+}
+
+/// Loads credentials and reports whether the v2 bundle had to be created from a legacy source.
+/// The status lets configuration migration roll back the newly-created bundle if a later store
+/// write or legacy cleanup step fails.
+pub fn load_system_credentials_with_status(
+    legacy: &AppCredentials,
+) -> Result<(AppCredentials, bool), String> {
     let cache = SYSTEM_CREDENTIAL_CACHE.get_or_init(|| Mutex::new(None));
     let mut cached = cache
         .lock()
         .map_err(|error| format!("系统凭据缓存锁定失败：{error}"))?;
     if let Some(credentials) = cached.as_ref() {
-        return Ok(credentials.clone());
+        return Ok((credentials.clone(), false));
     }
 
-    let credentials = match SystemCredentialStore::read_bundled(BUNDLED_CREDENTIAL_ACCOUNT)? {
-        Some(credentials) => credentials,
-        None => {
-            let credentials =
-                match SystemCredentialStore::read_bundled(LEGACY_BUNDLED_CREDENTIAL_ACCOUNT)? {
-                    Some(credentials) => credentials,
-                    None => load_credentials(legacy, &SystemCredentialStore)?,
-                };
-            if credentials != AppCredentials::default() {
+    let (credentials, migrated) =
+        match SystemCredentialStore::read_bundled(BUNDLED_CREDENTIAL_ACCOUNT)? {
+            Some(credentials) => (credentials, false),
+            None => {
+                let credentials =
+                    match SystemCredentialStore::read_bundled(LEGACY_BUNDLED_CREDENTIAL_ACCOUNT)? {
+                        Some(credentials) => credentials,
+                        None => load_credentials(legacy, &SystemCredentialStore)?,
+                    };
+                // Persist an empty v2 bundle too: it is the tombstone that prevents old split
+                // entries from being reintroduced after the user clears every API key.
                 SystemCredentialStore::write_bundled(&credentials)?;
+                (credentials, true)
             }
-            credentials
-        }
-    };
+        };
     *cached = Some(credentials.clone());
-    Ok(credentials)
+    Ok((credentials, migrated))
+}
+
+/// Removes the v2 bundle created by a failed one-time migration and clears the process cache.
+pub fn rollback_system_credentials_migration() -> Result<(), String> {
+    let cache = SYSTEM_CREDENTIAL_CACHE.get_or_init(|| Mutex::new(None));
+    let mut cached = cache
+        .lock()
+        .map_err(|error| format!("系统凭据缓存锁定失败：{error}"))?;
+    SystemCredentialStore::delete_bundled()?;
+    *cached = None;
+    Ok(())
 }
 
 pub fn save_system_credentials(credentials: &AppCredentials) -> Result<(), String> {

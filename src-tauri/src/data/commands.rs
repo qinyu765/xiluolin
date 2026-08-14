@@ -224,8 +224,8 @@ pub fn delete_history_record(app: tauri::AppHandle, id: String) -> Result<(), St
 #[specta::specta]
 pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     use crate::credentials::{
-        finalize_system_credentials_migration, load_system_credentials, sanitized_config,
-        AppCredentials,
+        finalize_system_credentials_migration, load_system_credentials_with_status,
+        rollback_system_credentials_migration, sanitized_config, AppCredentials,
     };
     use tauri_plugin_store::StoreExt;
 
@@ -246,12 +246,14 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     }
 
     let legacy_credentials = AppCredentials::from_config(&config);
-    let credentials = load_system_credentials(&legacy_credentials)?;
+    let (credentials, credentials_migrated) =
+        load_system_credentials_with_status(&legacy_credentials)?;
     let sanitized = sanitized_config(&config);
 
     let persisted_value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
-    if migrated || stored_value.as_ref() != Some(&persisted_value) {
-        save_store_value_transactionally(
+    let should_persist = migrated || stored_value.as_ref() != Some(&persisted_value);
+    if should_persist {
+        if let Err(config_error) = save_store_value_transactionally(
             store.get(APP_CONFIG_KEY),
             persisted_value.clone(),
             |value| store.set(APP_CONFIG_KEY.to_string(), value),
@@ -259,29 +261,50 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
                 store.delete(APP_CONFIG_KEY);
             },
             || store.save().map_err(|error| error.to_string()),
-        )?;
-    }
-    if migrated {
-        if let Err(cleanup_error) = finalize_system_credentials_migration() {
-            // The cleanup helper restores every legacy entry when a delete
-            // fails. Restore the old Store value as well so the next launch
-            // can retry the same migration instead of treating a half-migrated
-            // v2 document as complete.
-            let rollback = save_store_value_transactionally(
-                Some(persisted_value.clone()),
-                stored_value
-                    .clone()
-                    .ok_or_else(|| "旧版配置迁移回滚缺少原始值".to_string())?,
-                |value| store.set(APP_CONFIG_KEY.to_string(), value),
-                || {
-                    store.delete(APP_CONFIG_KEY);
+        ) {
+            return match credentials_migrated {
+                true => match rollback_system_credentials_migration() {
+                    Ok(()) => Err(config_error),
+                    Err(rollback_error) => Err(format!(
+                        "配置保存失败且凭据恢复失败：{config_error}; {rollback_error}"
+                    )),
                 },
-                || store.save().map_err(|error| error.to_string()),
-            );
-            return match rollback {
-                Ok(()) => Err(format!("清理旧版凭据失败，配置已回滚：{cleanup_error}")),
-                Err(rollback_error) => Err(format!(
-                    "清理旧版凭据失败且配置回滚失败：{cleanup_error}; {rollback_error}"
+                false => Err(config_error),
+            };
+        }
+    }
+
+    if migrated || credentials_migrated {
+        if let Err(cleanup_error) = finalize_system_credentials_migration() {
+            let credentials_rollback = if credentials_migrated {
+                rollback_system_credentials_migration().err()
+            } else {
+                None
+            };
+            let config_rollback = if should_persist {
+                restore_store_value_transactionally(
+                    persisted_value.clone(),
+                    stored_value.clone(),
+                    |value| store.set(APP_CONFIG_KEY.to_string(), value),
+                    || {
+                        store.delete(APP_CONFIG_KEY);
+                    },
+                    || store.save().map_err(|error| error.to_string()),
+                )
+                .err()
+            } else {
+                None
+            };
+            return match (credentials_rollback, config_rollback) {
+                (None, None) => Err(format!("清理旧版凭据失败，配置已回滚：{cleanup_error}")),
+                (Some(credentials_error), None) => Err(format!(
+                    "清理旧版凭据失败且凭据回滚失败：{cleanup_error}; {credentials_error}"
+                )),
+                (None, Some(config_error)) => Err(format!(
+                    "清理旧版凭据失败且配置回滚失败：{cleanup_error}; {config_error}"
+                )),
+                (Some(credentials_error), Some(config_error)) => Err(format!(
+                    "清理旧版凭据失败且配置、凭据均回滚失败：{cleanup_error}; {config_error}; {credentials_error}"
                 )),
             };
         }
@@ -321,7 +344,9 @@ fn write_sanitized_v1_backup(
 #[specta::specta]
 pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
     use crate::credentials::{
-        load_system_credentials, sanitized_config, save_system_credentials, AppCredentials,
+        finalize_system_credentials_migration, load_system_credentials_with_status,
+        rollback_system_credentials_migration, sanitized_config, save_system_credentials,
+        AppCredentials,
     };
     use tauri_plugin_store::StoreExt;
 
@@ -331,30 +356,63 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
     config.asr.validate()?;
     config.text.validate()?;
 
-    let credentials = AppCredentials::from_config(&config);
-    let previous_credentials = load_system_credentials(&AppCredentials::default())?;
-    save_system_credentials(&credentials)?;
-
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
     let persisted_config = sanitized_config(&config);
     let value = serde_json::to_value(&persisted_config).map_err(|error| error.to_string())?;
+    let previous_value = store.get(APP_CONFIG_KEY);
+    let credentials = AppCredentials::from_config(&config);
+    let (previous_credentials, credentials_migrated) =
+        load_system_credentials_with_status(&AppCredentials::default())?;
+    save_system_credentials(&credentials)?;
     if let Err(config_error) = save_store_value_transactionally(
-        store.get(APP_CONFIG_KEY),
-        value,
+        previous_value.clone(),
+        value.clone(),
         |value| store.set(APP_CONFIG_KEY.to_string(), value),
         || {
             store.delete(APP_CONFIG_KEY);
         },
         || store.save().map_err(|error| error.to_string()),
     ) {
-        return match save_system_credentials(&previous_credentials) {
+        let restore_result = if credentials_migrated {
+            rollback_system_credentials_migration()
+        } else {
+            save_system_credentials(&previous_credentials)
+        };
+        return match restore_result {
             Ok(()) => Err(config_error),
             Err(restore_error) => Err(format!(
                 "配置保存失败且凭据恢复失败：{config_error}; {restore_error}"
             )),
         };
+    }
+
+    if credentials_migrated {
+        if let Err(cleanup_error) = finalize_system_credentials_migration() {
+            let config_rollback = restore_store_value_transactionally(
+                value.clone(),
+                previous_value,
+                |value| store.set(APP_CONFIG_KEY.to_string(), value),
+                || {
+                    store.delete(APP_CONFIG_KEY);
+                },
+                || store.save().map_err(|error| error.to_string()),
+            );
+            let credentials_rollback = rollback_system_credentials_migration();
+            return match (config_rollback.err(), credentials_rollback.err()) {
+                (None, None) => Err(format!("清理旧版凭据失败，配置已回滚：{cleanup_error}")),
+                (Some(config_error), None) => Err(format!(
+                    "清理旧版凭据失败且配置回滚失败：{cleanup_error}; {config_error}"
+                )),
+                (None, Some(credentials_error)) => Err(format!(
+                    "清理旧版凭据失败且凭据回滚失败：{cleanup_error}; {credentials_error}"
+                )),
+                (Some(config_error), Some(credentials_error)) => Err(format!(
+                    "清理旧版凭据失败且配置、凭据均回滚失败：{cleanup_error}; {config_error}; {credentials_error}"
+                )),
+            };
+        }
     }
 
     // Fn 监听按同步配置顺序更新，避免连续保存时较早的异步任务覆盖最新开关状态。
@@ -402,6 +460,36 @@ fn save_store_value_transactionally<T: Clone>(
         if let Err(restore_error) = save() {
             return Err(format!(
                 "配置保存失败且磁盘恢复失败；内存配置已恢复：{primary_error}; {restore_error}"
+            ));
+        }
+        return Err(primary_error);
+    }
+    Ok(())
+}
+
+fn restore_store_value_transactionally<T: Clone>(
+    current_value: T,
+    previous_value: Option<T>,
+    mut set: impl FnMut(T),
+    mut remove: impl FnMut(),
+    mut save: impl FnMut() -> Result<(), String>,
+) -> Result<(), String> {
+    if let Some(previous_value) = previous_value {
+        return save_store_value_transactionally(
+            Some(current_value),
+            previous_value,
+            set,
+            remove,
+            save,
+        );
+    }
+
+    remove();
+    if let Err(primary_error) = save() {
+        set(current_value);
+        if let Err(restore_error) = save() {
+            return Err(format!(
+                "配置回滚失败且原值恢复失败：{primary_error}; {restore_error}"
             ));
         }
         return Err(primary_error);
@@ -548,6 +636,22 @@ mod tests {
         assert!(error.contains("配置保存失败且磁盘恢复失败"));
         assert!(error.matches("disk unavailable").count() >= 2);
         assert_eq!(value.borrow().as_deref(), Some("old-default"));
+    }
+
+    #[test]
+    fn restoring_an_absent_store_value_removes_the_new_cache_entry() {
+        let value = RefCell::new(Some("new-default".to_string()));
+
+        restore_store_value_transactionally(
+            "new-default".to_string(),
+            None,
+            |next| *value.borrow_mut() = Some(next),
+            || *value.borrow_mut() = None,
+            || Ok(()),
+        )
+        .expect("restoring an absent value should remove the cache entry");
+
+        assert_eq!(*value.borrow(), None);
     }
 
     #[test]

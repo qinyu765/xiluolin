@@ -81,7 +81,7 @@ pub fn polish_text_with_provider(
         .used_text_fallback
         .then(|| "文本 Provider 全部失败，已保留原始识别文本".to_string());
     Ok(RoutedTextResult {
-        final_text: route.output.text,
+        final_text: crate::text_polish::finalize_text(request, &route.output.text),
         used_fallback: route.used_text_fallback,
         error_message,
         provider: route.output.provider,

@@ -1,10 +1,10 @@
+import { HomeGreetingCard } from "@/components/home/HomeGreetingCard";
 import { VoiceInputStatsCard } from "@/components/home/VoiceInputStatsCard";
-import { HomeReadinessCard } from "@/features/capture/HomeReadinessCard";
 import type {
   Persona,
+  AppConfig,
   HistoryRecord,
   HistoryStatistics,
-  AppConfig,
 } from "@/types";
 import { formatDuration, formatCreatedAt } from "@/utils/format";
 import { groupHistoryByDate } from "@/utils/date";
@@ -36,19 +36,12 @@ export function HomePage({
 }: HomePageProps) {
   return (
     <div className="space-y-6">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-          Background dictation
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-          语音输入工作台
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          无需停留在窗口中，使用全局快捷键即可开始口述。
-        </p>
-      </header>
-
-      <HomeReadinessCard appConfig={appConfig} persona={selectedPersona} />
+      <HomeGreetingCard
+        personaName={selectedPersona?.name}
+        personaDescription={selectedPersona?.description}
+        longpressShortcut={appConfig?.longpress_shortcut}
+        toggleShortcut={appConfig?.toggle_shortcut}
+      />
 
       <VoiceInputStatsCard
         historyStats={historyStats}

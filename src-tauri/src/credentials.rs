@@ -559,6 +559,24 @@ mod tests {
     }
 
     #[test]
+    fn clearing_a_nested_api_key_removes_that_provider_from_the_v2_bundle() {
+        let mut config = config_with_credentials();
+        config
+            .asr
+            .settings
+            .get_mut("zhipu")
+            .unwrap()
+            .api_key
+            .clear();
+
+        let credentials = AppCredentials::from_config(&config);
+
+        assert!(!credentials.asr.contains_key("zhipu"));
+        assert!(credentials.asr.contains_key("openai"));
+        assert!(credentials.text.contains_key("zhipu"));
+    }
+
+    #[test]
     fn saving_empty_credentials_deletes_existing_entries() {
         let store = MemoryCredentialStore::default();
         store.set(CredentialKey::Asr, "secret").unwrap();

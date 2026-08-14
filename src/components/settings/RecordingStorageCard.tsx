@@ -19,7 +19,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function RecordingStorageCard({ revision = 0 }: { revision?: number }) {
+export function RecordingStorageCard() {
   const [info, setInfo] = useState<RecordingStorageInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
@@ -36,7 +36,7 @@ export function RecordingStorageCard({ revision = 0 }: { revision?: number }) {
 
   useEffect(() => {
     void refresh();
-  }, [refresh, revision]);
+  }, [refresh]);
 
   const clearRecordings = async () => {
     if (!window.confirm("确定删除全部保留录音吗？历史文本不会被删除。")) return;

@@ -9,7 +9,7 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.mjs\" \"*.{ts,json,mjs}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.mjs\" \"*.{ts,json,mjs}\"",
-    "test": "vitest run && node --test scripts/asr-eval.test.mjs",
+    "test": "vitest run && node --test scripts/asr-eval.test.mjs scripts/build-macos-signed.test.mjs",
     "test:watch": "vitest",
     "bindings:generate": "node scripts/bindings.mjs",
     "bindings:check": "node scripts/bindings.mjs --check",
@@ -22,7 +22,8 @@
     "check": "pnpm check:frontend && pnpm bindings:check && pnpm check:rust",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:build:macos:arm64": "MACOSX_DEPLOYMENT_TARGET=13.0 CMAKE_OSX_DEPLOYMENT_TARGET=13.0 pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg",
+    "tauri:build:macos:arm64": "APPLE_SIGNING_IDENTITY=- MACOSX_DEPLOYMENT_TARGET=13.0 CMAKE_OSX_DEPLOYMENT_TARGET=13.0 pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg",
+    "tauri:build:macos:arm64:signed": "sh scripts/build-macos-signed.sh",
     "tauri:build:windows:x64": "pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis"
   },
   "dependencies": {

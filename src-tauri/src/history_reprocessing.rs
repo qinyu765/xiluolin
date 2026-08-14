@@ -1,15 +1,13 @@
 use tauri::Manager;
 
 use crate::{
-    asr::build_asr_config,
     data::{read_app_config, HistoryRecord, LocalDatabase, VERBATIM_PROCESSING_MODE},
     pipeline::{
-        normalize_verbatim_text, process_voice_input, HistoryContext, VoiceInputRequest,
+        normalize_verbatim_text, process_voice_input_routed, HistoryContext, VoiceInputRequest,
         VoiceInputResult,
     },
-    providers::compat,
+    providers::text::{default_text_registry, route_text, TextInput},
     recording_storage::read_managed_recording,
-    text_polish::{TextPolishConfig, TextPolishRequest},
 };
 
 fn database_for_app(app: &tauri::AppHandle) -> Result<LocalDatabase, String> {
@@ -21,11 +19,6 @@ fn database_for_app(app: &tauri::AppHandle) -> Result<LocalDatabase, String> {
         .map_err(|error| error.to_string())?;
     database.initialize().map_err(|error| error.to_string())?;
     Ok(database)
-}
-
-fn selected_text_model(config: &crate::data::AppConfig) -> (String, String, String) {
-    let (api_key, base_url, model) = config.selected_text_config();
-    (api_key.to_string(), base_url.to_string(), model.to_string())
 }
 
 fn default_persona(database: &LocalDatabase) -> Result<crate::data::Persona, String> {
@@ -90,23 +83,30 @@ pub fn reprocess_history_audio(
         .ok_or_else(|| "该历史记录没有保留录音".to_string())?;
     let audio_bytes = read_managed_recording(&app, &audio_path)?;
     let config = read_app_config(app.clone())?;
-    let asr_config = build_asr_config(&app, &config)?;
-    let (text_api_key, text_base_url, text_model) = selected_text_model(&config);
-    let text_provider = config.text_provider.clone();
+    let local_model_path = if config
+        .asr
+        .provider_ids()
+        .any(|provider| provider == "local")
+    {
+        Some(crate::local_asr_model::model_path(&app)?)
+    } else {
+        None
+    };
+    let text_provider = config.text.primary.clone();
+    let text_model = config
+        .selected_text_settings()
+        .map(|settings| settings.model.clone())
+        .unwrap_or_default();
 
-    let result = process_voice_input(
+    let result = process_voice_input_routed(
         VoiceInputRequest {
             audio_bytes,
             audio_extension: "wav".to_string(),
             duration_ms: existing.duration_ms,
         },
-        asr_config,
-        TextPolishConfig {
-            provider: text_provider.clone(),
-            api_key: text_api_key,
-            base_url: text_base_url,
-            model: text_model.clone(),
-        },
+        config.asr,
+        config.text,
+        local_model_path,
         &database,
         false,
         HistoryContext {
@@ -133,8 +133,6 @@ pub fn refine_history_text(
         .map_err(|error| error.to_string())?;
     let config = read_app_config(app)?;
     let persona = default_persona(&database)?;
-    let (text_api_key, text_base_url, text_model) = selected_text_model(&config);
-    let text_provider = config.text_provider.clone();
     let (final_text, used_fallback, record_text_provider, record_text_model) =
         if persona.processing_mode == VERBATIM_PROCESSING_MODE {
             (
@@ -147,26 +145,22 @@ pub fn refine_history_text(
             let hotword_context = database
                 .enabled_hotword_context()
                 .map_err(|error| error.to_string())?;
-            let result = compat::polish_text_with_provider(
-                &TextPolishRequest {
+            let result = route_text(
+                &TextInput {
                     raw_text: existing.raw_text,
                     persona_id: persona.id.clone(),
                     persona_description: persona.description.clone(),
                     hotword_context,
                 },
-                &TextPolishConfig {
-                    provider: text_provider.clone(),
-                    api_key: text_api_key,
-                    base_url: text_base_url,
-                    model: text_model.clone(),
-                },
+                &config.text,
+                &default_text_registry(),
             )
             .map_err(|error| error.to_string())?;
             (
-                result.final_text,
-                result.used_fallback,
-                result.provider,
-                result.model,
+                result.output.text,
+                result.used_text_fallback,
+                result.output.provider,
+                result.output.model,
             )
         };
 

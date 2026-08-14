@@ -10,10 +10,13 @@ use tauri_specta::Event;
 
 use crate::audio_control::windows_audio;
 use crate::capture_session::{
-    CaptureSessionStart, CaptureSessionState, CaptureSource, CaptureStatus,
+    CaptureFailure, CapturePhase, CaptureSessionStart, CaptureSessionState, CaptureSource,
+    CaptureStatus, CapturedSessionContext,
 };
 use crate::data;
-use crate::events::{RecordingCompletedEvent, RecordingErrorEvent, RecordingLimitWarningEvent};
+use crate::events::{RecordingErrorEvent, RecordingLimitWarningEvent};
+use crate::focus_capture::capture_focus;
+use crate::realtime_asr::RealtimePreviewSession;
 use crate::recording_worker::AudioWorker;
 
 const RECORDING_WARNING_MS: u64 = 25_000;
@@ -85,6 +88,7 @@ struct ActiveRecording {
     output_path: PathBuf,
     session_id: String,
     worker: AudioWorker,
+    preview: Option<RealtimePreviewSession>,
 }
 
 pub struct RecordingState {
@@ -171,20 +175,29 @@ pub fn start_recording_for_source(
     source: CaptureSource,
 ) -> Result<CaptureSessionStart, String> {
     let session_state = app_handle.state::<CaptureSessionState>();
-    let started = match crate::capture_session::capture_context(app_handle) {
-        Ok(context) => session_state.begin_with_captured_context(source, context)?,
-        Err(error) => {
-            // 保留旧录音入口的可用性：数据迁移或本地数据库暂时不可用时，
-            // 仍允许录音，处理阶段会回退到当前配置读取路径。
-            eprintln!("录音会话快照捕获失败，将使用兼容读取路径：{error}");
-            session_state.begin(source)?
-        }
+    let focus = if source == CaptureSource::Hotkey {
+        capture_focus()?
+    } else {
+        None
     };
+    let context = load_session_context(app_handle)?;
+    let started = session_state.begin_with_captured_context(source, focus, context.clone())?;
 
-    if let Err(error) = start_audio_capture(state, app_handle, &started.session_id) {
-        session_state.cancel(&started.session_id);
+    if let Err(error) = start_audio_capture(state, app_handle, &started.session_id, &context) {
+        let _ = session_state.fail(
+            &started.session_id,
+            CaptureFailure {
+                code: "recording_start_failed".to_string(),
+                stage: CapturePhase::Recording,
+                recoverable: true,
+                detail: error.clone(),
+            },
+        );
+        let _ = session_state.emit_snapshot(app_handle);
         return Err(error);
     }
+
+    let _ = session_state.emit_snapshot(app_handle);
 
     Ok(started)
 }
@@ -193,6 +206,7 @@ fn start_audio_capture(
     state: &RecordingState,
     app_handle: &tauri::AppHandle,
     session_id: &str,
+    context: &CapturedSessionContext,
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     if crate::macos_permissions::microphone_status()
@@ -221,30 +235,63 @@ fn start_audio_capture(
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S_%3f").to_string();
     let output_path = recordings_dir.join(format!("recording_{timestamp}.wav"));
 
-    let config = data::read_app_config(app_handle.clone()).ok();
-    let selected_microphone = config
-        .as_ref()
-        .map(|config| config.selected_microphone.clone())
-        .unwrap_or_default();
-    let worker = AudioWorker::start(output_path.clone(), selected_microphone)?;
+    let selected_microphone = context.config.selected_microphone.clone();
+    let hotwords = context.asr_hotwords.iter().take(100).cloned().collect();
+    let preview = RealtimePreviewSession::start_if_enabled(app_handle, session_id, hotwords);
+    let preview_sink = preview.as_ref().map(|(_, sink)| sink.clone());
+    let preview_session = preview.map(|(session, _)| session);
+    let worker = match AudioWorker::start(output_path.clone(), selected_microphone, preview_sink) {
+        Ok(worker) => worker,
+        Err(error) => {
+            if let Some(preview) = preview_session {
+                let _ = preview.cancel();
+            }
+            return Err(error.into());
+        }
+    };
 
     *active = Some(ActiveRecording {
         start_time: Instant::now(),
         output_path,
         session_id: session_id.to_string(),
         worker,
+        preview: preview_session,
     });
     drop(active);
 
-    if let Some(config) = config {
-        if config.mute_system_audio {
-            let _ = windows_audio::mute_all_sessions();
-        }
+    if context.config.mute_system_audio {
+        let _ = windows_audio::mute_all_sessions();
     }
 
     schedule_recording_deadlines(app_handle.clone(), session_id.to_string());
 
     Ok(())
+}
+
+fn load_session_context(app_handle: &tauri::AppHandle) -> Result<CapturedSessionContext, String> {
+    let config = data::read_app_config(app_handle.clone())?;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    let database = data::LocalDatabase::open(app_data_dir.join("xiluolin.sqlite"))
+        .map_err(|error| error.to_string())?;
+    database.initialize().map_err(|error| error.to_string())?;
+    let persona = database
+        .list_personas()
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .find(|persona| persona.id == config.default_persona_id)
+        .ok_or_else(|| "当前人格不存在，请重新选择".to_string())?;
+    let hotwords = database
+        .enabled_hotword_snapshot()
+        .map_err(|error| error.to_string())?;
+    Ok(CapturedSessionContext {
+        config,
+        persona,
+        asr_hotwords: hotwords.asr_hotwords.into_iter().take(100).collect(),
+        hotword_context: hotwords.hotword_context,
+    })
 }
 
 fn schedule_recording_deadlines(app: tauri::AppHandle, session_id: String) {
@@ -283,7 +330,7 @@ fn schedule_recording_deadlines(app: tauri::AppHandle, session_id: String) {
         match stop_recording_for_session_id(&recording_state, &app, Some(&session_id)).await {
             Ok(result) => {
                 let _ = crate::indicator::update_indicator(&app, "transcribing");
-                let _ = RecordingCompletedEvent(result).emit(&app);
+                crate::capture_coordinator::spawn_recording_pipeline(app.clone(), result);
             }
             Err(StopRecordingFailure::StaleSession) => {}
             Err(StopRecordingFailure::Failed(error)) => {
@@ -337,21 +384,54 @@ async fn stop_recording_for_session_id(
         }
         Err(error) => return Err(StopRecordingFailure::Failed(error.to_string())),
     };
-    let duration_ms = recording.start_time.elapsed().as_millis() as u64;
-    let session_id = recording.session_id;
-    let output_path = recording.output_path;
+    let ActiveRecording {
+        start_time,
+        output_path,
+        session_id,
+        worker,
+        preview,
+    } = recording;
+    let duration_ms = start_time.elapsed().as_millis() as u64;
     // cpal::Stream 由创建它的工作线程持有；Stop 命令会先释放流，再 finalize WAV。
-    if let Err(error) = recording.worker.stop() {
+    if let Err(error) = worker.stop() {
+        if let Some(preview) = preview {
+            let _ = preview.cancel();
+        }
         let _ = fs::remove_file(&output_path);
         let _ = windows_audio::unmute_all_sessions();
+        let sessions = app_handle.state::<CaptureSessionState>();
+        let _ = sessions.fail(
+            &session_id,
+            CaptureFailure {
+                code: "recording_stop_failed".to_string(),
+                stage: CapturePhase::Recording,
+                recoverable: true,
+                detail: error.clone(),
+            },
+        );
+        let _ = sessions.emit_snapshot(app_handle);
         return Err(StopRecordingFailure::Failed(error));
+    }
+    if let Some(preview) = preview {
+        let _ = preview.finish();
     }
 
     let _ = windows_audio::unmute_all_sessions();
-    app_handle
-        .state::<CaptureSessionState>()
-        .update_status(&session_id, CaptureStatus::Transcribing)
-        .map_err(StopRecordingFailure::Failed)?;
+    let sessions = app_handle.state::<CaptureSessionState>();
+    if let Err(error) = sessions.update_status(&session_id, CaptureStatus::Transcribing) {
+        let _ = sessions.fail(
+            &session_id,
+            CaptureFailure {
+                code: "recording_finalize_failed".to_string(),
+                stage: CapturePhase::Recording,
+                recoverable: true,
+                detail: error.clone(),
+            },
+        );
+        let _ = sessions.emit_snapshot(app_handle);
+        return Err(StopRecordingFailure::Failed(error));
+    }
+    let _ = sessions.emit_snapshot(app_handle);
 
     Ok(RecordingResult {
         session_id,
@@ -368,9 +448,17 @@ pub async fn cancel_recording_for_session(
     let recording = state
         .take(Some(expected_session_id))
         .map_err(String::from)?;
-    let session_id = recording.session_id;
-    let output_path = recording.output_path;
-    let worker_result = recording.worker.cancel();
+    let ActiveRecording {
+        output_path,
+        session_id,
+        worker,
+        preview,
+        ..
+    } = recording;
+    let worker_result = worker.cancel();
+    if let Some(preview) = preview {
+        let _ = preview.cancel();
+    }
     let _ = fs::remove_file(&output_path);
     let _ = windows_audio::unmute_all_sessions();
     app_handle

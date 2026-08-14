@@ -260,6 +260,39 @@ fn qwen_text_disables_thinking_and_classifies_rate_limit() {
 }
 
 #[test]
+fn qwen_text_classifies_invalid_json_and_empty_text() {
+    let input = TextInput {
+        raw_text: "保留原文".to_string(),
+        persona_id: "general".to_string(),
+        persona_description: "自然清晰".to_string(),
+        hotword_context: String::new(),
+    };
+
+    for response in [
+        "not-json",
+        r#"{"choices":[{"message":{"role":"assistant","content":""}}]}"#,
+    ] {
+        let (base_url, handle) = spawn_server("200 OK", response);
+        let result = route_text(
+            &input,
+            &route(
+                "qwen",
+                settings(format!("{base_url}/compatible-mode/v1"), "qwen3.7-flash"),
+            ),
+            &default_text_registry(),
+        )
+        .expect("text failures should preserve raw text");
+        handle.join().expect("server result");
+
+        assert_eq!(result.output.text, "保留原文");
+        assert_eq!(
+            result.attempts[0].error_kind,
+            Some(ProviderErrorKind::InvalidResponse)
+        );
+    }
+}
+
+#[test]
 #[ignore = "需要 DASHSCOPE_API_KEY 与 XILUOLIN_QWEN_ASR_SAMPLE 才会调用真实千问服务"]
 fn qwen_audio_real_smoke_reads_key_and_sample_only_from_environment() {
     let api_key = std::env::var("DASHSCOPE_API_KEY").expect("DASHSCOPE_API_KEY");

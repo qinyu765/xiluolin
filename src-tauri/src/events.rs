@@ -1,12 +1,26 @@
 use serde::{Deserialize, Serialize};
 use tauri_specta::Event;
 
-use crate::{local_asr_model::LocalAsrDownloadProgress, recording::RecordingResult};
+use crate::{
+    capture_session::CaptureSnapshot, local_asr_model::LocalAsrDownloadProgress,
+    realtime_asr_model::RealtimeModelDownloadProgress,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Event)]
 #[serde(transparent)]
-#[tauri_specta(event_name = "recording-completed")]
-pub struct RecordingCompletedEvent(pub RecordingResult);
+#[tauri_specta(event_name = "capture-snapshot")]
+pub struct CaptureSnapshotEvent(pub CaptureSnapshot);
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Event)]
+#[tauri_specta(event_name = "history-changed")]
+pub struct HistoryChangedEvent {
+    pub history_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Event)]
+#[serde(transparent)]
+#[tauri_specta(event_name = "realtime-asr-download-progress")]
+pub struct RealtimeAsrDownloadProgressEvent(pub RealtimeModelDownloadProgress);
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Event)]
 #[serde(transparent)]

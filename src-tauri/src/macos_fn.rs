@@ -137,7 +137,7 @@ mod platform {
 
     use super::{FnAction, FnDecision, FnGestureState};
     use crate::capture_session::{CaptureSessionState, CaptureSource};
-    use crate::events::{RecordingCompletedEvent, RecordingErrorEvent};
+    use crate::events::RecordingErrorEvent;
     use crate::macos_permissions::{accessibility_status, PermissionStatus};
     use crate::recording::{
         cancel_recording_for_session, start_recording_for_source,
@@ -365,7 +365,7 @@ mod platform {
                 {
                     Ok(Some(result)) => {
                         let _ = crate::indicator::update_indicator(app, "transcribing");
-                        let _ = RecordingCompletedEvent(result).emit(app);
+                        crate::capture_coordinator::spawn_recording_pipeline(app.clone(), result);
                     }
                     Ok(None) => {
                         // 28 秒自动停止已接管该会话，无需重复发送完成事件。

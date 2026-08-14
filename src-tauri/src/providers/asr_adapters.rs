@@ -379,6 +379,9 @@ fn map_legacy_asr_error(provider: &str, model: &str, error: crate::asr::AsrError
             false,
             "音频格式或大小不兼容",
         ),
+        AsrError::HttpStatus(status) => {
+            return super::transport::http_error(provider, model, status);
+        }
         AsrError::RequestFailed(_) => (ProviderErrorKind::Network, false, "ASR 请求失败"),
         AsrError::InvalidResponse(_) => (ProviderErrorKind::InvalidResponse, false, "ASR 响应无效"),
     };
@@ -387,6 +390,25 @@ fn map_legacy_asr_error(provider: &str, model: &str, error: crate::asr::AsrError
         error.global()
     } else {
         error
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::map_legacy_asr_error;
+    use crate::{asr::AsrError, providers::error::ProviderErrorKind};
+
+    #[test]
+    fn multipart_http_statuses_use_the_shared_provider_classification() {
+        for (status, kind) in [
+            (401, ProviderErrorKind::Authentication),
+            (429, ProviderErrorKind::RateLimited),
+            (503, ProviderErrorKind::RemoteFailure),
+        ] {
+            let error = map_legacy_asr_error("zhipu", "glm-asr-2512", AsrError::HttpStatus(status));
+            assert_eq!(error.kind, kind);
+            assert_eq!(error.http_status, Some(status));
+        }
     }
 }
 

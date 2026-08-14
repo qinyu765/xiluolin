@@ -1,9 +1,7 @@
-import React from "react";
-import { HomeGreetingCard } from "@/components/home/HomeGreetingCard";
 import { VoiceInputStatsCard } from "@/components/home/VoiceInputStatsCard";
+import { HomeReadinessCard } from "@/features/capture/HomeReadinessCard";
 import type {
   Persona,
-  VoiceInputResult,
   HistoryRecord,
   HistoryStatistics,
   AppConfig,
@@ -12,25 +10,11 @@ import { formatDuration, formatCreatedAt } from "@/utils/format";
 import { groupHistoryByDate } from "@/utils/date";
 
 type HomePageProps = {
-  personas: Persona[];
-  selectedPersonaId: string;
   selectedPersona: Persona | undefined;
-  isRecording: boolean;
-  isVoiceProcessing: boolean;
-  recordingDuration: number;
-  voiceStatus: string;
-  selectedAudioName: string;
-  voiceResult: VoiceInputResult | null;
   historyStats: HistoryStatistics | null;
   historyRecords: HistoryRecord[];
   historyStatus: string;
   appConfig: AppConfig | null;
-  onPersonaChange: (personaId: string) => void;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
-  onProcessAudio: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onCopyFinalText: () => void;
-  onOutputText: () => void;
   onCopyHistoryText: (text: string) => void;
   onDeleteHistoryRecord: (id: string) => void;
   onPlayHistoryRecording: (id: string) => void;
@@ -52,32 +36,19 @@ export function HomePage({
 }: HomePageProps) {
   return (
     <div className="space-y-6">
-      <HomeGreetingCard
-        personaName={selectedPersona?.name}
-        personaDescription={selectedPersona?.description}
-        longpressShortcut={appConfig?.longpress_shortcut}
-        toggleShortcut={appConfig?.toggle_shortcut}
-      />
+      <header>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+          Background dictation
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+          语音输入工作台
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          无需停留在窗口中，使用全局快捷键即可开始口述。
+        </p>
+      </header>
 
-      {/* 快速开始 - 暂时隐藏，不符合当前产品定位，保留以备后用 */}
-      {/* <QuickStartCard
-        personas={personas}
-        selectedPersonaId={selectedPersonaId}
-        selectedPersona={selectedPersona}
-        isRecording={isRecording}
-        isVoiceProcessing={isVoiceProcessing}
-        recordingDuration={recordingDuration}
-        voiceStatus={voiceStatus}
-        selectedAudioName={selectedAudioName}
-        voiceResult={voiceResult}
-        onPersonaChange={onPersonaChange}
-        onStartRecording={onStartRecording}
-        onStopRecording={onStopRecording}
-        onProcessAudio={onProcessAudio}
-        onCopyFinalText={onCopyFinalText}
-        onOutputText={onOutputText}
-        formatDuration={formatDuration}
-      /> */}
+      <HomeReadinessCard appConfig={appConfig} persona={selectedPersona} />
 
       <VoiceInputStatsCard
         historyStats={historyStats}

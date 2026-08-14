@@ -354,6 +354,15 @@ test("Provider 弹窗保留可滚动内容区并提供更大的关闭按钮", as
   );
   expect(screen.getByTestId("provider-editor-body")).toHaveClass(
     "flex-1",
+    "overflow-hidden",
+    "lg:grid-cols-[17rem_minmax(0,1fr)]",
+  );
+  expect(screen.getByTestId("provider-editor-sidebar")).toHaveClass(
+    "overflow-y-auto",
+  );
+  expect(screen.getByTestId("provider-editor-scroll")).toHaveClass(
+    "min-h-0",
+    "min-w-0",
     "overflow-y-auto",
   );
   expect(screen.getByRole("button", { name: "关闭" })).toHaveClass("size-9");

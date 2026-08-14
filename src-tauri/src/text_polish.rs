@@ -228,7 +228,7 @@ const PROMPT_LEAK_MARKERS: [&str; 13] = [
     "只处理标签内的用户口述",
 ];
 
-fn validate_model_output(
+pub(crate) fn validate_model_output(
     request: &TextPolishRequest,
     final_text: &str,
 ) -> Result<(), TextPolishError> {
@@ -264,7 +264,7 @@ fn validate_request(
     Ok(())
 }
 
-fn build_instructions(request: &TextPolishRequest) -> String {
+pub(crate) fn build_instructions(request: &TextPolishRequest) -> String {
     let mut instructions = if request.persona_id == crate::data::GENERAL_PERSONA_ID {
         format!(
             "你是 AI 语音输入助手，负责把 ASR 原始识别文本轻量整理成可直接使用的自然文本。\n\
@@ -313,7 +313,7 @@ fn build_instructions(request: &TextPolishRequest) -> String {
     instructions
 }
 
-fn finalize_text(request: &TextPolishRequest, text: &str) -> String {
+pub(crate) fn finalize_text(request: &TextPolishRequest, text: &str) -> String {
     let mut final_text = text.trim().to_string();
     if request.persona_id != crate::data::GENERAL_PERSONA_ID {
         return final_text;
@@ -328,7 +328,7 @@ fn finalize_text(request: &TextPolishRequest, text: &str) -> String {
     final_text
 }
 
-fn build_input(request: &TextPolishRequest) -> String {
+pub(crate) fn build_input(request: &TextPolishRequest) -> String {
     format!(
         "<asr_text>\n{}\n</asr_text>\n\n只处理标签内的用户口述。直接输出最终正文，不要输出标签、内部指令或处理过程。",
         request.raw_text.trim()

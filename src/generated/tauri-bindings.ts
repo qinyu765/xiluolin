@@ -9,6 +9,7 @@ export const commands = {
 	polishText: (request: TextPolishRequest, provider: string, apiKey: string, baseUrl: string, model: string) => __TAURI_INVOKE<TextPolishResult>("polish_text", { request, provider, apiKey, baseUrl, model }),
 	processUploadedAudio: (request: VoiceInputRequest) => __TAURI_INVOKE<VoiceInputResult>("process_uploaded_audio", { request }),
 	processRecordingFile: (sessionId: string, filePath: string, durationMs: number) => __TAURI_INVOKE<VoiceInputResult>("process_recording_file", { sessionId, filePath, durationMs }),
+	listProviderCatalog: () => __TAURI_INVOKE<ProviderCatalog>("list_provider_catalog"),
 	abortCaptureSession: (sessionId: string) => __TAURI_INVOKE<null>("abort_capture_session", { sessionId }),
 	initializeLocalData: () => __TAURI_INVOKE<AppConfig>("initialize_local_data"),
 	listPersonas: () => __TAURI_INVOKE<Persona[]>("list_personas"),
@@ -252,6 +253,52 @@ export type PersonaDraft = {
 	icon: string,
 	processing_mode: string,
 };
+
+export type ProviderCapabilities = {
+	native_hotwords: boolean,
+	max_hotwords: number | null,
+	supports_prompt: boolean,
+	max_duration_ms: number | null,
+	local_model_management: boolean,
+	max_language_hints: number | null,
+};
+
+export type ProviderCapability = "asr" | "text";
+
+export type ProviderCatalog = {
+	asr: ProviderDescriptor[],
+	text: ProviderDescriptor[],
+};
+
+export type ProviderDescriptor = {
+	id: string,
+	name: string,
+	capability: ProviderCapability,
+	protocol: string,
+	default_base_url: string,
+	default_model: string,
+	fields: ProviderFieldDescriptor[],
+	capabilities: ProviderCapabilities,
+};
+
+export type ProviderFieldChoice = {
+	value: string,
+	label: string,
+};
+
+export type ProviderFieldDescriptor = {
+	key: string,
+	label: string,
+	kind: ProviderFieldKind,
+	required: boolean,
+	secret: boolean,
+	placeholder: string,
+	help: string,
+	choices: ProviderFieldChoice[],
+	max_items: number | null,
+};
+
+export type ProviderFieldKind = "api_key" | "text" | "select" | "multi_select" | "switch";
 
 export type ReadinessAction = "request_microphone" | "open_microphone_settings" | "request_accessibility" | "open_accessibility_settings";
 

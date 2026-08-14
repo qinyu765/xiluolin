@@ -610,6 +610,32 @@ pub fn consume_app_recording<T>(
     Ok(result)
 }
 
+#[cfg(test)]
+mod recording_cleanup_tests {
+    use super::*;
+
+    #[test]
+    fn callback_failure_removes_recording_before_processing_context_finishes() {
+        let root = std::env::temp_dir().join(format!(
+            "xiluolin-recording-cleanup-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let recordings_dir = root.join("recordings");
+        let recording_path = recordings_dir.join("recording.wav");
+        std::fs::create_dir_all(&recordings_dir).expect("recordings directory should exist");
+        std::fs::write(&recording_path, b"wav data").expect("recording should be written");
+
+        let result: Result<(), String> =
+            consume_app_recording(&recordings_dir, &recording_path, |_, _, _| {
+                Err("模拟处理上下文读取失败".to_string())
+            });
+
+        assert_eq!(result, Err("模拟处理上下文读取失败".to_string()));
+        assert!(!recording_path.exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn process_recording_file(
@@ -622,9 +648,6 @@ pub fn process_recording_file(
     use tauri::Manager;
 
     let sessions = app.state::<CaptureSessionState>();
-    let context = sessions.delivery_context(&session_id)?;
-    let captured = sessions.processing_context(&session_id)?;
-    let show_indicator = context.source == CaptureSource::Hotkey;
     let result = (|| {
         let app_data_dir = app
             .path()
@@ -636,6 +659,11 @@ pub fn process_recording_file(
             &recordings_dir,
             std::path::Path::new(&file_path),
             |audio_bytes, audio_extension, recording_path| {
+                // consume_app_recording 已经持有清理 guard；把会话上下文读取放在
+                // callback 内，确保取消/过期会话也不会遗留已落盘的 WAV 文件。
+                let context = sessions.delivery_context(&session_id)?;
+                let captured = sessions.processing_context(&session_id)?;
+                let show_indicator = context.source == CaptureSource::Hotkey;
                 let config = captured.config.clone();
                 eprintln!("录音处理配置已加载，ASR Provider：{}", config.asr.primary);
 

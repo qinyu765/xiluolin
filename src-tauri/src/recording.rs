@@ -424,6 +424,9 @@ async fn stop_recording_for_session_id(
     let _ = windows_audio::unmute_all_sessions();
     let sessions = app_handle.state::<CaptureSessionState>();
     if let Err(error) = sessions.update_status(&session_id, CaptureStatus::Transcribing) {
+        // stop 已经接管并 finalize 了录音文件，但会话可能在这一步被 abort
+        // 清空；状态更新失败时不能把包含用户语音的 WAV 留在磁盘上。
+        let _ = fs::remove_file(&output_path);
         let _ = sessions.fail(
             &session_id,
             CaptureFailure {

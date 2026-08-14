@@ -21,9 +21,10 @@
     "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo check --manifest-path src-tauri/Cargo.toml && cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "pnpm check:frontend && pnpm bindings:check && pnpm check:rust",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "tauri": "node scripts/tauri.mjs",
     "tauri:build:macos:arm64": "APPLE_SIGNING_IDENTITY=- MACOSX_DEPLOYMENT_TARGET=13.0 CMAKE_OSX_DEPLOYMENT_TARGET=13.0 pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg",
     "tauri:build:macos:arm64:signed": "sh scripts/build-macos-signed.sh",
+    "tauri:build:macos:arm64:personal": "sh scripts/build-macos-personal.sh",
     "tauri:build:windows:x64": "pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis"
   },
   "dependencies": {

@@ -131,6 +131,7 @@ pnpm tauri dev
 | `pnpm release:check`           | 检查前端、Cargo、Tauri 与可选发布标签版本一致性 |
 | `pnpm eval:asr`                | 计算私有基准集的 CER、热词召回、标点 F1 和延迟  |
 | `pnpm tauri:build:macos:arm64` | 构建 macOS 13+ Apple Silicon `.app` 和 `.dmg`   |
+| `pnpm tauri:build:macos:arm64:personal` | 使用个人免费 Personal Team 构建 macOS `.app` 和 `.dmg` |
 | `pnpm tauri:build:windows:x64` | 在 Windows 上构建 Windows 10/11 x64 NSIS 安装包 |
 
 GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前端、Windows/macOS Rust、依赖安全与敏感信息检查；发布 PR 还会实际构建 macOS DMG 和 Windows NSIS 安装包。涉及录音、快捷键、凭据或输出能力的变更仍需在桌面环境中手动验证。

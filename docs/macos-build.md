@@ -28,6 +28,14 @@ APPLE_SIGNING_IDENTITY="Apple Development: <name> (<team-id>)" \
 
 `APPLE_SIGNING_IDENTITY` 只在当前命令的环境中传入，不应写入仓库、`.env`、日志或共享脚本。可以通过 `security find-identity -v -p codesigning` 查看当前钥匙串可用的身份。稳定签名入口会拒绝空值和 ad-hoc 的 `-`。
 
+本机个人开发者构建可直接执行以下命令。它只查找证书真实 TeamIdentifier 为个人 Team `P3F5KAG4P7` 的 Apple Development 证书；找不到时会失败，不会改用公司 Team 或 ad-hoc 签名：
+
+```bash
+pnpm tauri:build:macos:arm64:personal
+```
+
+这是免费 Personal Team 的本机开发签名，不提供 Developer ID 或公证能力；构建日志中的跳过公证提示属于预期结果。证书显示名中的 `2MWMD92VC6` 是个人证书标识，脚本按证书真实 OU/TeamIdentifier `P3F5KAG4P7` 选择身份，不会选择公司 Team。
+
 证书和对应私钥存在于当前 Mac 的钥匙串即可执行签名；macOS 系统设置当前登录哪个 Apple 账号、常用 Apple 账号位于哪台 Mac，都不参与运行时签名判断。
 
 产物位于：

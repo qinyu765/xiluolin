@@ -11,6 +11,10 @@ const repositoryRoot = path.resolve(
   "..",
 );
 const scriptPath = path.join(repositoryRoot, "scripts/build-macos-signed.sh");
+const personalScriptPath = path.join(
+  repositoryRoot,
+  "scripts/build-macos-personal.sh",
+);
 
 let fakeBinDirectory;
 
@@ -28,6 +32,36 @@ before(async () => {
     ].join("\n"),
   );
   await chmod(fakePnpm, 0o755);
+  const fakeSecurity = path.join(fakeBinDirectory, "security");
+  await writeFile(
+    fakeSecurity,
+    [
+      "#!/bin/sh",
+      'if [ "$1" = "find-identity" ]; then',
+      "  cat <<'EOF'",
+      '    1) 1111111111111111111111111111111111111111 "Apple Development: Company Developer (2BCD5Q7FVN)"',
+      '    2) 2222222222222222222222222222222222222222 "Apple Development: Personal Developer (2MWMD92VC6)"',
+      "    2 valid identities found",
+      "EOF",
+      'elif [ "$1" = "find-certificate" ]; then',
+      '  printf "%s\\n" "$5"',
+      "fi",
+    ].join("\n"),
+  );
+  await chmod(fakeSecurity, 0o755);
+  const fakeOpenSSL = path.join(fakeBinDirectory, "openssl");
+  await writeFile(
+    fakeOpenSSL,
+    [
+      "#!/bin/sh",
+      "certificate_name=$(cat)",
+      'case "$certificate_name" in',
+      '  *Company*) echo "subject= /OU=FK9K4NGB5Q1/CN=Company" ;;',
+      '  *Personal*) echo "subject= /OU=P3F5KAG4P7/CN=Personal" ;;',
+      "esac",
+    ].join("\n"),
+  );
+  await chmod(fakeOpenSSL, 0o755);
 });
 
 after(async () => {
@@ -45,6 +79,19 @@ function runBuild(identity) {
     env.APPLE_SIGNING_IDENTITY = identity;
   }
   return spawnSync("sh", [scriptPath], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    env,
+  });
+}
+
+function runPersonalBuild() {
+  const env = {
+    ...process.env,
+    PATH: `${fakeBinDirectory}:${process.env.PATH}`,
+    APPLE_SIGNING_IDENTITY: "Apple Development: Company Developer (2BCD5Q7FVN)",
+  };
+  return spawnSync("sh", [personalScriptPath], {
     cwd: repositoryRoot,
     encoding: "utf8",
     env,
@@ -79,4 +126,19 @@ test("稳定签名入口向真实构建命令传递身份和部署目标", () =>
       "",
     ].join("\n"),
   );
+});
+
+test("个人签名入口只选择个人 Team，不继承公司签名身份", () => {
+  const result = runPersonalBuild();
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(
+    result.stderr,
+    /Using personal Apple Development identity SHA-1: 2222222222222222222222222222222222222222 \(Team P3F5KAG4P7\)/,
+  );
+  assert.match(
+    result.stdout,
+    /identity=2222222222222222222222222222222222222222/,
+  );
+  assert.doesNotMatch(result.stdout, /2BCD5Q7FVN/);
 });

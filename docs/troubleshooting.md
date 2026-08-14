@@ -199,4 +199,4 @@ account: app_credentials_v1
 
 如果仍出现 `asr_api_key`、`openai_api_key` 或 `zhipu_api_key`，说明钥匙串中还存在旧条目。退出应用并在“钥匙串访问”中搜索 `com.xiluolin.desktop` 和 `com.xiluolin.app`，确认能够重新获取 Key 后再删除旧的分散条目。
 
-`pnpm tauri dev` 使用 ad-hoc 开发签名，重新编译后系统可能重新确认授权。发布和长期测试应使用稳定签名的 `.app`。
+`pnpm tauri dev` 会在 macOS 上使用本机个人 Apple Development 证书签名 debug binary，重新编译后应继续匹配同一个应用身份。若本机找不到个人证书，开发启动会直接失败，不会悄悄退回 ad-hoc 签名；发布和长期测试仍应使用稳定签名的 `.app`。

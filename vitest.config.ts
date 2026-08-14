@@ -14,7 +14,7 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       ".worktrees/**",
-      "scripts/asr-eval.test.mjs",
+      "scripts/**/*.test.mjs",
     ],
     setupFiles: ["./src/test/setup.ts"],
     css: true,

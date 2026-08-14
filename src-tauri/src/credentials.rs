@@ -1,4 +1,7 @@
-use std::sync::{Mutex, OnceLock};
+use std::{
+    collections::BTreeMap,
+    sync::{Mutex, OnceLock},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +10,7 @@ use crate::data::AppConfig;
 const CREDENTIAL_SERVICE: &str = "com.xiluolin.desktop";
 const LEGACY_CREDENTIAL_SERVICE: &str = "com.xiluolin.app";
 const BUNDLED_CREDENTIAL_ACCOUNT: &str = "app_credentials_v1";
+const V2_BUNDLED_CREDENTIAL_ACCOUNT: &str = "app_credentials_v2";
 
 static SYSTEM_CREDENTIAL_CACHE: OnceLock<Mutex<Option<AppCredentials>>> = OnceLock::new();
 
@@ -34,6 +38,29 @@ pub struct AppCredentials {
     pub asr_api_key: String,
     pub openai_api_key: String,
     pub zhipu_api_key: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct NestedAppCredentials {
+    #[serde(default)]
+    asr: BTreeMap<String, String>,
+    #[serde(default)]
+    text: BTreeMap<String, String>,
+}
+
+impl NestedAppCredentials {
+    fn into_legacy(self) -> AppCredentials {
+        AppCredentials {
+            asr_api_key: self.asr.get("zhipu").cloned().unwrap_or_default(),
+            openai_api_key: self
+                .text
+                .get("openai")
+                .or_else(|| self.asr.get("openai"))
+                .cloned()
+                .unwrap_or_default(),
+            zhipu_api_key: self.text.get("zhipu").cloned().unwrap_or_default(),
+        }
+    }
 }
 
 impl AppCredentials {
@@ -90,27 +117,41 @@ impl SystemCredentialStore {
         Self::entry(LEGACY_CREDENTIAL_SERVICE, key)
     }
 
-    fn bundled_entry() -> Result<keyring::Entry, String> {
-        keyring::Entry::new(CREDENTIAL_SERVICE, BUNDLED_CREDENTIAL_ACCOUNT)
+    fn bundled_entry(account: &str) -> Result<keyring::Entry, String> {
+        keyring::Entry::new(CREDENTIAL_SERVICE, account)
             .map_err(|error| format!("初始化系统凭据库失败：{error}"))
     }
 
     fn read_bundled() -> Result<Option<AppCredentials>, String> {
-        match Self::bundled_entry()?.get_password() {
-            Ok(value) => serde_json::from_str(&value)
-                .map(Some)
-                .map_err(|error| format!("解析系统凭据失败：{error}")),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(error) => Err(format!("读取系统凭据失败：{error}")),
+        for account in [BUNDLED_CREDENTIAL_ACCOUNT, V2_BUNDLED_CREDENTIAL_ACCOUNT] {
+            match Self::bundled_entry(account)?.get_password() {
+                Ok(value) => return parse_bundled_credentials(&value).map(Some),
+                Err(keyring::Error::NoEntry) => continue,
+                Err(error) => return Err(format!("读取系统凭据失败：{error}")),
+            }
         }
+        Ok(None)
     }
 
     fn write_bundled(credentials: &AppCredentials) -> Result<(), String> {
         let value = serde_json::to_string(credentials)
             .map_err(|error| format!("序列化系统凭据失败：{error}"))?;
-        Self::bundled_entry()?
+        Self::bundled_entry(BUNDLED_CREDENTIAL_ACCOUNT)?
             .set_password(&value)
             .map_err(|error| format!("保存系统凭据失败：{error}"))
+    }
+}
+
+fn parse_bundled_credentials(value: &str) -> Result<AppCredentials, String> {
+    let json: serde_json::Value =
+        serde_json::from_str(value).map_err(|error| format!("解析系统凭据失败：{error}"))?;
+    if json.get("asr").is_some() || json.get("text").is_some() {
+        serde_json::from_value::<NestedAppCredentials>(json)
+            .map(NestedAppCredentials::into_legacy)
+            .map_err(|error| format!("解析系统凭据失败：{error}"))
+    } else {
+        serde_json::from_value::<AppCredentials>(json)
+            .map_err(|error| format!("解析系统凭据失败：{error}"))
     }
 }
 

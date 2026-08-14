@@ -7,8 +7,9 @@ use crate::{
         normalize_verbatim_text, process_voice_input, HistoryContext, VoiceInputRequest,
         VoiceInputResult,
     },
+    providers::compat,
     recording_storage::read_managed_recording,
-    text_polish::{polish_text_with_provider, TextPolishConfig, TextPolishRequest},
+    text_polish::{TextPolishConfig, TextPolishRequest},
 };
 
 fn database_for_app(app: &tauri::AppHandle) -> Result<LocalDatabase, String> {
@@ -136,12 +137,17 @@ pub fn refine_history_text(
     let text_provider = config.text_provider.clone();
     let (final_text, used_fallback, record_text_provider, record_text_model) =
         if persona.processing_mode == VERBATIM_PROCESSING_MODE {
-            (normalize_verbatim_text(&existing.raw_text), false, "", "")
+            (
+                normalize_verbatim_text(&existing.raw_text),
+                false,
+                String::new(),
+                String::new(),
+            )
         } else {
             let hotword_context = database
                 .enabled_hotword_context()
                 .map_err(|error| error.to_string())?;
-            let result = polish_text_with_provider(
+            let result = compat::polish_text_with_provider(
                 &TextPolishRequest {
                     raw_text: existing.raw_text,
                     persona_id: persona.id.clone(),
@@ -159,8 +165,8 @@ pub fn refine_history_text(
             (
                 result.final_text,
                 result.used_fallback,
-                text_provider.as_str(),
-                text_model.as_str(),
+                result.provider,
+                result.model,
             )
         };
 
@@ -170,8 +176,8 @@ pub fn refine_history_text(
             &final_text,
             &persona.id,
             &persona.name,
-            record_text_provider,
-            record_text_model,
+            &record_text_provider,
+            &record_text_model,
             &persona.processing_mode,
             used_fallback,
         )

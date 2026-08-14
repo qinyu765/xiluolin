@@ -88,8 +88,10 @@ export function InputReadinessCard({
     const handleRefresh = () => void refresh();
     void refresh(true);
     window.addEventListener("focus", handleRefresh);
+    window.addEventListener("xiluolin:readiness-changed", handleRefresh);
     return () => {
       window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("xiluolin:readiness-changed", handleRefresh);
     };
   }, [refresh, refreshRevision]);
 

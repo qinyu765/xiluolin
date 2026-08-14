@@ -1,120 +1,26 @@
 import { useState } from "react";
 import { Toaster } from "sonner";
 
-import { HotwordDialog } from "@/components/dialogs/HotwordDialog";
-import { PersonaDialog } from "@/components/dialogs/PersonaDialog";
-import { HomePage } from "@/pages/HomePage";
-import { HotwordPage } from "@/pages/HotwordPage";
-import { PersonaPage } from "@/pages/PersonaPage";
-import { SettingsPage } from "@/pages/SettingsPage";
+import { HomeDashboard } from "@/features/history/HomeDashboard";
+import { HotwordScreen } from "@/features/hotword/HotwordScreen";
+import { PersonaScreen } from "@/features/persona/PersonaScreen";
+import { SettingsScreen } from "@/features/settings/SettingsScreen";
+import { CaptureEventToasts } from "@/platform/tauri/CaptureEventToasts";
 import type { Page } from "@/types";
 
 import { AppSidebar } from "./AppSidebar";
 import { AppShell } from "./AppShell";
-import { useConfigController } from "./controllers/useConfigController";
-import { useHistoryController } from "./controllers/useHistoryController";
-import { useHotwordController } from "./controllers/useHotwordController";
-import { usePersonaController } from "./controllers/usePersonaController";
-import { useRecordingController } from "./controllers/useRecordingController";
 
 export function App() {
   const [page, setPage] = useState<Page>("home");
-  const config = useConfigController();
-  const history = useHistoryController();
-  const personas = usePersonaController(config.setAppConfig);
-  const hotwords = useHotwordController();
-  const recording = useRecordingController(history.reload);
-
   return (
-    <>
+    <AppShell sidebar={<AppSidebar page={page} onPageChange={setPage} />}>
       <Toaster position="top-center" richColors />
-      <AppShell sidebar={<AppSidebar page={page} onPageChange={setPage} />}>
-        {page === "home" && (
-          <HomePage
-            personas={personas.personas}
-            selectedPersonaId={personas.selectedId}
-            selectedPersona={personas.selected}
-            isRecording={recording.isRecording}
-            isVoiceProcessing={recording.isProcessing}
-            recordingDuration={recording.duration}
-            voiceStatus={recording.status}
-            selectedAudioName={recording.selectedAudioName}
-            voiceResult={recording.result}
-            historyStats={history.stats}
-            historyRecords={history.records}
-            historyStatus={history.status}
-            appConfig={config.appConfig}
-            onPersonaChange={personas.setSelectedId}
-            onStartRecording={recording.startRecording}
-            onStopRecording={recording.stopRecording}
-            onProcessAudio={recording.processAudio}
-            onCopyFinalText={recording.copyFinalText}
-            onOutputText={recording.outputText}
-            onCopyHistoryText={history.copyText}
-            onDeleteHistoryRecord={history.deleteRecord}
-            onPlayHistoryRecording={history.playRecording}
-            onReprocessHistoryAudio={history.reprocessAudio}
-            onRefineHistoryText={history.refineText}
-          />
-        )}
-
-        {page === "persona" && (
-          <PersonaPage
-            personas={personas.personas}
-            status={personas.status}
-            onCreatePersona={personas.openCreate}
-            onEditPersona={personas.openEdit}
-            onDeletePersona={personas.deletePersona}
-            onSetDefaultPersona={personas.setDefault}
-          />
-        )}
-
-        {page === "hotword" && (
-          <HotwordPage
-            hotwords={hotwords.hotwords}
-            hotwordContext={hotwords.context}
-            hotwordStatus={hotwords.status}
-            enabledHotwordCount={hotwords.enabledCount}
-            onCreateHotword={hotwords.openCreate}
-            onEditHotword={hotwords.openEdit}
-            onDeleteHotword={hotwords.deleteHotword}
-            onHotwordEnabledChange={hotwords.setEnabled}
-          />
-        )}
-
-        {page === "settings" && (
-          <SettingsPage
-            appConfig={config.appConfig}
-            audioDevices={config.audioDevices}
-            saveState={config.saveState}
-            onConfigChange={config.updateConfig}
-            onConfigBlur={config.flushConfigSave}
-            onRetryConfigSave={config.retryConfigSave}
-            configRevision={config.revision}
-            historyRevision={history.revision}
-          />
-        )}
-      </AppShell>
-
-      <HotwordDialog
-        open={hotwords.isDialogOpen}
-        isEditing={hotwords.editingId !== null}
-        isSaving={hotwords.isSaving}
-        draft={hotwords.draft}
-        onOpenChange={hotwords.setDialogOpen}
-        onDraftChange={hotwords.setDraft}
-        onSave={hotwords.save}
-      />
-
-      <PersonaDialog
-        open={personas.isDialogOpen}
-        isEditing={personas.editingId !== null}
-        isSaving={personas.isSaving}
-        draft={personas.draft}
-        onOpenChange={personas.setDialogOpen}
-        onDraftChange={personas.setDraft}
-        onSave={personas.save}
-      />
-    </>
+      <CaptureEventToasts />
+      {page === "home" && <HomeDashboard />}
+      {page === "persona" && <PersonaScreen />}
+      {page === "hotword" && <HotwordScreen />}
+      {page === "settings" && <SettingsScreen />}
+    </AppShell>
   );
 }

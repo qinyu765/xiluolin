@@ -120,3 +120,36 @@ impl fmt::Display for ProviderRouteError {
 }
 
 impl std::error::Error for ProviderRouteError {}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProviderError, ProviderErrorKind, MAX_SAFE_MESSAGE_CHARS};
+
+    #[test]
+    fn provider_error_redacts_bearer_tokens_and_truncates_messages() {
+        let error = ProviderError::new(
+            "qwen",
+            "model",
+            ProviderErrorKind::Network,
+            None,
+            format!(
+                "request failed\nAuthorization: Bearer secret-key {}",
+                "x".repeat(400)
+            ),
+        );
+
+        assert!(!error.message.contains("secret-key"));
+        assert!(!error.message.contains('\n'));
+        assert!(error.message.contains("[已脱敏]"));
+
+        let long = ProviderError::new(
+            "qwen",
+            "model",
+            ProviderErrorKind::RemoteFailure,
+            None,
+            "x".repeat(400),
+        );
+        assert_eq!(long.message.chars().count(), MAX_SAFE_MESSAGE_CHARS + 1);
+        assert!(long.message.ends_with('…'));
+    }
+}

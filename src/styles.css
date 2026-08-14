@@ -28,6 +28,143 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+.indicator-stage {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 8px;
+  background: transparent;
+}
+
+.indicator-shell {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 14px;
+  color: #f7faff;
+  background: rgb(20 27 38 / 94%);
+  box-shadow: 0 14px 38px rgb(3 8 18 / 24%);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+.indicator-signal {
+  display: grid;
+  width: 32px;
+  height: 100%;
+  place-items: center;
+  color: #72a7ff;
+  background: rgb(114 167 255 / 10%);
+}
+
+.indicator-signal svg {
+  width: 16px;
+  height: 16px;
+}
+
+.indicator-transcript {
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 520;
+  line-height: 48px;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.indicator-transcript::-webkit-scrollbar {
+  display: none;
+}
+
+.indicator-status {
+  display: grid;
+  min-width: 74px;
+  align-self: stretch;
+  align-content: center;
+  gap: 1px;
+  border-left: 1px solid rgb(255 255 255 / 10%);
+  padding: 0 12px;
+  color: #b7c4d7;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.indicator-status time {
+  color: #718198;
+  font-variant-numeric: tabular-nums;
+}
+
+.indicator-completed .indicator-signal {
+  color: #65d3a6;
+  background: rgb(101 211 166 / 10%);
+}
+
+.indicator-completed {
+  animation: indicator-completed-exit 1.2s ease forwards;
+}
+
+.indicator-failed {
+  animation: indicator-failed-exit 4s ease forwards;
+}
+
+.indicator-failed .indicator-signal {
+  color: #ff8e86;
+  background: rgb(255 142 134 / 10%);
+}
+
+.indicator-spinner {
+  animation: indicator-spin 900ms linear infinite;
+}
+
+@keyframes indicator-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes indicator-completed-exit {
+  0%,
+  68% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes indicator-failed-exit {
+  0%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator-spinner {
+    animation: none;
+  }
+
+  .indicator-completed,
+  .indicator-failed {
+    animation: none;
+  }
+
+  .indicator-transcript {
+    scroll-behavior: auto;
+  }
+}
+
 :root {
   color-scheme: light;
   --radius: 0.5rem;
@@ -51,7 +188,7 @@
   --ring: #097fe8;
 }
 
-/* 暂时固定浅色主题，深色变量保留待整体视觉验证后恢复。 */
+/* 暂时固定浅色主题，深色 token 保留待整体视觉验证后恢复。 */
 .dark {
   --background: #31302e;
   --foreground: #ffffff;
@@ -94,6 +231,12 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  body:has(.indicator-stage) {
+    min-width: 0;
+    overflow: hidden;
+    background: transparent;
   }
 
   button,

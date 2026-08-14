@@ -6,6 +6,7 @@ XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入�
 
 - **语音输入能力**：支持全局组合快捷键和应用内录音流程；macOS 可显式开启独立 Fn 按住录音，短按取消，25 秒提示并于 28 秒自动停止
 - **智能识别**：支持智谱 GLM-ASR-2512、OpenAI Whisper 和本地 Whisper；本地模式使用官方 whisper.cpp `ggml-base-q5_1.bin`，可离线转写
+- **实验性实时字幕**：默认关闭；可显式下载约 199.3 MB 的中英双语 Zipformer 混合量化候选模型，在悬浮窗中增量显示录音文字；它不替代最终 ASR，预览失败也不会影响最终识别、历史和投递
 - **人格化整理**：默认使用不可修改的“通用人格”进行自然、精炼的轻量整理；“原文听写”会跳过文本模型，也可切换其他内置或自定义人格
 - **热词词典**：启用热词同时影响 ASR 和文本整理；智谱原生接收前 100 个稳定去重热词，OpenAI 和本地 Whisper 使用软提示
 - **Capture 历史**：保存原始文本、整理结果、人格、输入来源、实际 Provider/模型、降级和投递方式；保留录音可试听、重新转写，原始文本可用当前人格重新整理
@@ -31,11 +32,11 @@ XiLuoLin 由个人发起并持续维护，欢迎社区通过 Issue、Discussion 
 - 当前阶段：核心模块、质量门禁、凭据安全、可靠投递、输入就绪检查和可追溯 Capture 历史已实现，已发布 `v0.1.0` 稳定版并继续真实场景验证
 - 开发基线：`main`（常规任务直接在 `main` 上完成验证、提交和推送）
 - 已完成代码层能力：Tauri v2 + React 基础骨架、本地数据层、内置人格与自定义人格、热词词典、智谱 ASR Provider、可配置文本整理 Provider、短音频处理流程、历史记录、统计卡片、录音模块、全局快捷键注册、复制与自动粘贴模块、错误提示、左侧导航、人格管理页、热词页和设置页、快捷键录音事件监听和自动输出
-- 当前界面：采用左侧导航结构，包含首页、人格、热词、设置四个页面；首页当前聚焦当前人格问候、快捷键提示、统计卡片和时间分段历史记录
-- 当前限制：首页的 `QuickStartCard` 录音 / 上传入口在代码中被注释隐藏；应用设置统一由设置页承载
+- 当前界面：采用左侧导航结构，包含首页、人格、热词、设置四个页面；首页聚焦运行就绪、五项统计和时间分段历史记录
+- 当前限制：应用以全局快捷键作为主要输入入口；上传处理命令保留，但首页不提供上传入口
 - 待完成验证：真实 API Key 下的完整语音 smoke test、Windows 跨权限窗口、macOS 多应用自动粘贴、目标窗口关闭后的降级和首页可见输入入口
 - 前端 UI 方向：采用 Tailwind CSS + shadcn/ui，参考 Notion 风格的桌面效率工具界面
-XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
+  XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
 
 - **语音采集**：麦克风录音、短音频处理、全局快捷键和录音状态提示。
 - **语音识别**：通过可配置 ASR Provider 将音频转换为原始文本。
@@ -114,22 +115,22 @@ pnpm tauri dev
 
 常用命令：
 
-| 命令 | 作用 |
-|---|---|
-| `pnpm dev` | 启动前端开发服务 |
-| `pnpm typecheck` | 执行 TypeScript 类型检查 |
-| `pnpm lint` | 执行 ESLint 代码质量检查 |
-| `pnpm format:check` | 检查前端与脚本格式 |
-| `pnpm test` | 运行 Vitest/React Testing Library 测试 |
-| `pnpm bindings:generate` | 从 Rust 命令与事件生成 TypeScript IPC 绑定 |
-| `pnpm bindings:check` | 检查生成绑定是否与 Rust 契约一致 |
-| `pnpm build` | 类型检查并构建前端 |
-| `pnpm check:rust` | 执行 Rust 格式、编译和测试检查 |
-| `pnpm check` | 执行完整前端与 Rust 质量检查 |
-| `pnpm tauri dev` | 启动桌面应用开发模式 |
-| `pnpm release:check` | 检查前端、Cargo、Tauri 与可选发布标签版本一致性 |
-| `pnpm eval:asr` | 计算私有基准集的 CER、热词召回、标点 F1 和延迟 |
-| `pnpm tauri:build:macos:arm64` | 构建 macOS 13+ Apple Silicon `.app` 和 `.dmg` |
+| 命令                           | 作用                                            |
+| ------------------------------ | ----------------------------------------------- |
+| `pnpm dev`                     | 启动前端开发服务                                |
+| `pnpm typecheck`               | 执行 TypeScript 类型检查                        |
+| `pnpm lint`                    | 执行 ESLint 代码质量检查                        |
+| `pnpm format:check`            | 检查前端与脚本格式                              |
+| `pnpm test`                    | 运行 Vitest/React Testing Library 测试          |
+| `pnpm bindings:generate`       | 从 Rust 命令与事件生成 TypeScript IPC 绑定      |
+| `pnpm bindings:check`          | 检查生成绑定是否与 Rust 契约一致                |
+| `pnpm build`                   | 类型检查并构建前端                              |
+| `pnpm check:rust`              | 执行 Rust 格式、编译和测试检查                  |
+| `pnpm check`                   | 执行完整前端与 Rust 质量检查                    |
+| `pnpm tauri dev`               | 启动桌面应用开发模式                            |
+| `pnpm release:check`           | 检查前端、Cargo、Tauri 与可选发布标签版本一致性 |
+| `pnpm eval:asr`                | 计算私有基准集的 CER、热词召回、标点 F1 和延迟  |
+| `pnpm tauri:build:macos:arm64` | 构建 macOS 13+ Apple Silicon `.app` 和 `.dmg`   |
 | `pnpm tauri:build:windows:x64` | 在 Windows 上构建 Windows 10/11 x64 NSIS 安装包 |
 
 GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前端、Windows/macOS Rust、依赖安全与敏感信息检查；发布 PR 还会实际构建 macOS DMG 和 Windows NSIS 安装包。涉及录音、快捷键、凭据或输出能力的变更仍需在桌面环境中手动验证。
@@ -143,6 +144,8 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 5. 首次使用默认选择“通用人格”；需要逐字保留时选择“原文听写”，如需结构化输出则切换其他内置人格或创建自定义人格。
 6. 添加需要重点识别的项目名、人名和技术词。
 7. 在目标输入框中使用全局快捷键完成语音输入。
+
+设置页的开关、下拉和快捷键会立即自动保存；文本与 API Key 停止输入约 600ms 后保存，失焦会立即提交。保存失败时可在设置页直接重试。
 
 真实服务演示仍需在本机配置 API Key 和麦克风权限后执行 smoke test；首页可见录音 / 上传入口当前隐藏，全局快捷键是主要输入入口。快捷键触发时状态窗会依次显示录音、识别、整理、输入和完成状态，且不会主动获取键盘焦点。
 详细步骤、验证路径和错误场景见 [使用与验证指南](docs/usage-guide.md)。
@@ -195,54 +198,56 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 
 当前仓库不包含 `.env`、真实 API Key 或录音临时文件。主要第三方依赖用途：
 
-  - macOS 录音状态浮窗复用 MIT/Apache-2.0 许可的
-    [tauri-nspanel](https://github.com/ahkohd/tauri-nspanel)，将 Tauri 窗口转换为不抢焦点的
-    `NSPanel`，以便显示在其他应用的原生全屏 Space。
+- macOS 录音状态浮窗复用 MIT/Apache-2.0 许可的
+  [tauri-nspanel](https://github.com/ahkohd/tauri-nspanel)，将 Tauri 窗口转换为不抢焦点的
+  `NSPanel`，以便显示在其他应用的原生全屏 Space。
 
-  - `@radix-ui/react-dialog`：为 shadcn/ui 弹窗组件提供无障碍交互基础。
-  - `@radix-ui/react-label`：为 shadcn/ui 表单标签组件提供无障碍交互基础。
-  - `@radix-ui/react-select`：为 shadcn/ui 选择器组件提供键盘操作和弹层交互。
-  - `@radix-ui/react-slot`：为 shadcn/ui 组件组合能力提供基础。
-  - `@radix-ui/react-switch`：为 shadcn/ui 开关组件提供无障碍交互基础。
-  - `@radix-ui/react-tabs`：为 shadcn/ui 标签页组件提供键盘操作基础。
-  - `@tailwindcss/vite`：在 Vite 构建中接入 Tailwind CSS。
-  - `@tauri-apps/api`：前端调用桌面端能力。
-  - `@tauri-apps/cli`：Tauri 构建和开发命令。
-  - `@vitejs/plugin-react`：为 Vite 提供 React 编译支持。
-  - `class-variance-authority`：管理 shadcn/ui 组件变体。
-  - `clsx`：组合条件 class。
-  - `lucide-react`：提供界面图标。
-  - `react` / `react-dom`：前端界面。
-  - `sonner`：提供前端 toast 提示，用于错误、保存和处理结果反馈。
-  - `tailwind-merge`：合并 Tailwind class，避免样式冲突。
-  - `tailwindcss`：编译生成项目实际使用到的样式。
-  - `vite`：前端开发和构建。
-  - `typescript`：类型检查。
-  - `tw-animate-css`：提供 shadcn/ui 推荐的动画工具样式。
-  - `tauri`：Rust 侧桌面应用框架，负责窗口、命令和插件集成。
-  - `tauri-build`：Tauri 构建脚本依赖，用于生成桌面端构建上下文。
-  - `tauri-plugin-store`：Rust 侧保存默认人格、快捷键、Provider 地址等非敏感轻量配置。
-  - `tauri-plugin-sql`：Tauri 官方 SQLite 插件，已注册到桌面端，为后续前端数据访问预留接口。
-  - `tauri-plugin-global-shortcut`：注册全局快捷键，支持长按录音和切换式录音入口。
-  - `tauri-plugin-opener`：提供 Tauri 默认打开外部资源能力。
-  - `rusqlite`：Rust 侧直接管理本地业务表。
-  - `uuid`：生成本地业务数据 ID。
-  - `serde` / `serde_json`：序列化和反序列化前后端命令数据。
-  - `ureq`：Rust 侧调用智谱 GLM-ASR-2512 `audio/transcriptions` 接口和 OpenAI Responses API，发送短音频 multipart 请求与文本整理 JSON 请求。
-  - `reqwest`：为音频和模型服务调用保留 HTTP multipart / JSON 能力。
-  - `cpal`：采集麦克风音频输入。
-  - `hound`：写入并读取 WAV 录音文件。
-  - `core-graphics`：在 macOS 使用 `CGEventTap` 捕获独立 Fn 手势，不修改系统 Fn 偏好。
-  - `whisper-rs` 0.16：whisper.cpp 的 Rust 绑定，用于本地离线 ASR；模型来自 `ggerganov/whisper.cpp` 官方 Hugging Face 仓库。
-  - `rubato`：在本地 Whisper 推理前执行高质量 16 kHz 重采样。
-  - `chrono`：生成时间戳和处理本地记录时间。
-  - `tokio`：支撑 Tauri 异步命令和后台任务。
-  - `enigo`：模拟键盘输入，实现自动粘贴或直接输入能力。
-  - `arboard`：访问系统剪贴板，作为复制和自动粘贴兜底。
-  - `thiserror`：定义 Rust 侧错误类型，生成更明确的错误提示。
-  - `keyring`：通过 Windows Credential Manager、macOS Keychain 或系统原生安全存储保存 API Key。
-  - `@types/node`：为 Vite 配置中的 Node API 提供类型定义。
-  - `@types/react` / `@types/react-dom`：为 React 组件和渲染入口提供 TypeScript 类型。
+- `@radix-ui/react-dialog`：为 shadcn/ui 弹窗组件提供无障碍交互基础。
+- `@radix-ui/react-label`：为 shadcn/ui 表单标签组件提供无障碍交互基础。
+- `@radix-ui/react-select`：为 shadcn/ui 选择器组件提供键盘操作和弹层交互。
+- `@radix-ui/react-slot`：为 shadcn/ui 组件组合能力提供基础。
+- `@radix-ui/react-switch`：为 shadcn/ui 开关组件提供无障碍交互基础。
+- `@radix-ui/react-tabs`：为 shadcn/ui 标签页组件提供键盘操作基础。
+- `@tailwindcss/vite`：在 Vite 构建中接入 Tailwind CSS。
+- `@tauri-apps/api`：前端调用桌面端能力。
+- `@tauri-apps/cli`：Tauri 构建和开发命令。
+- `@vitejs/plugin-react`：为 Vite 提供 React 编译支持。
+- `class-variance-authority`：管理 shadcn/ui 组件变体。
+- `clsx`：组合条件 class。
+- `lucide-react`：提供界面图标。
+- `react` / `react-dom`：前端界面。
+- `sonner`：提供前端 toast 提示，用于错误、保存和处理结果反馈。
+- `tailwind-merge`：合并 Tailwind class，避免样式冲突。
+- `tailwindcss`：编译生成项目实际使用到的样式。
+- `vite`：前端开发和构建。
+- `typescript`：类型检查。
+- `tw-animate-css`：提供 shadcn/ui 推荐的动画工具样式。
+- `tauri`：Rust 侧桌面应用框架，负责窗口、命令和插件集成。
+- `tauri-build`：Tauri 构建脚本依赖，用于生成桌面端构建上下文。
+- `tauri-plugin-store`：Rust 侧保存默认人格、快捷键、Provider 地址等非敏感轻量配置。
+- `tauri-plugin-sql`：Tauri 官方 SQLite 插件，已注册到桌面端，为后续前端数据访问预留接口。
+- `tauri-plugin-global-shortcut`：注册全局快捷键，支持长按录音和切换式录音入口。
+- `tauri-plugin-opener`：提供 Tauri 默认打开外部资源能力。
+- `rusqlite`：Rust 侧直接管理本地业务表。
+- `uuid`：生成本地业务数据 ID。
+- `serde` / `serde_json`：序列化和反序列化前后端命令数据。
+- `reqwest`：Rust 侧统一调用智谱、OpenAI-compatible 与千问 Provider，发送 multipart / JSON 请求并处理超时。
+- `base64`：为 Qwen-Audio 原生多模态请求编码音频 Data URI。
+- `sha2`：校验显式下载的实时预览模型文件，避免损坏或不匹配的模型进入运行时。
+- `sherpa-onnx`：Apache-2.0 许可的本地流式识别运行时，精确锁定 `1.13.5`；当前 Zipformer 候选仅用于默认关闭的实验性预览，不打入安装包、不替代最终 ASR。候选权重虽标注 Apache-2.0，但训练数据许可链仍不可审计，生产分发保持 No-Go。
+- `cpal`：采集麦克风音频输入。
+- `hound`：写入并读取 WAV 录音文件。
+- `core-graphics`：在 macOS 使用 `CGEventTap` 捕获独立 Fn 手势，不修改系统 Fn 偏好。
+- `whisper-rs` 0.16：whisper.cpp 的 Rust 绑定，用于本地离线 ASR；模型来自 `ggerganov/whisper.cpp` 官方 Hugging Face 仓库。
+- `rubato`：在本地 Whisper 推理前执行高质量 16 kHz 重采样。
+- `chrono`：生成时间戳和处理本地记录时间。
+- `tokio`：支撑 Tauri 异步命令和后台任务。
+- `enigo`：模拟键盘输入，实现自动粘贴或直接输入能力。
+- `arboard`：访问系统剪贴板，作为复制和自动粘贴兜底。
+- `thiserror`：定义 Rust 侧错误类型，生成更明确的错误提示。
+- `keyring`：通过 Windows Credential Manager、macOS Keychain 或系统原生安全存储保存 API Key。
+- `@types/node`：为 Vite 配置中的 Node API 提供类型定义。
+- `@types/react` / `@types/react-dom`：为 React 组件和渲染入口提供 TypeScript 类型。
 
 ## 前端 UI 选型
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { commands } from "@/generated/tauri-bindings";
+import { commands, events } from "@/generated/tauri-bindings";
 import type { HistoryRecord, HistoryStatistics } from "@/types";
 import { toErrorMessage } from "@/utils/error";
 
@@ -9,7 +9,6 @@ export function useHistoryController() {
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [stats, setStats] = useState<HistoryStatistics | null>(null);
   const [status, setStatus] = useState("正在读取历史记录...");
-  const [revision, setRevision] = useState(0);
 
   const reload = useCallback(async (nextStatus: string) => {
     const [nextRecords, nextStats] = await Promise.all([
@@ -19,7 +18,6 @@ export function useHistoryController() {
     setRecords(nextRecords);
     setStats(nextStats);
     setStatus(nextStatus);
-    setRevision((value) => value + 1);
   }, []);
 
   useEffect(() => {
@@ -41,6 +39,23 @@ export function useHistoryController() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let dispose: (() => void) | undefined;
+    let disposed = false;
+    void events.historyChanged
+      .listen(() => {
+        void reload("历史记录已更新。");
+      })
+      .then((nextDispose) => {
+        if (disposed) nextDispose();
+        else dispose = nextDispose;
+      });
+    return () => {
+      disposed = true;
+      dispose?.();
+    };
+  }, [reload]);
 
   const copyText = async (text: string) => {
     try {
@@ -119,7 +134,6 @@ export function useHistoryController() {
     records,
     stats,
     status,
-    revision,
     reload,
     copyText,
     playRecording,

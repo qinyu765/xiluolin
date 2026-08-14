@@ -12,81 +12,58 @@ import {
 } from "./settings-schema";
 
 const config: AppConfig = {
+  config_version: 2,
   default_persona_id: "general",
-  asr_provider: "zhipu",
-  asr_api_key: "",
-  asr_base_url: "https://open.bigmodel.cn/api/paas/v4",
-  asr_model: "glm-asr-2512",
-  openai_asr_model: "whisper-1",
-  openai_api_key: "",
-  openai_base_url: "https://api.openai.com/v1",
-  openai_model: "gpt-4o-mini",
-  text_provider: "zhipu",
-  zhipu_api_key: "",
-  zhipu_base_url: "https://open.bigmodel.cn/api/paas/v4",
-  zhipu_model: "glm-4.7-flash",
+  asr: {
+    primary: "zhipu",
+    fallbacks: [],
+    settings: {
+      zhipu: {
+        api_key: "",
+        base_url: "https://open.bigmodel.cn/api/paas/v4",
+        model: "glm-asr-2512",
+        options: {},
+      },
+    },
+  },
+  text: {
+    primary: "zhipu",
+    fallbacks: [],
+    settings: {
+      zhipu: {
+        api_key: "",
+        base_url: "https://open.bigmodel.cn/api/paas/v4",
+        model: "glm-4.7-flash",
+        options: {},
+      },
+    },
+  },
   longpress_shortcut: "CommandOrControl+Shift+R",
   toggle_shortcut: "Alt+Space",
   fn_hold_enabled: false,
   auto_save_history: true,
   mute_system_audio: false,
   selected_microphone: "",
-  retain_recordings: false,
-  local_asr_model: "whisper-base-q5_1",
-  allow_cloud_fallback: false,
-  fallback_asr_provider: "zhipu",
+  retain_recordings: true,
+  realtime_preview_enabled: false,
 };
 
 describe("settingsSchema", () => {
-  it("覆盖设置页消费的全部配置字段", () => {
+  it("覆盖通用设置消费的配置字段", () => {
     expect(collectSchemaConfigKeys(settingsSchema).sort()).toEqual(
       [
-        "allow_cloud_fallback",
-        "asr_api_key",
-        "asr_base_url",
-        "asr_model",
-        "asr_provider",
+        "asr",
         "auto_save_history",
-        "fallback_asr_provider",
         "fn_hold_enabled",
-        "local_asr_model",
         "longpress_shortcut",
         "mute_system_audio",
-        "openai_api_key",
-        "openai_asr_model",
-        "openai_base_url",
-        "openai_model",
         "retain_recordings",
+        "realtime_preview_enabled",
         "selected_microphone",
-        "text_provider",
+        "text",
         "toggle_shortcut",
-        "zhipu_api_key",
-        "zhipu_base_url",
-        "zhipu_model",
       ].sort(),
     );
-  });
-
-  it("只显示当前 Provider 对应的模型字段", () => {
-    const asrSection = settingsSchema.models.find(
-      (section) => section.id === "asr",
-    );
-    const zhipuFields = getVisibleFields(asrSection, config).map(
-      (field) => field.id,
-    );
-    const openaiFields = getVisibleFields(asrSection, {
-      ...config,
-      asr_provider: "openai",
-    }).map((field) => field.id);
-    const localFields = getVisibleFields(asrSection, {
-      ...config,
-      asr_provider: "local",
-    }).map((field) => field.id);
-
-    expect(zhipuFields).toContain("asr-api-key");
-    expect(zhipuFields).not.toContain("openai-asr-api-key");
-    expect(openaiFields).toContain("openai-asr-api-key");
-    expect(localFields).toContain("local-asr-settings");
   });
 
   it("从运行时设备生成麦克风选项并声明录音依赖", () => {
@@ -110,26 +87,54 @@ describe("settingsSchema", () => {
       { label: "USB Mic", value: "USB Mic" },
     ]);
     expect(
-      retainRecordings?.disabled?.({
-        ...config,
-        auto_save_history: false,
-      }),
+      retainRecordings?.disabled?.({ ...config, auto_save_history: false }),
     ).toBe(true);
   });
 
-  it("保存前统一清理文本并只校验当前 Provider", () => {
+  it("保存前清理通用字段和嵌套 Provider 设置", () => {
     const prepared = prepareSettingsConfig({
       ...config,
-      asr_api_key: "  secret  ",
-      asr_base_url: "  https://example.com  ",
-      openai_base_url: "",
+      longpress_shortcut: "  Alt+Space  ",
+      asr: {
+        ...config.asr,
+        settings: {
+          zhipu: {
+            ...config.asr.settings?.zhipu,
+            api_key: "  secret  ",
+            base_url: "  https://example.com  ",
+            model: "  glm-asr  ",
+          },
+        },
+      },
     });
 
-    expect(prepared.asr_api_key).toBe("secret");
-    expect(prepared.asr_base_url).toBe("https://example.com");
+    expect(prepared.longpress_shortcut).toBe("Alt+Space");
+    expect(prepared.asr.settings?.zhipu?.api_key).toBe("secret");
+    expect(prepared.asr.settings?.zhipu?.base_url).toBe("https://example.com");
     expect(validateSettingsConfig(prepared)).toBeNull();
-    expect(validateSettingsConfig({ ...prepared, asr_base_url: "" })).toBe(
-      "Base URL不能为空。",
-    );
+  });
+
+  it("拒绝重复 route、空 primary 和不完整的云 Provider", () => {
+    expect(
+      validateSettingsConfig({
+        ...config,
+        asr: { ...config.asr, primary: "", fallbacks: [] },
+      }),
+    ).toContain("尚未选择");
+    expect(
+      validateSettingsConfig({
+        ...config,
+        asr: { ...config.asr, fallbacks: ["zhipu"] },
+      }),
+    ).toContain("重复");
+    expect(
+      validateSettingsConfig({
+        ...config,
+        asr: {
+          ...config.asr,
+          settings: { zhipu: { base_url: "", model: "glm-asr" } },
+        },
+      }),
+    ).toContain("Base URL");
   });
 });

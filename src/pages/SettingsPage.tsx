@@ -49,7 +49,7 @@ export function SettingsPage({
   const { activeTab, rootRef, onTabChange } = usePreservedTabScroll("general");
   const [modelRevision, setModelRevision] = useState(0);
 
-  const renderGeneralSlot = (slot: string, saveMode: SettingsSaveMode) => {
+  const renderSlot = (slot: string, saveMode: SettingsSaveMode) => {
     if (slot === "longpress-shortcut") {
       return (
         <div className="grid gap-2">
@@ -86,17 +86,14 @@ export function SettingsPage({
         </div>
       );
     }
-    if (slot === "fn-hold") {
-      return (
-        <FnHoldSetting
-          enabled={appConfig?.fn_hold_enabled ?? false}
-          onCheckedChange={(checked) =>
-            onConfigChange({ fn_hold_enabled: checked }, saveMode)
-          }
-        />
-      );
-    }
-    return null;
+    return (
+      <FnHoldSetting
+        enabled={appConfig?.fn_hold_enabled ?? false}
+        onCheckedChange={(checked) =>
+          onConfigChange({ fn_hold_enabled: checked }, saveMode)
+        }
+      />
+    );
   };
 
   return (
@@ -120,44 +117,43 @@ export function SettingsPage({
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          {settingsSchema.general.map((section) =>
-            section.type === "slot" ? (
-              <RecordingStorageCard
-                key={section.id}
-                revision={historyRevision}
-              />
-            ) : (
-              <Card key={section.id}>
-                <CardHeader>
-                  <CardTitle>{section.title}</CardTitle>
-                  <CardDescription>{section.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
-                    {appConfig ? (
-                      <SettingsFieldList
-                        section={section}
-                        config={appConfig}
-                        context={{ audioDevices }}
-                        onChange={onConfigChange}
-                        onBlur={onConfigBlur}
-                        renderSlot={renderGeneralSlot}
-                      />
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            ),
-          )}
+          {settingsSchema.general.map((section) => (
+            <Card key={section.id}>
+              <CardHeader>
+                <CardTitle>{section.title}</CardTitle>
+                <CardDescription>{section.description}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {appConfig ? (
+                  <SettingsFieldList
+                    section={section}
+                    config={appConfig}
+                    context={{ audioDevices }}
+                    onChange={onConfigChange}
+                    onBlur={onConfigBlur}
+                    renderSlot={renderSlot}
+                  />
+                ) : null}
+              </CardContent>
+            </Card>
+          ))}
+          <RecordingStorageCard key={historyRevision} />
         </TabsContent>
 
         <TabsContent value="models" className="space-y-6">
-          <ModelSettings
-            appConfig={appConfig}
-            updateConfig={onConfigChange}
-            onConfigBlur={onConfigBlur}
-            onModelChanged={() => setModelRevision((value) => value + 1)}
-          />
+          {settingsSchema.models.map((section) =>
+            section.fields.map((field) =>
+              field.control === "slot" && field.slot === "provider-catalog" ? (
+                <ModelSettings
+                  key={field.id}
+                  appConfig={appConfig}
+                  updateConfig={onConfigChange}
+                  onConfigBlur={onConfigBlur}
+                  onModelChanged={() => setModelRevision((value) => value + 1)}
+                />
+              ) : null,
+            ),
+          )}
         </TabsContent>
       </Tabs>
     </div>

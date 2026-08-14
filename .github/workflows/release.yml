@@ -169,6 +169,29 @@ jobs:
           codesign -dv --verbose=4 "$app" 2>&1 | grep -q 'Signature=adhoc'
           hdiutil verify "$dmg"
 
+      - name: Verify Windows shared runtime in NSIS bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "src-tauri/target/x86_64-pc-windows-msvc/release"
+          $dlls = @(Get-ChildItem -Path $releaseDir -Filter "*.dll" -File)
+          if ($dlls.Count -eq 0) {
+            throw "sherpa-onnx shared runtime DLLs are missing from the release directory"
+          }
+          $installer = Get-ChildItem -Path "$releaseDir/bundle/nsis" -Filter "*-setup.exe" -File | Select-Object -First 1
+          if ($null -eq $installer) {
+            throw "NSIS installer was not produced"
+          }
+          $listing = (& 7z l $installer.FullName | Out-String)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to inspect the NSIS installer"
+          }
+          foreach ($dll in $dlls) {
+            if ($listing -notmatch [regex]::Escape($dll.Name)) {
+              throw "NSIS installer does not contain required runtime DLL: $($dll.Name)"
+            }
+          }
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v7
         with:

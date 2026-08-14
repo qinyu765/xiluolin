@@ -8,6 +8,7 @@ XiLuoLin `v0.1.0` 面向 Windows 10/11 x64 提供未签名的 NSIS 稳定版安�
 - Microsoft Visual Studio C++ Build Tools
 - WebView2 Runtime
 - Node.js 20+、pnpm 10+、Rust stable、CMake
+- `sherpa-onnx` 在 Windows 使用 shared runtime，构建时会把所需 DLL 放到发布目录并由 NSIS 一并打包，避免与 Whisper 的 CRT 发生冲突。
 
 ## 构建
 
@@ -39,6 +40,7 @@ src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XiLuoLin_0.1.0_x64-s
 - 确认麦克风、Windows Credential Manager、长按/切换快捷键和状态悬浮窗正常。
 - 在普通文本编辑器和至少一个日常应用中验证自动粘贴；跨权限级别失败时应保留剪贴板结果。
 - 验证无效 API Key、快捷键冲突、Provider 超时和目标窗口关闭等失败路径。
+- 检查安装目录中包含 `sherpa-onnx`/ONNX Runtime DLL；实时预览仍默认关闭，只有用户下载并启用模型后才加载。
 
 ## 已知限制
 

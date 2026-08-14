@@ -1,0 +1,5 @@
+/target/
+/models/
+/fixtures/
+*.wav
+*.tar.bz2

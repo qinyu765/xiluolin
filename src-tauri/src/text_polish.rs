@@ -24,6 +24,8 @@ pub struct TextPolishResult {
     pub final_text: String,
     pub used_fallback: bool,
     pub error_message: Option<String>,
+    pub provider: String,
+    pub model: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +95,8 @@ pub fn polish_text_with_provider(
                 final_text: finalize_text(request, &final_text),
                 used_fallback: false,
                 error_message: None,
+                provider: config.provider.clone(),
+                model: config.model.clone(),
             })
         }
         Err(error @ (TextPolishError::RequestFailed(_) | TextPolishError::InvalidResponse(_))) => {
@@ -101,6 +105,8 @@ pub fn polish_text_with_provider(
                 final_text: finalize_text(request, request.raw_text.trim()),
                 used_fallback: true,
                 error_message: Some(error.to_string()),
+                provider: String::new(),
+                model: String::new(),
             })
         }
         Err(error) => {
@@ -152,37 +158,35 @@ fn send_polish_request(
     );
 
     let step3_start = std::time::Instant::now();
-    let agent = ureq::Agent::config_builder()
-        .timeout_global(Some(std::time::Duration::from_secs(12)))
-        .http_status_as_error(false)
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(12))
         .build()
-        .new_agent();
-    let response = agent
+        .map_err(|error| TextPolishError::RequestFailed(error.to_string()))?;
+    let serialized_body = serde_json::to_string_pretty(&body)
+        .map_err(|error| TextPolishError::RequestFailed(error.to_string()))?;
+    let response = client
         .post(&chat_completions_url(&config.base_url))
-        .header(
-            "Authorization",
-            &format!("Bearer {}", config.api_key.trim()),
-        )
+        .bearer_auth(config.api_key.trim())
         .header("Content-Type", "application/json")
-        .send_json(&body)
+        .body(serialized_body)
+        .send()
         .map_err(|error| TextPolishError::RequestFailed(error.to_string()))?;
     eprintln!(
         "[⏱️ 文本润色] 发送 HTTP 请求并等待响应 - 耗时 {:?}",
         step3_start.elapsed()
     );
 
-    let status_code = response.status().as_u16();
-    if !response.status().is_success() {
-        let response_body = response.into_body().read_to_string().unwrap_or_default();
+    let status = response.status();
+    let status_code = status.as_u16();
+    if !status.is_success() {
         return Err(TextPolishError::RequestFailed(format!(
-            "http status: {status_code}, body: {response_body}"
+            "http status: {status_code}"
         )));
     }
 
     let step4_start = std::time::Instant::now();
     let response: ChatCompletionsResponse = response
-        .into_body()
-        .read_json()
+        .json()
         .map_err(|error| TextPolishError::InvalidResponse(error.to_string()))?;
     eprintln!(
         "[⏱️ 文本润色] 解析响应 JSON - 耗时 {:?}",
@@ -337,23 +341,4 @@ pub(crate) fn build_input(request: &TextPolishRequest) -> String {
 
 fn chat_completions_url(base_url: &str) -> String {
     format!("{}/chat/completions", base_url.trim_end_matches('/'))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn polish_text(
-    request: TextPolishRequest,
-    provider: String,
-    api_key: String,
-    base_url: String,
-    model: String,
-) -> Result<TextPolishResult, String> {
-    let config = TextPolishConfig {
-        provider,
-        api_key,
-        base_url,
-        model,
-    };
-
-    polish_text_with_provider(&request, &config).map_err(|error| error.to_string())
 }

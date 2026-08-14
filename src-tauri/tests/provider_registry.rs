@@ -79,6 +79,18 @@ fn route_rejects_duplicate_or_more_than_three_providers() {
     );
 }
 
+#[test]
+fn route_validation_rejects_blank_fallback_and_normalizes_provider_ids() {
+    let blank = route("primary", &["  "]);
+    assert_eq!(blank.validate().unwrap_err(), "fallback Provider 不能为空");
+
+    let normalized = route(" primary ", &[" secondary "]);
+    assert_eq!(
+        normalized.provider_ids().collect::<Vec<_>>(),
+        ["primary", "secondary"]
+    );
+}
+
 struct FailingAsr(&'static str);
 
 impl AsrProvider for FailingAsr {

@@ -1,7 +1,6 @@
 pub mod asr;
 mod asr_adapters;
 pub mod catalog;
-pub mod compat;
 pub mod error;
 pub mod text;
 mod text_adapters;

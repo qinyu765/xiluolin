@@ -118,16 +118,19 @@ fn polish_request() -> TextPolishRequest {
 fn default_config_contains_text_provider_and_zhipu_config() {
     let config = default_app_config();
 
-    assert_eq!(config.text_provider, "zhipu");
-    assert_eq!(config.zhipu_api_key, "");
+    assert_eq!(config.text.primary, "zhipu");
+    assert_eq!(config.text.settings["zhipu"].api_key, "");
     assert_eq!(
-        config.zhipu_base_url,
+        config.text.settings["zhipu"].base_url,
         "https://open.bigmodel.cn/api/paas/v4"
     );
-    assert_eq!(config.zhipu_model, "glm-4.7-flash");
-    assert_eq!(config.openai_api_key, "");
-    assert_eq!(config.openai_base_url, "https://api.openai.com/v1");
-    assert_eq!(config.openai_model, "gpt-4o-mini");
+    assert_eq!(config.text.settings["zhipu"].model, "glm-4.7-flash");
+    assert_eq!(config.text.settings["openai"].api_key, "");
+    assert_eq!(
+        config.text.settings["openai"].base_url,
+        "https://api.openai.com/v1"
+    );
+    assert_eq!(config.text.settings["openai"].model, "gpt-4o-mini");
 }
 
 #[test]

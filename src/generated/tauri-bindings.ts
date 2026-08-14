@@ -5,15 +5,15 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	transcribeAudioPath: (audioPath: string, provider: string, apiKey: string, baseUrl: string, model: string) => __TAURI_INVOKE<AsrTranscription>("transcribe_audio_path", { audioPath, provider, apiKey, baseUrl, model }),
-	polishText: (request: TextPolishRequest, provider: string, apiKey: string, baseUrl: string, model: string) => __TAURI_INVOKE<TextPolishResult>("polish_text", { request, provider, apiKey, baseUrl, model }),
-	processUploadedAudio: (request: VoiceInputRequest) => __TAURI_INVOKE<VoiceInputResult>("process_uploaded_audio", { request }),
-	processRecordingFile: (sessionId: string, filePath: string, durationMs: number) => __TAURI_INVOKE<VoiceInputResult>("process_recording_file", { sessionId, filePath, durationMs }),
+	startCapture: () => __TAURI_INVOKE<CaptureSessionStart>("start_capture"),
+	stopCapture: () => __TAURI_INVOKE<CaptureSnapshot>("stop_capture"),
 	listProviderCatalog: () => __TAURI_INVOKE<ProviderCatalog>("list_provider_catalog"),
+	processUploadedAudio: (request: VoiceInputRequest) => __TAURI_INVOKE<VoiceInputResult>("process_uploaded_audio", { request }),
+	readCaptureSnapshot: () => __TAURI_INVOKE<CaptureSnapshot>("read_capture_snapshot"),
 	abortCaptureSession: (sessionId: string) => __TAURI_INVOKE<null>("abort_capture_session", { sessionId }),
-	initializeLocalData: () => __TAURI_INVOKE<AppConfig>("initialize_local_data"),
+	initializeLocalData: () => __TAURI_INVOKE<AppConfig_Serialize>("initialize_local_data"),
 	listPersonas: () => __TAURI_INVOKE<Persona[]>("list_personas"),
-	setDefaultPersona: (personaId: string) => __TAURI_INVOKE<DefaultPersonaUpdate>("set_default_persona", { personaId }),
+	setDefaultPersona: (personaId: string) => __TAURI_INVOKE<DefaultPersonaUpdate_Serialize>("set_default_persona", { personaId }),
 	createPersona: (draft: PersonaDraft) => __TAURI_INVOKE<Persona>("create_persona", { draft }),
 	updatePersona: (id: string, draft: PersonaDraft) => __TAURI_INVOKE<Persona>("update_persona", { id, draft }),
 	deletePersona: (id: string) => __TAURI_INVOKE<Persona[]>("delete_persona", { id }),
@@ -29,16 +29,19 @@ export const commands = {
 	readRetainedRecording: (historyId: string) => __TAURI_INVOKE<number[]>("read_retained_recording", { historyId }),
 	reprocessHistoryAudio: (historyId: string) => __TAURI_INVOKE<HistoryRecord>("reprocess_history_audio", { historyId }),
 	refineHistoryText: (historyId: string) => __TAURI_INVOKE<HistoryRecord>("refine_history_text", { historyId }),
-	readAppConfig: () => __TAURI_INVOKE<AppConfig>("read_app_config"),
-	updateAppConfig: (config: AppConfig) => __TAURI_INVOKE<AppConfig>("update_app_config", { config }),
-	startRecording: () => __TAURI_INVOKE<CaptureSessionStart>("start_recording"),
-	stopRecording: () => __TAURI_INVOKE<RecordingResult>("stop_recording"),
+	readAppConfig: () => __TAURI_INVOKE<AppConfig_Serialize>("read_app_config"),
+	updateAppConfig: (config: AppConfig_Deserialize) => __TAURI_INVOKE<AppConfig_Serialize>("update_app_config", { config }),
 	listAudioDevices: () => __TAURI_INVOKE<AudioDevice[]>("list_audio_devices"),
 	readInputReadiness: () => __TAURI_INVOKE<InputReadiness>("read_input_readiness"),
 	localAsrModelInfo: () => __TAURI_INVOKE<LocalAsrModelInfo>("local_asr_model_info"),
 	downloadLocalAsrModel: () => __TAURI_INVOKE<LocalAsrModelInfo>("download_local_asr_model"),
 	deleteLocalAsrModel: () => __TAURI_INVOKE<LocalAsrModelInfo>("delete_local_asr_model"),
 	verifyLocalAsrModel: () => __TAURI_INVOKE<null>("verify_local_asr_model"),
+	realtimeAsrModelInfo: () => __TAURI_INVOKE<RealtimeModelInfo>("realtime_asr_model_info"),
+	downloadRealtimeAsrModel: () => __TAURI_INVOKE<RealtimeModelInfo>("download_realtime_asr_model"),
+	verifyRealtimeAsrModel: () => __TAURI_INVOKE<null>("verify_realtime_asr_model"),
+	setRealtimePreviewEnabled: (enabled: boolean) => __TAURI_INVOKE<RealtimeModelInfo>("set_realtime_preview_enabled", { enabled }),
+	deleteRealtimeAsrModel: () => __TAURI_INVOKE<RealtimeModelInfo>("delete_realtime_asr_model"),
 	requestMacosPermission: (permission: MacosPermissionKind) => __TAURI_INVOKE<PermissionStatus>("request_macos_permission", { permission }),
 	openMacosPrivacySettings: (permission: MacosPermissionKind) => __TAURI_INVOKE<null>("open_macos_privacy_settings", { permission }),
 	recordingStorageInfo: () => __TAURI_INVOKE<RecordingStorageInfo>("recording_storage_info"),
@@ -48,7 +51,6 @@ export const commands = {
 	registerBothHotkeys: (longpressShortcut: string | null, toggleShortcut: string | null) => __TAURI_INVOKE<null>("register_both_hotkeys", { longpressShortcut, toggleShortcut }),
 	unregisterHotkey: () => __TAURI_INVOKE<null>("unregister_hotkey"),
 	updateIndicatorStatus: (status: string) => __TAURI_INVOKE<null>("update_indicator_status", { status }),
-	deliverText: (sessionId: string | null, historyId: string | null, text: string) => __TAURI_INVOKE<OutputResult>("deliver_text", { sessionId, historyId, text }),
 	readFallbackResult: () => __TAURI_INVOKE<{
 	text: string,
 	reason: string,
@@ -60,27 +62,22 @@ export const commands = {
 
 /** Events */
 export const events = {
+	captureSnapshot: makeEvent<CaptureSnapshotEvent>("capture-snapshot"),
+	historyChanged: makeEvent<HistoryChangedEvent>("history-changed"),
 	localAsrDownloadProgress: makeEvent<LocalAsrDownloadProgressEvent>("local-asr-download-progress"),
-	recordingCompleted: makeEvent<RecordingCompletedEvent>("recording-completed"),
+	realtimeAsrDownloadProgress: makeEvent<RealtimeAsrDownloadProgressEvent>("realtime-asr-download-progress"),
 	recordingError: makeEvent<RecordingErrorEvent>("recording-error"),
 	recordingLimitWarning: makeEvent<RecordingLimitWarningEvent>("recording-limit-warning"),
 };
 
 /* Types */
-export type AppConfig = {
+export type AppConfig = AppConfig_Serialize | AppConfig_Deserialize;
+
+export type AppConfig_Deserialize = {
+	config_version?: number,
+	asr?: ProviderRoutingConfig_Deserialize,
+	text?: ProviderRoutingConfig_Deserialize,
 	default_persona_id: string,
-	asr_provider?: string,
-	asr_api_key?: string,
-	asr_base_url: string,
-	asr_model: string,
-	openai_asr_model?: string,
-	openai_api_key?: string,
-	openai_base_url: string,
-	openai_model: string,
-	text_provider?: string,
-	zhipu_api_key?: string,
-	zhipu_base_url?: string,
-	zhipu_model?: string,
 	longpress_shortcut?: string,
 	toggle_shortcut?: string,
 	fn_hold_enabled?: boolean,
@@ -88,16 +85,22 @@ export type AppConfig = {
 	mute_system_audio?: boolean,
 	selected_microphone?: string,
 	retain_recordings?: boolean,
-	local_asr_model?: string,
-	allow_cloud_fallback?: boolean,
-	fallback_asr_provider?: string,
+	realtime_preview_enabled?: boolean,
 };
 
-export type AsrTranscription = {
-	text: string,
-	provider: string,
-	model: string,
-	used_fallback: boolean,
+export type AppConfig_Serialize = {
+	config_version: number,
+	asr: ProviderRoutingConfig_Serialize,
+	text: ProviderRoutingConfig_Serialize,
+	default_persona_id: string,
+	longpress_shortcut: string,
+	toggle_shortcut: string,
+	fn_hold_enabled: boolean,
+	auto_save_history: boolean,
+	mute_system_audio: boolean,
+	selected_microphone: string,
+	retain_recordings: boolean,
+	realtime_preview_enabled: boolean,
 };
 
 export type AudioDevice = {
@@ -105,13 +108,46 @@ export type AudioDevice = {
 	is_default: boolean,
 };
 
+export type CaptureFailure = {
+	code: string,
+	stage: CapturePhase,
+	recoverable: boolean,
+	detail: string,
+};
+
+export type CapturePhase = "idle" | "recording" | "transcribing" | "refining" | "delivering" | "completed" | "failed";
+
 export type CaptureSessionStart = {
 	session_id: string,
 };
 
-export type DefaultPersonaUpdate = {
+export type CaptureSnapshot = {
+	session_id: string | null,
+	revision: number,
+	source: CaptureSource | null,
+	phase: CapturePhase,
+	elapsed_ms: number,
+	stable_text: string,
+	tentative_text: string,
+	preview_state: PreviewState,
+	history_id: string | null,
+	failure: CaptureFailure | null,
+};
+
+export type CaptureSnapshotEvent = CaptureSnapshot;
+
+export type CaptureSource = "hotkey" | "app";
+
+export type DefaultPersonaUpdate = DefaultPersonaUpdate_Serialize | DefaultPersonaUpdate_Deserialize;
+
+export type DefaultPersonaUpdate_Deserialize = {
 	personas: Persona[],
-	config: AppConfig,
+	config: AppConfig_Deserialize,
+};
+
+export type DefaultPersonaUpdate_Serialize = {
+	personas: Persona[],
+	config: AppConfig_Serialize,
 };
 
 export type FallbackResult = {
@@ -120,7 +156,9 @@ export type FallbackResult = {
 	copied: boolean,
 };
 
-export type FocusRestoreLevel = "window" | "application" | "none";
+export type HistoryChangedEvent = {
+	history_id: string | null,
+};
 
 export type HistoryRecord = {
 	id: string,
@@ -222,18 +260,6 @@ export type MacosPermissionState = {
 	accessibility: PermissionStatus,
 };
 
-export type OutputMethod = "paste" | "clipboard" | "manual";
-
-export type OutputResult = {
-	method: OutputMethod,
-	success: boolean,
-	message: string,
-	target_restored: boolean,
-	target_restore_level: FocusRestoreLevel,
-	clipboard_restored: boolean,
-	used_fallback: boolean,
-};
-
 export type PermissionStatus = "authorized" | "denied" | "restricted" | "not_determined" | "unsupported" | "unknown";
 
 export type Persona = {
@@ -253,6 +279,8 @@ export type PersonaDraft = {
 	icon: string,
 	processing_mode: string,
 };
+
+export type PreviewState = "disabled" | "loading" | "active" | "unavailable";
 
 export type ProviderCapabilities = {
 	native_hotwords: boolean,
@@ -300,6 +328,38 @@ export type ProviderFieldDescriptor = {
 
 export type ProviderFieldKind = "api_key" | "text" | "select" | "multi_select" | "switch";
 
+export type ProviderOptionValue = { type: "text"; value: string } | { type: "boolean"; value: boolean } | { type: "string_list"; value: string[] };
+
+export type ProviderRoutingConfig = ProviderRoutingConfig_Serialize | ProviderRoutingConfig_Deserialize;
+
+export type ProviderRoutingConfig_Deserialize = {
+	primary?: string,
+	fallbacks?: string[],
+	settings?: { [key in string]: ProviderSettings_Deserialize },
+};
+
+export type ProviderRoutingConfig_Serialize = {
+	primary: string,
+	fallbacks: string[],
+	settings: { [key in string]: ProviderSettings_Serialize },
+};
+
+export type ProviderSettings = ProviderSettings_Serialize | ProviderSettings_Deserialize;
+
+export type ProviderSettings_Deserialize = {
+	api_key?: string,
+	base_url?: string,
+	model?: string,
+	options?: { [key in string]: ProviderOptionValue },
+};
+
+export type ProviderSettings_Serialize = {
+	api_key?: string,
+	base_url: string,
+	model: string,
+	options: { [key in string]: ProviderOptionValue },
+};
+
 export type ReadinessAction = "request_microphone" | "open_microphone_settings" | "request_accessibility" | "open_accessibility_settings";
 
 export type ReadinessCheck = {
@@ -309,7 +369,28 @@ export type ReadinessCheck = {
 	actions: ReadinessAction[],
 };
 
-export type RecordingCompletedEvent = RecordingResult;
+export type RealtimeAsrDownloadProgressEvent = RealtimeModelDownloadProgress;
+
+export type RealtimeModelDownloadProgress = {
+	file_name: string,
+	file_index: number,
+	file_count: number,
+	downloaded_bytes: number,
+	total_bytes: number,
+	percent: number,
+};
+
+export type RealtimeModelInfo = {
+	name: string,
+	revision: string,
+	path: string,
+	state: RealtimeModelState,
+	enabled: boolean,
+	total_size_bytes: number,
+	downloaded_size_bytes: number,
+};
+
+export type RealtimeModelState = "not_downloaded" | "ready" | "invalid";
 
 export type RecordingErrorEvent = string;
 
@@ -318,29 +399,10 @@ export type RecordingLimitWarningEvent = {
 	remaining_ms: number,
 };
 
-export type RecordingResult = {
-	session_id: string,
-	file_path: string,
-	duration_ms: number,
-};
-
 export type RecordingStorageInfo = {
 	file_count: number,
 	total_bytes: number,
 	directory: string,
-};
-
-export type TextPolishRequest = {
-	raw_text: string,
-	persona_id?: string,
-	persona_description: string,
-	hotword_context: string,
-};
-
-export type TextPolishResult = {
-	final_text: string,
-	used_fallback: boolean,
-	error_message: string | null,
 };
 
 export type VoiceInputRequest = {

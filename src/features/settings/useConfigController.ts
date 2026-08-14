@@ -11,7 +11,7 @@ import type { AppConfig, AudioDevice } from "@/types";
 import {
   createConfigSaveQueue,
   type ConfigSaveState,
-} from "./config-save-queue";
+} from "@/app/controllers/config-save-queue";
 
 export function useConfigController() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
@@ -21,6 +21,10 @@ export function useConfigController() {
     status: "idle",
   });
   const [revision, setRevision] = useState(0);
+  const [savedResult, setSavedResult] = useState<{
+    config: AppConfig;
+    isLatest: boolean;
+  } | null>(null);
   const [saveQueue] = useState(() =>
     createConfigSaveQueue<AppConfig>({
       save: async (config) =>
@@ -28,16 +32,22 @@ export function useConfigController() {
       prepare: prepareSettingsConfig,
       validate: validateSettingsConfig,
       onStateChange: setSaveState,
-      onSaved: (saved, isLatest) => {
-        if (isLatest) setAppConfig(saved);
-        setRevision((value) => value + 1);
-      },
+      onSaved: (config, isLatest) => setSavedResult({ config, isLatest }),
     }),
   );
 
   useEffect(() => {
     configRef.current = appConfig;
   }, [appConfig]);
+
+  useEffect(() => {
+    if (!savedResult) return;
+    if (savedResult.isLatest) {
+      configRef.current = savedResult.config;
+      setAppConfig(savedResult.config);
+    }
+    setRevision((value) => value + 1);
+  }, [savedResult]);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +65,8 @@ export function useConfigController() {
       .catch(() => undefined);
     return () => {
       active = false;
+      // 离开设置页前先冲刷防抖队列，避免 600ms 内的最后一次修改丢失。
+      void saveQueue.flush();
       saveQueue.dispose();
     };
   }, [saveQueue]);

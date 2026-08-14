@@ -6,19 +6,26 @@ import type { AppConfig } from "@/types";
 import { SettingsFieldList } from "./SettingsFieldList";
 import { settingsSchema } from "./settings-schema";
 
-const config = {
-  asr_provider: "zhipu",
-  text_provider: "zhipu",
-  zhipu_api_key: "",
+const config: AppConfig = {
+  config_version: 2,
+  default_persona_id: "general",
+  asr: { primary: "local", fallbacks: [], settings: {} },
+  text: { primary: "zhipu", fallbacks: [], settings: {} },
+  longpress_shortcut: "",
+  toggle_shortcut: "",
+  fn_hold_enabled: false,
   auto_save_history: true,
+  mute_system_audio: false,
+  selected_microphone: "",
   retain_recordings: true,
-} as AppConfig;
+  realtime_preview_enabled: false,
+};
 
 describe("SettingsFieldList", () => {
-  it("按 Schema 渲染当前 Provider 字段并传递保存策略", () => {
+  it("渲染通用 Schema 并传递开关保存策略", () => {
     const onChange = vi.fn();
-    const section = settingsSchema.models.find(
-      (candidate) => candidate.id === "text-processing",
+    const section = settingsSchema.general.find(
+      (candidate) => candidate.id === "general",
     );
 
     render(
@@ -32,38 +39,28 @@ describe("SettingsFieldList", () => {
       />,
     );
 
-    const apiKey = screen.getByLabelText("智谱 API Key");
-    expect(apiKey).toBeInTheDocument();
-    expect(screen.queryByLabelText("OpenAI API Key")).not.toBeInTheDocument();
-
-    fireEvent.change(apiKey, { target: { value: "secret" } });
-    expect(onChange).toHaveBeenCalledWith(
-      { zhipu_api_key: "secret" },
-      "debounced",
-    );
-  });
-
-  it("使用 Schema 的依赖补丁更新开关", () => {
-    const onChange = vi.fn();
-    const section = settingsSchema.general.find(
-      (candidate) => candidate.id === "general",
-    );
-
-    render(
-      <SettingsFieldList
-        section={section}
-        config={config}
-        context={{ audioDevices: [] }}
-        onChange={onChange}
-        onBlur={() => undefined}
-        renderSlot={(slot) => <span>{slot}</span>}
-      />,
-    );
-
     fireEvent.click(screen.getByRole("switch", { name: "自动保存历史" }));
     expect(onChange).toHaveBeenCalledWith(
       { auto_save_history: false, retain_recordings: false },
       "immediate",
     );
+  });
+
+  it("渲染动态麦克风选项", () => {
+    const section = settingsSchema.general.find(
+      (candidate) => candidate.id === "general",
+    );
+    render(
+      <SettingsFieldList
+        section={section}
+        config={config}
+        context={{ audioDevices: [{ name: "USB Mic", is_default: true }] }}
+        onChange={vi.fn()}
+        onBlur={() => undefined}
+        renderSlot={() => null}
+      />,
+    );
+
+    expect(screen.getByLabelText("麦克风设备")).toBeInTheDocument();
   });
 });

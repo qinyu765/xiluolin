@@ -32,7 +32,7 @@ export function ConfigSaveStatus({
       role="status"
       aria-live="polite"
       className={cn(
-        "flex min-h-8 items-center gap-2 text-sm text-muted-foreground",
+        "flex min-h-8 min-w-0 items-center gap-2 text-sm text-muted-foreground",
         (isError || isInvalid) && "text-destructive",
       )}
     >
@@ -45,7 +45,7 @@ export function ConfigSaveStatus({
       ) : (
         <AlertCircleIcon className="size-4 shrink-0" aria-hidden="true" />
       )}
-      <span>{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
       {isError ? (
         <Button
           type="button"

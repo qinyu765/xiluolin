@@ -113,27 +113,27 @@ export function SettingsPage({
 
   return (
     <div ref={rootRef} className="mx-auto max-w-4xl space-y-6">
-      <div className="flex justify-end">
-        <ConfigSaveStatus state={saveState} onRetry={onRetryConfigSave} />
-      </div>
-
       <InputReadinessCard refreshRevision={configRevision + modelRevision} />
 
       <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-6">
-        <TabsList className="h-9 w-fit gap-0.5 rounded-lg border bg-muted/55 p-0.5">
-          <TabsTrigger
-            value="general"
-            className="h-8 min-w-16 rounded-md border-transparent px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-          >
-            通用
-          </TabsTrigger>
-          <TabsTrigger
-            value="models"
-            className="h-8 min-w-16 rounded-md border-transparent px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-          >
-            模型配置
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <TabsList className="h-9 w-fit shrink-0 gap-0.5 rounded-lg border bg-muted/55 p-0.5">
+            <TabsTrigger
+              value="general"
+              className="h-8 min-w-16 rounded-md border-transparent px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+            >
+              通用
+            </TabsTrigger>
+            <TabsTrigger
+              value="models"
+              className="h-8 min-w-16 rounded-md border-transparent px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+            >
+              模型配置
+            </TabsTrigger>
+          </TabsList>
+
+          <ConfigSaveStatus state={saveState} onRetry={onRetryConfigSave} />
+        </div>
 
         <TabsContent value="general" className="space-y-6">
           {appConfig

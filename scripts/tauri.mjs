@@ -20,8 +20,10 @@ if (shouldSignMacosDev) {
   );
 }
 
-const tauriCommand = process.platform === "win32" ? "tauri.cmd" : "tauri";
-const child = spawn(tauriCommand, args, {
+const isWindows = process.platform === "win32";
+const tauriCommand = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "tauri";
+const tauriArgs = isWindows ? ["/d", "/s", "/c", "tauri.cmd", ...args] : args;
+const child = spawn(tauriCommand, tauriArgs, {
   stdio: "inherit",
   shell: false,
 });

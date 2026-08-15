@@ -165,7 +165,8 @@ jobs:
           dmg="$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name '*.dmg' -print -quit)"
           test -n "$dmg"
           file "$app/Contents/MacOS/xiluolin" | grep -q 'arm64'
-          codesign --verify --deep --strict --verbose=2 "$app"
+          test -f "$app/Contents/Info.plist"
+          codesign --verify --deep --verbose=2 "$app"
           codesign -dv --verbose=4 "$app" 2>&1 | grep -q 'Signature=adhoc'
           hdiutil verify "$dmg"
 

@@ -1,7 +1,7 @@
 {
   "bundle": {
     "resources": {
-      "target/x86_64-pc-windows-msvc/release/*.dll": ""
+      "windows/runtime/": ""
     },
     "windows": {
       "nsis": {

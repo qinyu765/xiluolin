@@ -1,10 +1,41 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
-use crate::events::{RecordingCompletedEvent, RecordingErrorEvent};
+use crate::events::RecordingErrorEvent;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent};
 use tokio::sync::Mutex;
+
+static HOTKEY_REGISTRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static HOTKEY_LATEST_PUBLISHED_REVISION: AtomicU64 = AtomicU64::new(0);
+
+pub fn next_hotkey_registration_revision() -> u64 {
+    HOTKEY_REGISTRATION_SEQUENCE
+        .fetch_add(1, Ordering::Relaxed)
+        .wrapping_add(1)
+}
+
+pub fn publish_hotkey_registration_revision(revision: u64) {
+    let mut current = HOTKEY_LATEST_PUBLISHED_REVISION.load(Ordering::Acquire);
+    while revision > current {
+        match HOTKEY_LATEST_PUBLISHED_REVISION.compare_exchange(
+            current,
+            revision,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => return,
+            Err(next) => current = next,
+        }
+    }
+}
+
+fn hotkey_registration_is_current(revision: u64) -> bool {
+    HOTKEY_LATEST_PUBLISHED_REVISION.load(Ordering::Acquire) == revision
+}
 
 // 快捷键状态管理
 pub struct HotkeyState {
@@ -111,79 +142,221 @@ pub async fn register_both_hotkeys(
     longpress_shortcut: Option<String>,
     toggle_shortcut: Option<String>,
 ) -> Result<(), String> {
-    println!(
-        "register_both_hotkeys 被调用: longpress={:?}, toggle={:?}",
-        longpress_shortcut, toggle_shortcut
-    );
+    let revision = next_hotkey_registration_revision();
+    publish_hotkey_registration_revision(revision);
+    register_both_hotkeys_if_current(app, longpress_shortcut, toggle_shortcut, revision).await
+}
+
+pub async fn register_both_hotkeys_if_current(
+    app: AppHandle,
+    longpress_shortcut: Option<String>,
+    toggle_shortcut: Option<String>,
+    revision: u64,
+) -> Result<(), String> {
+    if !hotkey_registration_is_current(revision) {
+        return Ok(());
+    }
 
     let state = app.state::<Arc<Mutex<HotkeyState>>>();
     let mut state = state.lock().await;
+    if !hotkey_registration_is_current(revision) {
+        return Ok(());
+    }
 
-    // 先注销所有已注册的快捷键
+    register_both_hotkeys_locked(&app, longpress_shortcut, toggle_shortcut, &mut state)
+}
+
+fn parse_configured_shortcut(
+    shortcut: Option<String>,
+    label: &str,
+) -> Result<Option<(String, Shortcut)>, String> {
+    let Some(shortcut) = shortcut.filter(|shortcut| !shortcut.is_empty()) else {
+        return Ok(None);
+    };
+    let parsed = shortcut
+        .parse::<Shortcut>()
+        .map_err(|error| format!("{label}快捷键格式错误: {error}"))?;
+    Ok(Some((shortcut, parsed)))
+}
+
+fn parse_configured_shortcuts(
+    longpress_shortcut: Option<String>,
+    toggle_shortcut: Option<String>,
+) -> Result<(Option<(String, Shortcut)>, Option<(String, Shortcut)>), String> {
+    let longpress = parse_configured_shortcut(longpress_shortcut, "长按模式")?;
+    let toggle = parse_configured_shortcut(toggle_shortcut, "切换模式")?;
+    if let (Some((_, longpress)), Some((_, toggle))) = (&longpress, &toggle) {
+        if longpress == toggle {
+            return Err("长按模式和切换模式不能使用相同快捷键".to_string());
+        }
+    }
+    Ok((longpress, toggle))
+}
+
+fn register_configured_shortcut(
+    app: &AppHandle,
+    shortcut: Shortcut,
+    mode: RecordingMode,
+    label: &str,
+) -> Result<(), String> {
+    let app_clone = app.clone();
+    app.global_shortcut()
+        .on_shortcut(shortcut, move |_app_handle, _shortcut, event| {
+            handle_hotkey_event(&app_clone, event, &mode);
+        })
+        .map_err(|error| format!("{label}快捷键注册失败: {error}. 可能与其他应用冲突"))
+}
+
+fn unregister_configured_shortcut(app: &AppHandle, shortcut: &str) {
+    if let Ok(shortcut) = shortcut.parse::<Shortcut>() {
+        let _ = app.global_shortcut().unregister(shortcut);
+    }
+}
+
+fn restore_previous_hotkeys(
+    app: &AppHandle,
+    state: &mut HotkeyState,
+    previous_longpress: Option<String>,
+    previous_toggle: Option<String>,
+    previous_is_recording: bool,
+) -> Result<(), String> {
     if state.longpress_registered {
-        if let Some(shortcut) = &state.longpress_shortcut {
-            if let Ok(shortcut_obj) = shortcut.parse::<Shortcut>() {
-                let _ = app.global_shortcut().unregister(shortcut_obj);
-                println!("已注销长按模式快捷键: {}", shortcut);
-            }
+        if let Some(shortcut) = state.longpress_shortcut.as_deref() {
+            unregister_configured_shortcut(app, shortcut);
         }
     }
     if state.toggle_registered {
-        if let Some(shortcut) = &state.toggle_shortcut {
-            if let Ok(shortcut_obj) = shortcut.parse::<Shortcut>() {
-                let _ = app.global_shortcut().unregister(shortcut_obj);
-                println!("已注销切换模式快捷键: {}", shortcut);
-            }
+        if let Some(shortcut) = state.toggle_shortcut.as_deref() {
+            unregister_configured_shortcut(app, shortcut);
         }
     }
-
-    // 重置状态
     state.longpress_registered = false;
     state.toggle_registered = false;
     state.longpress_shortcut = None;
     state.toggle_shortcut = None;
     state.is_recording_via_hotkey = false;
 
-    // 注册长按模式快捷键
-    if let Some(shortcut) = longpress_shortcut {
-        if !shortcut.is_empty() {
-            println!("尝试注册长按模式快捷键: {}", shortcut);
-            let shortcut_obj: Shortcut = shortcut
-                .parse()
-                .map_err(|e| format!("长按模式快捷键格式错误: {}", e))?;
-
-            let app_clone = app.clone();
-            app.global_shortcut()
-                .on_shortcut(shortcut_obj, move |_app_handle, _shortcut, event| {
-                    handle_hotkey_event(&app_clone, event, &RecordingMode::LongPress);
-                })
-                .map_err(|e| format!("长按模式快捷键注册失败: {}. 可能与其他应用冲突", e))?;
-
-            state.longpress_registered = true;
-            state.longpress_shortcut = Some(shortcut.clone());
-            println!("长按模式快捷键注册成功: {}", shortcut);
+    if let Some(shortcut) = previous_longpress.as_deref() {
+        let parsed = shortcut
+            .parse::<Shortcut>()
+            .map_err(|error| format!("恢复长按模式快捷键失败: {error}"))?;
+        if let Err(error) =
+            register_configured_shortcut(app, parsed, RecordingMode::LongPress, "恢复长按模式")
+        {
+            return Err(error);
+        }
+    }
+    if let Some(shortcut) = previous_toggle.as_deref() {
+        let parsed = shortcut
+            .parse::<Shortcut>()
+            .map_err(|error| format!("恢复切换模式快捷键失败: {error}"))?;
+        if let Err(error) =
+            register_configured_shortcut(app, parsed, RecordingMode::Toggle, "恢复切换模式")
+        {
+            if let Some(longpress) = previous_longpress.as_deref() {
+                unregister_configured_shortcut(app, longpress);
+            }
+            return Err(error);
         }
     }
 
-    // 注册切换模式快捷键
-    if let Some(shortcut) = toggle_shortcut {
-        if !shortcut.is_empty() {
-            println!("尝试注册切换模式快捷键: {}", shortcut);
-            let shortcut_obj: Shortcut = shortcut
-                .parse()
-                .map_err(|e| format!("切换模式快捷键格式错误: {}", e))?;
+    state.longpress_registered = previous_longpress.is_some();
+    state.toggle_registered = previous_toggle.is_some();
+    state.longpress_shortcut = previous_longpress;
+    state.toggle_shortcut = previous_toggle;
+    state.is_recording_via_hotkey = previous_is_recording;
+    Ok(())
+}
 
-            let app_clone = app.clone();
-            app.global_shortcut()
-                .on_shortcut(shortcut_obj, move |_app_handle, _shortcut, event| {
-                    handle_hotkey_event(&app_clone, event, &RecordingMode::Toggle);
-                })
-                .map_err(|e| format!("切换模式快捷键注册失败: {}. 可能与其他应用冲突", e))?;
+fn rollback_hotkey_update(
+    app: &AppHandle,
+    state: &mut HotkeyState,
+    previous_longpress: Option<String>,
+    previous_toggle: Option<String>,
+    previous_is_recording: bool,
+    error: String,
+) -> String {
+    match restore_previous_hotkeys(
+        app,
+        state,
+        previous_longpress,
+        previous_toggle,
+        previous_is_recording,
+    ) {
+        Ok(()) => error,
+        Err(restore_error) => format!("{error}; 快捷键恢复失败：{restore_error}"),
+    }
+}
 
-            state.toggle_registered = true;
-            state.toggle_shortcut = Some(shortcut.clone());
-            println!("切换模式快捷键注册成功: {}", shortcut);
+fn register_both_hotkeys_locked(
+    app: &AppHandle,
+    longpress_shortcut: Option<String>,
+    toggle_shortcut: Option<String>,
+    state: &mut HotkeyState,
+) -> Result<(), String> {
+    println!(
+        "register_both_hotkeys 被调用: longpress={:?}, toggle={:?}",
+        longpress_shortcut, toggle_shortcut
+    );
+    let (longpress, toggle) = parse_configured_shortcuts(longpress_shortcut, toggle_shortcut)?;
+    let previous_longpress = state
+        .longpress_registered
+        .then(|| state.longpress_shortcut.clone())
+        .flatten();
+    let previous_toggle = state
+        .toggle_registered
+        .then(|| state.toggle_shortcut.clone())
+        .flatten();
+    let previous_is_recording = state.is_recording_via_hotkey;
+
+    if let Some(shortcut) = previous_longpress.as_deref() {
+        unregister_configured_shortcut(app, shortcut);
+        println!("已注销长按模式快捷键: {shortcut}");
+    }
+    if let Some(shortcut) = previous_toggle.as_deref() {
+        unregister_configured_shortcut(app, shortcut);
+        println!("已注销切换模式快捷键: {shortcut}");
+    }
+    state.longpress_registered = false;
+    state.toggle_registered = false;
+    state.longpress_shortcut = None;
+    state.toggle_shortcut = None;
+    state.is_recording_via_hotkey = false;
+
+    if let Some((shortcut, parsed)) = longpress {
+        println!("尝试注册长按模式快捷键: {shortcut}");
+        if let Err(error) =
+            register_configured_shortcut(app, parsed, RecordingMode::LongPress, "长按模式")
+        {
+            return Err(rollback_hotkey_update(
+                app,
+                state,
+                previous_longpress,
+                previous_toggle,
+                previous_is_recording,
+                error,
+            ));
         }
+        state.longpress_registered = true;
+        state.longpress_shortcut = Some(shortcut);
+    }
+
+    if let Some((shortcut, parsed)) = toggle {
+        println!("尝试注册切换模式快捷键: {shortcut}");
+        if let Err(error) =
+            register_configured_shortcut(app, parsed, RecordingMode::Toggle, "切换模式")
+        {
+            return Err(rollback_hotkey_update(
+                app,
+                state,
+                previous_longpress,
+                previous_toggle,
+                previous_is_recording,
+                error,
+            ));
+        }
+        state.toggle_registered = true;
+        state.toggle_shortcut = Some(shortcut);
     }
 
     println!("register_both_hotkeys 完成");
@@ -298,12 +471,7 @@ async fn handle_long_press_mode(app: &AppHandle, event: ShortcutEvent) {
                     // 更新快捷键状态
                     let mut state = hotkey_state.lock().await;
                     state.is_recording_via_hotkey = false;
-                    // 触发后续处理流程
-                    println!("长按模式: 准备发送 recording-completed 事件");
-                    match RecordingCompletedEvent(result).emit(app) {
-                        Ok(_) => println!("长按模式: recording-completed 事件发送成功"),
-                        Err(e) => eprintln!("长按模式: recording-completed 事件发送失败: {:?}", e),
-                    }
+                    crate::capture_coordinator::spawn_recording_pipeline(app.clone(), result);
                 }
                 Err(e) => {
                     eprintln!("长按模式: 停止录音失败: {:?}", e);
@@ -348,11 +516,7 @@ async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
                 // 更新快捷键状态
                 let mut state = hotkey_state.lock().await;
                 state.is_recording_via_hotkey = false;
-                println!("切换模式: 准备发送 recording-completed 事件");
-                match RecordingCompletedEvent(result).emit(app) {
-                    Ok(_) => println!("切换模式: recording-completed 事件发送成功"),
-                    Err(e) => eprintln!("切换模式: recording-completed 事件发送失败: {:?}", e),
-                }
+                crate::capture_coordinator::spawn_recording_pipeline(app.clone(), result);
             }
             Err(e) => {
                 eprintln!("切换模式: 停止录音失败: {:?}", e);
@@ -381,5 +545,33 @@ async fn handle_toggle_mode(app: &AppHandle, event: ShortcutEvent) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configured_shortcuts_reject_duplicate_modes() {
+        let error = parse_configured_shortcuts(
+            Some("Alt+Space".to_string()),
+            Some("Alt+Space".to_string()),
+        )
+        .expect_err("the two recording modes must not share one shortcut");
+
+        assert!(error.contains("不能使用相同快捷键"));
+    }
+
+    #[test]
+    fn configured_shortcuts_allow_disabled_mode() {
+        let (longpress, toggle) =
+            parse_configured_shortcuts(None, Some("Alt+Space".to_string())).unwrap();
+
+        assert!(longpress.is_none());
+        assert_eq!(
+            toggle.expect("toggle shortcut should be parsed").0,
+            "Alt+Space"
+        );
     }
 }

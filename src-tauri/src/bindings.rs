@@ -1,18 +1,20 @@
 use tauri_specta::{collect_commands, collect_events, Builder, ErrorHandlingMode};
 
 use crate::{
-    asr, capture_session, data, events, history_reprocessing, hotkey, indicator, local_asr_model,
-    macos_permissions, output, pipeline, readiness, recording, recording_storage, text_polish,
+    capture_coordinator, capture_session, data, events, history_reprocessing, hotkey, indicator,
+    local_asr_model, macos_permissions, pipeline, providers, readiness, realtime_asr_model,
+    recording, recording_storage,
 };
 
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)
         .commands(collect_commands![
-            asr::transcribe_audio_path,
-            text_polish::polish_text,
+            capture_coordinator::start_capture,
+            capture_coordinator::stop_capture,
+            providers::list_provider_catalog,
             pipeline::process_uploaded_audio,
-            pipeline::process_recording_file,
+            capture_session::read_capture_snapshot,
             capture_session::abort_capture_session,
             data::initialize_local_data,
             data::list_personas,
@@ -22,6 +24,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             data::delete_persona,
             data::create_hotword,
             data::list_hotwords,
+            data::add_hotwords,
+            data::replace_hotwords,
             data::update_hotword,
             data::delete_hotword,
             data::enabled_hotword_context,
@@ -34,14 +38,17 @@ pub fn builder() -> Builder<tauri::Wry> {
             history_reprocessing::refine_history_text,
             data::read_app_config,
             data::update_app_config,
-            recording::start_recording,
-            recording::stop_recording,
             recording::list_audio_devices,
             readiness::read_input_readiness,
             local_asr_model::local_asr_model_info,
             local_asr_model::download_local_asr_model,
             local_asr_model::delete_local_asr_model,
             local_asr_model::verify_local_asr_model,
+            realtime_asr_model::realtime_asr_model_info,
+            realtime_asr_model::download_realtime_asr_model,
+            realtime_asr_model::verify_realtime_asr_model,
+            realtime_asr_model::set_realtime_preview_enabled,
+            realtime_asr_model::delete_realtime_asr_model,
             macos_permissions::request_macos_permission,
             macos_permissions::open_macos_privacy_settings,
             recording_storage::recording_storage_info,
@@ -51,13 +58,11 @@ pub fn builder() -> Builder<tauri::Wry> {
             hotkey::register_both_hotkeys,
             hotkey::unregister_hotkey,
             indicator::update_indicator_status,
-            output::deliver_text,
-            output::read_fallback_result,
-            output::copy_fallback_result,
-            output::dismiss_fallback_result,
         ])
         .events(collect_events![
-            events::RecordingCompletedEvent,
+            events::CaptureSnapshotEvent,
+            events::HistoryChangedEvent,
+            events::RealtimeAsrDownloadProgressEvent,
             events::RecordingErrorEvent,
             events::RecordingLimitWarningEvent,
             events::LocalAsrDownloadProgressEvent,

@@ -1,4 +1,4 @@
-use super::{database::LocalDatabase, models::*};
+use super::{database::LocalDatabase, decode_config, models::*, sanitized_legacy_backup};
 use tauri::Manager;
 use tauri_specta::Event;
 
@@ -106,13 +106,44 @@ pub fn update_persona(
 
 #[tauri::command]
 #[specta::specta]
-pub fn delete_persona(app: tauri::AppHandle, id: String) -> Result<Vec<Persona>, String> {
+pub fn delete_persona(app: tauri::AppHandle, id: String) -> Result<DefaultPersonaUpdate, String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
-    database
-        .delete_persona(&id)
-        .map_err(|error| error.to_string())?;
-    database.list_personas().map_err(|error| error.to_string())
+    let previous_config = read_app_config(app.clone())?;
+    let target_is_default = database
+        .list_personas()
+        .map_err(|error| error.to_string())?
+        .iter()
+        .find(|persona| persona.id == id)
+        .ok_or_else(|| "人格不存在".to_string())?
+        .is_default;
+
+    if target_is_default {
+        let mut next_config = previous_config.clone();
+        next_config.default_persona_id = GENERAL_PERSONA_ID.to_string();
+        let persisted_config = next_config.clone();
+        let restored_config = previous_config.clone();
+        let persist_app = app.clone();
+        let restore_app = app.clone();
+        let personas = database.delete_default_persona_with_persistence(
+            &id,
+            || update_app_config(persist_app, persisted_config).map(|_| ()),
+            || update_app_config(restore_app, restored_config).map(|_| ()),
+        )?;
+        Ok(DefaultPersonaUpdate {
+            personas,
+            config: next_config,
+        })
+    } else {
+        database.delete_persona(&id)?;
+        let personas = database
+            .list_personas()
+            .map_err(|error| error.to_string())?;
+        Ok(DefaultPersonaUpdate {
+            personas,
+            config: previous_config,
+        })
+    }
 }
 
 #[tauri::command]
@@ -131,6 +162,26 @@ pub fn list_hotwords(app: tauri::AppHandle) -> Result<Vec<Hotword>, String> {
     let database = database_for_app(&app)?;
     database.initialize().map_err(|error| error.to_string())?;
     database.list_hotwords().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn add_hotwords(app: tauri::AppHandle, texts: Vec<String>) -> Result<Vec<Hotword>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .add_hotwords(texts)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn replace_hotwords(app: tauri::AppHandle, texts: Vec<String>) -> Result<Vec<Hotword>, String> {
+    let database = database_for_app(&app)?;
+    database.initialize().map_err(|error| error.to_string())?;
+    database
+        .replace_hotwords(texts)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -223,32 +274,91 @@ pub fn delete_history_record(app: tauri::AppHandle, id: String) -> Result<(), St
 #[tauri::command]
 #[specta::specta]
 pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
-    use crate::credentials::{load_system_credentials, sanitized_config, AppCredentials};
+    use crate::credentials::{
+        finalize_system_credentials_migration, load_system_credentials_with_status,
+        rollback_system_credentials_migration, sanitized_config, AppCredentials,
+    };
     use tauri_plugin_store::StoreExt;
 
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
-    let mut config = match store.get(APP_CONFIG_KEY) {
-        Some(value) => serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
-        None => default_app_config(),
+    let stored_value = store.get(APP_CONFIG_KEY);
+    let (mut config, migrated) = match stored_value.clone() {
+        Some(value) => decode_config(value.clone())?,
+        None => (default_app_config(), false),
     };
 
+    if migrated {
+        let raw = stored_value
+            .as_ref()
+            .ok_or_else(|| "旧版配置迁移缺少原始值".to_string())?;
+        write_sanitized_v1_backup(&app, &sanitized_legacy_backup(raw))?;
+    }
+
     let legacy_credentials = AppCredentials::from_config(&config);
-    let credentials = load_system_credentials(&legacy_credentials)?;
+    let (credentials, credentials_migrated) =
+        load_system_credentials_with_status(&legacy_credentials)?;
     let sanitized = sanitized_config(&config);
 
-    if sanitized != config {
-        let value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
-        save_store_value_transactionally(
+    let persisted_value = serde_json::to_value(&sanitized).map_err(|error| error.to_string())?;
+    let should_persist = migrated || stored_value.as_ref() != Some(&persisted_value);
+    if should_persist {
+        if let Err(config_error) = save_store_value_transactionally(
             store.get(APP_CONFIG_KEY),
-            value,
+            persisted_value.clone(),
             |value| store.set(APP_CONFIG_KEY.to_string(), value),
             || {
                 store.delete(APP_CONFIG_KEY);
             },
             || store.save().map_err(|error| error.to_string()),
-        )?;
+        ) {
+            return match credentials_migrated {
+                true => match rollback_system_credentials_migration() {
+                    Ok(()) => Err(config_error),
+                    Err(rollback_error) => Err(format!(
+                        "配置保存失败且凭据恢复失败：{config_error}; {rollback_error}"
+                    )),
+                },
+                false => Err(config_error),
+            };
+        }
+    }
+
+    if migrated || credentials_migrated {
+        if let Err(cleanup_error) = finalize_system_credentials_migration() {
+            let credentials_rollback = if credentials_migrated {
+                rollback_system_credentials_migration().err()
+            } else {
+                None
+            };
+            let config_rollback = if should_persist {
+                restore_store_value_transactionally(
+                    persisted_value.clone(),
+                    stored_value.clone(),
+                    |value| store.set(APP_CONFIG_KEY.to_string(), value),
+                    || {
+                        store.delete(APP_CONFIG_KEY);
+                    },
+                    || store.save().map_err(|error| error.to_string()),
+                )
+                .err()
+            } else {
+                None
+            };
+            return match (credentials_rollback, config_rollback) {
+                (None, None) => Err(format!("清理旧版凭据失败，配置已回滚：{cleanup_error}")),
+                (Some(credentials_error), None) => Err(format!(
+                    "清理旧版凭据失败且凭据回滚失败：{cleanup_error}; {credentials_error}"
+                )),
+                (None, Some(config_error)) => Err(format!(
+                    "清理旧版凭据失败且配置回滚失败：{cleanup_error}; {config_error}"
+                )),
+                (Some(credentials_error), Some(config_error)) => Err(format!(
+                    "清理旧版凭据失败且配置、凭据均回滚失败：{cleanup_error}; {config_error}; {credentials_error}"
+                )),
+            };
+        }
     }
 
     config = sanitized;
@@ -256,29 +366,107 @@ pub fn read_app_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     Ok(config)
 }
 
+fn write_sanitized_v1_backup(
+    app: &tauri::AppHandle,
+    value: &serde_json::Value,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    let target = directory.join("settings.v1.backup.json");
+    if target.exists() {
+        return Ok(());
+    }
+    let temporary = directory.join("settings.v1.backup.json.tmp");
+    let encoded = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
+    std::fs::write(&temporary, encoded).map_err(|error| error.to_string())?;
+    if let Err(error) = std::fs::rename(&temporary, &target) {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(format!("写入旧版配置脱敏备份失败：{error}"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
-    use crate::credentials::{sanitized_config, save_system_credentials, AppCredentials};
+    use crate::credentials::{
+        finalize_system_credentials_migration, load_system_credentials_with_status,
+        rollback_system_credentials_migration, sanitized_config, save_system_credentials,
+        AppCredentials,
+    };
     use tauri_plugin_store::StoreExt;
 
-    let credentials = AppCredentials::from_config(&config);
-    save_system_credentials(&credentials)?;
+    if config.config_version < 2 {
+        return Err("仅支持 v2 配置".to_string());
+    }
+    config.asr.validate()?;
+    config.text.validate()?;
+    // 为每次配置提交分配版本；较早的异步热更新任务即使晚完成，也不能覆盖最新配置。
+    let hotkey_revision = crate::hotkey::next_hotkey_registration_revision();
 
     let store = app
         .store(APP_CONFIG_STORE)
         .map_err(|error| error.to_string())?;
     let persisted_config = sanitized_config(&config);
     let value = serde_json::to_value(&persisted_config).map_err(|error| error.to_string())?;
-    save_store_value_transactionally(
-        store.get(APP_CONFIG_KEY),
-        value,
+    let previous_value = store.get(APP_CONFIG_KEY);
+    let credentials = AppCredentials::from_config(&config);
+    let (previous_credentials, credentials_migrated) =
+        load_system_credentials_with_status(&AppCredentials::default())?;
+    save_system_credentials(&credentials)?;
+    if let Err(config_error) = save_store_value_transactionally(
+        previous_value.clone(),
+        value.clone(),
         |value| store.set(APP_CONFIG_KEY.to_string(), value),
         || {
             store.delete(APP_CONFIG_KEY);
         },
         || store.save().map_err(|error| error.to_string()),
-    )?;
+    ) {
+        let restore_result = if credentials_migrated {
+            rollback_system_credentials_migration()
+        } else {
+            save_system_credentials(&previous_credentials)
+        };
+        return match restore_result {
+            Ok(()) => Err(config_error),
+            Err(restore_error) => Err(format!(
+                "配置保存失败且凭据恢复失败：{config_error}; {restore_error}"
+            )),
+        };
+    }
+
+    if credentials_migrated {
+        if let Err(cleanup_error) = finalize_system_credentials_migration() {
+            let config_rollback = restore_store_value_transactionally(
+                value.clone(),
+                previous_value,
+                |value| store.set(APP_CONFIG_KEY.to_string(), value),
+                || {
+                    store.delete(APP_CONFIG_KEY);
+                },
+                || store.save().map_err(|error| error.to_string()),
+            );
+            let credentials_rollback = rollback_system_credentials_migration();
+            return match (config_rollback.err(), credentials_rollback.err()) {
+                (None, None) => Err(format!("清理旧版凭据失败，配置已回滚：{cleanup_error}")),
+                (Some(config_error), None) => Err(format!(
+                    "清理旧版凭据失败且配置回滚失败：{cleanup_error}; {config_error}"
+                )),
+                (None, Some(credentials_error)) => Err(format!(
+                    "清理旧版凭据失败且凭据回滚失败：{cleanup_error}; {credentials_error}"
+                )),
+                (Some(config_error), Some(credentials_error)) => Err(format!(
+                    "清理旧版凭据失败且配置、凭据均回滚失败：{cleanup_error}; {config_error}; {credentials_error}"
+                )),
+            };
+        }
+    }
 
     // Fn 监听按同步配置顺序更新，避免连续保存时较早的异步任务覆盖最新开关状态。
     let fn_manager = app.state::<crate::macos_fn::FnHoldManager>();
@@ -290,6 +478,7 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
     }
 
     // 热更新快捷键
+    crate::hotkey::publish_hotkey_registration_revision(hotkey_revision);
     let app_clone = app.clone();
     let config_clone = config.clone();
     tauri::async_runtime::spawn(async move {
@@ -303,7 +492,18 @@ pub fn update_app_config(app: tauri::AppHandle, config: AppConfig) -> Result<App
         } else {
             Some(config_clone.toggle_shortcut)
         };
-        let _ = crate::hotkey::register_both_hotkeys(app_clone, longpress, toggle).await;
+        if let Err(error) = crate::hotkey::register_both_hotkeys_if_current(
+            app_clone.clone(),
+            longpress,
+            toggle,
+            hotkey_revision,
+        )
+        .await
+        {
+            eprintln!("快捷键热更新失败：{error}");
+            let _ = crate::events::RecordingErrorEvent(format!("快捷键热更新失败：{error}"))
+                .emit(&app_clone);
+        }
     });
 
     Ok(config)
@@ -325,6 +525,36 @@ fn save_store_value_transactionally<T: Clone>(
         if let Err(restore_error) = save() {
             return Err(format!(
                 "配置保存失败且磁盘恢复失败；内存配置已恢复：{primary_error}; {restore_error}"
+            ));
+        }
+        return Err(primary_error);
+    }
+    Ok(())
+}
+
+fn restore_store_value_transactionally<T: Clone>(
+    current_value: T,
+    previous_value: Option<T>,
+    mut set: impl FnMut(T),
+    mut remove: impl FnMut(),
+    mut save: impl FnMut() -> Result<(), String>,
+) -> Result<(), String> {
+    if let Some(previous_value) = previous_value {
+        return save_store_value_transactionally(
+            Some(current_value),
+            previous_value,
+            set,
+            remove,
+            save,
+        );
+    }
+
+    remove();
+    if let Err(primary_error) = save() {
+        set(current_value);
+        if let Err(restore_error) = save() {
+            return Err(format!(
+                "配置回滚失败且原值恢复失败：{primary_error}; {restore_error}"
             ));
         }
         return Err(primary_error);
@@ -474,6 +704,22 @@ mod tests {
     }
 
     #[test]
+    fn restoring_an_absent_store_value_removes_the_new_cache_entry() {
+        let value = RefCell::new(Some("new-default".to_string()));
+
+        restore_store_value_transactionally(
+            "new-default".to_string(),
+            None,
+            |next| *value.borrow_mut() = Some(next),
+            || *value.borrow_mut() = None,
+            || Ok(()),
+        )
+        .expect("restoring an absent value should remove the cache entry");
+
+        assert_eq!(*value.borrow(), None);
+    }
+
+    #[test]
     fn successful_default_persona_update_returns_prepared_personas_and_config() {
         let database = test_database("set-default-success");
         let connection = rusqlite::Connection::open(database.path()).unwrap();
@@ -515,6 +761,51 @@ mod tests {
     }
 
     #[test]
+    fn failed_default_persona_deletion_rolls_back_database_after_config_failure() {
+        let database = test_database("delete-default-rollback");
+        database.set_default_persona(VERBATIM_PERSONA_ID).unwrap();
+        let mut previous_config = default_app_config();
+        previous_config.default_persona_id = VERBATIM_PERSONA_ID.to_string();
+        let mut next_config = previous_config.clone();
+        next_config.default_persona_id = GENERAL_PERSONA_ID.to_string();
+        let cache = RefCell::new(previous_config.clone());
+        let fail_next_save = Cell::new(true);
+
+        let error = database
+            .delete_default_persona_with_persistence(
+                VERBATIM_PERSONA_ID,
+                || {
+                    let previous = cache.borrow().clone();
+                    save_store_value_transactionally(
+                        Some(previous),
+                        next_config.clone(),
+                        |value| *cache.borrow_mut() = value,
+                        || unreachable!("the pre-existing config must be restored"),
+                        || {
+                            if fail_next_save.replace(false) {
+                                Err("injected config write failure".to_string())
+                            } else {
+                                Ok(())
+                            }
+                        },
+                    )
+                },
+                || unreachable!("the SQLite transaction must not commit"),
+            )
+            .expect_err("a configuration persistence failure should abort deletion");
+
+        assert!(error.contains("injected config write failure"));
+        let personas = database.list_personas().unwrap();
+        assert!(personas
+            .iter()
+            .any(|persona| persona.id == VERBATIM_PERSONA_ID && persona.is_default));
+        assert!(personas
+            .iter()
+            .any(|persona| persona.id == GENERAL_PERSONA_ID));
+        assert_eq!(cache.borrow().default_persona_id, VERBATIM_PERSONA_ID);
+    }
+
+    #[test]
     fn reconciliation_persists_repaired_default_without_changing_other_config() {
         let database = test_database("initialize-reconciliation");
         let connection = rusqlite::Connection::open(database.path()).unwrap();
@@ -523,8 +814,8 @@ mod tests {
             .unwrap();
         let mut config = default_app_config();
         config.default_persona_id = "missing-persona".to_string();
-        config.asr_model = "keep-asr-model".to_string();
-        config.openai_model = "keep-text-model".to_string();
+        config.asr.settings.get_mut("zhipu").unwrap().model = "keep-asr-model".to_string();
+        config.text.settings.get_mut("openai").unwrap().model = "keep-text-model".to_string();
         config.retain_recordings = true;
         let mut persisted = None;
 
@@ -536,8 +827,14 @@ mod tests {
 
         assert_eq!(reconciled.default_persona_id, GENERAL_PERSONA_ID);
         assert_eq!(persisted, Some(reconciled.clone()));
-        assert_eq!(reconciled.asr_model, config.asr_model);
-        assert_eq!(reconciled.openai_model, config.openai_model);
+        assert_eq!(
+            reconciled.asr.settings["zhipu"].model,
+            config.asr.settings["zhipu"].model
+        );
+        assert_eq!(
+            reconciled.text.settings["openai"].model,
+            config.text.settings["openai"].model
+        );
         assert_eq!(reconciled.retain_recordings, config.retain_recordings);
         assert_eq!(
             database

@@ -9,20 +9,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { commands, events } from "@/generated/tauri-bindings";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import type {
-  AppConfig,
-  LocalAsrDownloadProgress,
-  LocalAsrModelInfo,
-} from "@/types";
+import type { LocalAsrDownloadProgress, LocalAsrModelInfo } from "@/types";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024
@@ -31,12 +18,8 @@ function formatBytes(bytes: number) {
 }
 
 export function LocalAsrSettings({
-  config,
-  onChange,
   onModelChanged,
 }: {
-  config: AppConfig;
-  onChange: (config: AppConfig) => void;
   onModelChanged?: () => void;
 }) {
   const [model, setModel] = useState<LocalAsrModelInfo | null>(null);
@@ -87,7 +70,7 @@ export function LocalAsrSettings({
   };
 
   return (
-    <div className="grid gap-4 rounded-lg border p-4">
+    <div className="grid gap-3 rounded-lg border p-3">
       <div>
         <p className="text-sm font-medium">Whisper Base Q5_1</p>
         <p className="mt-1 break-all text-xs text-muted-foreground">
@@ -158,42 +141,6 @@ export function LocalAsrSettings({
           删除模型
         </Button>
       </div>
-
-      <div className="flex items-center justify-between rounded-lg border p-3">
-        <div className="space-y-0.5">
-          <Label htmlFor="local-asr-fallback">允许云端降级</Label>
-          <p className="text-xs text-muted-foreground">
-            默认关闭。开启后仅在本地识别失败时发送音频到指定云端 Provider
-          </p>
-        </div>
-        <Switch
-          id="local-asr-fallback"
-          checked={config.allow_cloud_fallback}
-          onCheckedChange={(checked) =>
-            onChange({ ...config, allow_cloud_fallback: checked })
-          }
-        />
-      </div>
-
-      {config.allow_cloud_fallback && (
-        <div className="grid gap-2">
-          <Label htmlFor="fallback-asr-provider">云端降级 Provider</Label>
-          <Select
-            value={config.fallback_asr_provider}
-            onValueChange={(value) =>
-              onChange({ ...config, fallback_asr_provider: value })
-            }
-          >
-            <SelectTrigger id="fallback-asr-provider">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="zhipu">智谱</SelectItem>
-              <SelectItem value="openai">OpenAI 兼容</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
     </div>
   );
 }

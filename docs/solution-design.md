@@ -52,7 +52,7 @@ React 前端负责所有用户可见交互：
 - 热词词典管理。
 - 模型服务、快捷键和输出方式设置。
 
-前端按业务领域使用 controller hooks 管理状态：`recording`、`history`、`persona`、`hotword` 和 `config`。`App` 只负责页面组合与导航；录音 controller 使用显式阶段并统一处理快捷键和应用内录音完成流程。设置页通过 props、callback 和 revision 显式刷新就绪状态与录音存储统计，不依赖全局 DOM 自定义事件。
+前端按 `capture`、`history`、`persona`、`hotword`、`settings`、`shared` 和 `platform/tauri` 分域。`App` 只负责页面组合与导航；录音生命周期由 Rust 协调器拥有，主窗口与 React 悬浮窗通过资源 hooks 和类型化事件订阅状态，不在 WebView 中串联后台流程。
 
 Rust command、event 和跨 IPC 数据类型通过 Specta 生成 `src/generated/tauri-bindings.ts`。前端只能通过生成的 `commands` 和 `events` 调用 Tauri，生成文件由 `pnpm bindings:check` 在 CI 中检查漂移。
 
@@ -84,6 +84,8 @@ Tauri 后端负责系统能力和核心编排：
 - 自动粘贴到当前输入位置。
 - 读写 SQLite、Tauri Store 和系统凭据库。
 - 统一处理流程状态和错误信息。
+- 维护单一 CaptureSnapshot、固定每次会话的配置/人格/前 100 个热词与目标窗口，并在无主 WebView 监听时继续完成最终投递。
+- 将 PCM 非阻塞送入 sherpa-onnx 预览线程；背压或运行异常只关闭本次预览，WAV 和最终处理链路继续执行。
 
 ### 2.3 本地编排策略
 
@@ -105,7 +107,7 @@ Tauri 后端负责系统能力和核心编排：
 3. 用户配置 OpenAI 文本模型 Provider，包括 API Key、模型名和必要生成参数。
 4. 用户选择默认人格。
 5. 用户按需配置快捷键、输出方式和热词词典。
-6. 系统保存配置，并进入主界面。
+6. 配置修改会自动保存，保存完成后进入主界面。
 
 首次使用不强制用户配置自定义人格。系统内置人格用于保证应用首次启动后即可进入实际使用流程。
 
@@ -201,16 +203,20 @@ sequenceDiagram
 
 ### 4.3 Provider 模块
 
-Provider 模块分为 ASR Provider 和快速文本模型 Provider。
+Provider 模块按能力拆为独立的 `AsrProvider` 与 `TextProvider`，业务 pipeline 只调用路由器。`ProviderCatalog` 是静态注册表，统一描述 ID、协议、默认值、设置字段和能力；前端通过 `list_provider_catalog` 读取同一份元数据，不再维护厂商分支。
 
-当前默认 Provider 组合为：
+当前注册项：
 
-| 能力 | Provider | 模型 / 接口 | 选择原因 |
-|---|---|---|---|
-| 语音转文本 | 智谱 GLM-ASR-2512 | `audio/transcriptions`，`model=glm-asr-2512` | 面向语音识别，支持音频输入和文本输出，适合短语音输入闭环 |
-| 人格化文本整理 | 智谱或 OpenAI-compatible | `chat/completions`，模型名可配置 | 适合基于 system/user messages 做文本改写、结构整理和风格控制 |
-
-这里保持 Provider 抽象。供应商选择只决定读取哪组 API Key、Base URL 和模型配置，不在 UI 中绑定固定模型名。
+| 能力 | Provider ID  | 默认模型                   | 协议                         |
+| ---- | ------------ | -------------------------- | ---------------------------- |
+| ASR  | `zhipu`      | `glm-asr-2512`             | multipart                    |
+| ASR  | `openai`     | `whisper-1`                | OpenAI-compatible multipart  |
+| ASR  | `local`      | `ggml-base-q5_1.bin`       | 本地 Whisper                 |
+| ASR  | `qwen-audio` | `qwen-audio-3.0-asr-flash` | DashScope 原生多模态同步接口 |
+| ASR  | `qwen3-asr`  | `qwen3-asr-flash`          | OpenAI-compatible chat       |
+| Text | `zhipu`      | `glm-4.7-flash`            | OpenAI-compatible chat       |
+| Text | `openai`     | `gpt-4o-mini`              | OpenAI-compatible chat       |
+| Text | `qwen`       | `qwen3.7-flash`            | OpenAI-compatible chat       |
 
 #### ASR Provider
 
@@ -229,9 +235,11 @@ ASR Provider 只负责语音转文本。
 
 ASR 阶段不接收人格提示词，不做人格化改写。
 
-Provider 通过 `AsrCapabilities` 声明原生热词、最大热词数、软提示、时长和实时音频能力。智谱使用重复的 `hotwords[]` 发送前 100 个稳定去重热词；OpenAI `prompt` 与本地 Whisper `initial_prompt` 只属于软提示。当前三种 Provider 都不提供实时麦克风流。
+Provider descriptor 声明原生热词、最大热词数、软提示、时长、语言提示和本地模型管理能力。智谱和 Qwen-Audio 使用前 100 个稳定去重的原生热词；Qwen-Audio 权重固定为 5，并支持最多 4 个 `language_hints`。OpenAI `prompt`、Qwen3-ASR system glossary 与本地 Whisper `initial_prompt` 属于提示。最终 ASR Provider 均在停止录音后处理完整音频，不消费实时预览文本。
 
-当前默认使用非流式调用，原因是主流程需要在停止录音后拿到完整转写文本，再交给 OpenAI 做人格化整理。流式 ASR 可以作为后续优化，用于展示实时字幕或降低等待感。
+实时预览是独立的实验性旁路：默认关闭，用户显式下载固定 revision 且通过大小与 SHA-256 校验的 Zipformer 混合量化候选模型后才可启用。Rust 录音层把有界 PCM 帧送入 sherpa-onnx；预览失败、不可用或背压时只降级悬浮窗，不阻断最终识别、历史或投递。停止录音后，权威链路仍按会话开始时固定的 ASR/Text Provider primary→fallback 路由处理完整 WAV，并记录实际成功的 Provider、模型与 fallback 状态。
+
+该候选模型不打入安装包，当前只供本地体验。训练数据许可链、真实录音质量、下载体验、Windows 原生打包和目标设备稳定性未关闭前，生产分发保持 No-Go；资产与性能依据见 [`2026-08-13-streaming-asr-adr.md`](./dev/2026-08-13-streaming-asr-adr.md)。
 
 #### 快速文本模型 Provider
 
@@ -248,18 +256,19 @@ Provider 通过 `AsrCapabilities` 声明原生热词、最大热词数、软提�
 
 - 整理后的文本。
 
-当前文本整理实现使用 OpenAI Responses API。请求中使用 `instructions` 承载固定系统要求和当前人格提示词，使用 `input` 承载 ASR 原始文本、热词上下文和输出要求。
+文本整理统一使用 OpenAI-compatible `chat/completions`。请求以 system/user messages 承载人格、热词上下文和 ASR 原文；千问文本额外固定发送 `enable_thinking: false`，满足低延迟输入场景。
 
 当前数据流只把音频发送给用户选择的 ASR Provider，不要求语音模型理解人格提示词。文本整理 Provider 只处理文本。
 
 #### Provider 配置与降级原则
 
-- ASR 与文本整理分别选择 Provider、Base URL 和模型，业务编排不绑定单一服务商。
+- ASR 与文本分别配置 primary 和最多 2 个有序 fallback；每个 Provider 每次只调用一次，不做内部重试。
 - API Key 由系统凭据库保存，普通配置只保存非敏感字段和凭据引用。
-- 调用层负责统一认证、请求结构、超时和错误转换；pipeline 只依赖稳定的 Provider 接口。
-- ASR 失败时停止后续文本整理且不写入成功历史；文本整理失败时保留可理解的错误信息。
-- 新 Provider 应复用现有抽象，并通过 mock HTTP 测试请求形状和响应解析。
-- 本地离线 ASR 已通过 Whisper Base Q5_1 实现，默认不允许云端降级。
+- HTTP transport 统一负责 Bearer 鉴权、超时和安全错误转换；adapter 只负责协议请求与响应解析。
+- Provider 特有错误可继续下一项；音频不存在等全局输入错误立即终止。ASR 全失败不进入文本阶段；文本全失败返回 ASR 原文。
+- 实际成功的 Provider/模型写入结果和历史；secondary 成功明确标记 fallback。
+- 新增 Provider 时实现对应能力 trait、注册 descriptor 并补 mock HTTP 契约测试；pipeline 和通用设置页无需添加厂商判断。
+- `local` 后配置云端 fallback 时必须由用户在设置页确认音频上传隐私提示。
 
 ### 4.4 人格系统模块
 
@@ -274,14 +283,14 @@ Provider 通过 `AsrCapabilities` 声明原生热词、最大热词数、软提�
 
 内置人格包括：
 
-| 人格 | 场景 | 输出目标 |
-|---|---|---|
-| 通用人格 | 日常输入、聊天、自然表达 | 保持自然、清晰和口语化，精炼文本并移除整段末尾的单个句号 |
-| Prompt 工程师 | Agent Prompt、编程辅助 | 明确目标、上下文、约束和输出格式 |
-| 任务协作者 | 任务发布、需求沟通 | 拆分要求，语气清晰温和 |
-| 灵感整理师 | 写作、创作、想法记录 | 提炼标题、要点、待办或草稿 |
-| 正式消息助手 | 办公消息、邮件、回复 | 表达礼貌、准确、适合发送 |
-| 翻译官 | 中英文转换 | 中文翻译为自然英文，英文仅清理润色 |
+| 人格          | 场景                     | 输出目标                                                 |
+| ------------- | ------------------------ | -------------------------------------------------------- |
+| 通用人格      | 日常输入、聊天、自然表达 | 保持自然、清晰和口语化，精炼文本并移除整段末尾的单个句号 |
+| Prompt 工程师 | Agent Prompt、编程辅助   | 明确目标、上下文、约束和输出格式                         |
+| 任务协作者    | 任务发布、需求沟通       | 拆分要求，语气清晰温和                                   |
+| 灵感整理师    | 写作、创作、想法记录     | 提炼标题、要点、待办或草稿                               |
+| 正式消息助手  | 办公消息、邮件、回复     | 表达礼貌、准确、适合发送                                 |
+| 翻译官        | 中英文转换               | 中文翻译为自然英文，英文仅清理润色                       |
 
 通用人格为首次安装时的默认人格，由系统维护，不允许编辑或删除；已有用户升级时保留其当前默认人格。
 
@@ -307,11 +316,11 @@ Provider 通过 `AsrCapabilities` 声明原生热词、最大热词数、软提�
 
 示例：
 
-| 原词 | 修正词 | 分类 |
-|---|---|---|
+| 原词       | 修正词  | 分类   |
+| ---------- | ------- | ------ |
 | next 点 js | Next.js | 技术词 |
-| 七牛 | 七牛云 | 产品名 |
-| codex | Codex | 工具名 |
+| 七牛       | 七牛云  | 产品名 |
+| codex      | Codex   | 工具名 |
 
 ### 4.6 历史记录模块
 
@@ -337,13 +346,13 @@ Provider 通过 `AsrCapabilities` 声明原生热词、最大热词数、软提�
 
 当前展示以下统计卡片：
 
-| 指标 | 计算方式 |
-|---|---|
-| 语音协作次数 | 成功生成结果的历史记录数量 |
-| 累计口述时间 | 所有历史记录录音时长求和 |
-| 口述生成字数 | 所有整理后文本字数求和 |
+| 指标         | 计算方式                         |
+| ------------ | -------------------------------- |
+| 语音协作次数 | 成功生成结果的历史记录数量       |
+| 累计口述时间 | 所有历史记录录音时长求和         |
+| 口述生成字数 | 所有整理后文本字数求和           |
 | 预计节省时间 | 按每分钟手动输入 80 个中文字估算 |
-| 常用人格 | 按历史记录中的人格使用次数排序 |
+| 常用人格     | 按历史记录中的人格使用次数排序   |
 
 预计节省时间只展示为估算，不作为精确生产力指标。
 
@@ -395,63 +404,63 @@ Rust 数据层按 `models`、`database`、`persona_repository`、`hotword_reposi
 - SQLite：保存结构化业务数据。
 - Tauri Store：保存 Provider、Base URL、模型名、默认人格 ID、快捷键等非敏感轻量配置。
 - 系统凭据库：保存 ASR、OpenAI 和智谱文本 Provider 的 API Key；Windows 使用 Credential Manager，macOS 使用 Keychain。
-- 兼容迁移：读取旧版明文配置时，先写入系统凭据库；全部写入成功后再清空 Tauri Store 中的密钥字段，迁移失败时保留旧配置并返回错误。
+- v2 一次性迁移：读取旧版扁平配置后先生成脱敏备份，再事务写入嵌套配置和 `app_credentials_v2`；任一步失败都恢复旧 Store 内容，旧凭据清理失败会保留待重试状态。
 
 ### 5.1 personas
 
 保存系统内置人格和用户自定义人格。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| id | text | 人格 ID |
-| name | text | 人格名称 |
-| description | text | 人格描述 |
-| scene | text | 适用场景 |
-| tone | text | 输出语气 |
-| output_structure | text | 输出结构 |
-| prompt | text | 默认提示词 |
-| is_builtin | boolean | 是否内置 |
-| is_default | boolean | 是否默认 |
-| created_at | datetime | 创建时间 |
-| updated_at | datetime | 更新时间 |
+| 字段             | 类型     | 说明       |
+| ---------------- | -------- | ---------- |
+| id               | text     | 人格 ID    |
+| name             | text     | 人格名称   |
+| description      | text     | 人格描述   |
+| scene            | text     | 适用场景   |
+| tone             | text     | 输出语气   |
+| output_structure | text     | 输出结构   |
+| prompt           | text     | 默认提示词 |
+| is_builtin       | boolean  | 是否内置   |
+| is_default       | boolean  | 是否默认   |
+| created_at       | datetime | 创建时间   |
+| updated_at       | datetime | 更新时间   |
 
 ### 5.2 hotwords
 
 保存热词词典。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| id | text | 热词 ID |
-| source_text | text | 可能误识别的词 |
-| target_text | text | 推荐修正词 |
-| category | text | 分类 |
-| enabled | boolean | 是否启用 |
-| created_at | datetime | 创建时间 |
-| updated_at | datetime | 更新时间 |
+| 字段        | 类型     | 说明           |
+| ----------- | -------- | -------------- |
+| id          | text     | 热词 ID        |
+| source_text | text     | 可能误识别的词 |
+| target_text | text     | 推荐修正词     |
+| category    | text     | 分类           |
+| enabled     | boolean  | 是否启用       |
+| created_at  | datetime | 创建时间       |
+| updated_at  | datetime | 更新时间       |
 
 ### 5.3 history_records
 
 保存语音输入历史。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| id | text | 历史 ID |
-| raw_text | text | ASR 原始识别文本 |
-| final_text | text | 人格化整理后的文本 |
-| persona_id | text | 使用的人格 ID |
-| persona_name | text | 使用的人格名称快照 |
-| duration_ms | integer | 录音时长 |
-| output_chars | integer | 生成字数 |
-| output_mode | text | 兼容字段，记录最终投递方式 |
-| source | text | recording 或 upload |
-| asr_provider | text | 实际 ASR Provider 快照 |
-| asr_model | text | 实际 ASR 模型快照 |
-| text_provider | text | 实际文本 Provider 快照 |
-| text_model | text | 实际文本模型快照 |
-| used_fallback | boolean | 是否使用文本降级 |
-| delivery_method | text | pending、paste、copy 或 manual |
-| audio_path | nullable text | 用户显式保留时的应用录音路径 |
-| created_at | datetime | 创建时间 |
+| 字段            | 类型          | 说明                           |
+| --------------- | ------------- | ------------------------------ |
+| id              | text          | 历史 ID                        |
+| raw_text        | text          | ASR 原始识别文本               |
+| final_text      | text          | 人格化整理后的文本             |
+| persona_id      | text          | 使用的人格 ID                  |
+| persona_name    | text          | 使用的人格名称快照             |
+| duration_ms     | integer       | 录音时长                       |
+| output_chars    | integer       | 生成字数                       |
+| output_mode     | text          | 兼容字段，记录最终投递方式     |
+| source          | text          | recording 或 upload            |
+| asr_provider    | text          | 实际 ASR Provider 快照         |
+| asr_model       | text          | 实际 ASR 模型快照              |
+| text_provider   | text          | 实际文本 Provider 快照         |
+| text_model      | text          | 实际文本模型快照               |
+| used_fallback   | boolean       | 是否使用文本降级               |
+| delivery_method | text          | pending、paste、copy 或 manual |
+| audio_path      | nullable text | 用户显式保留时的应用录音路径   |
+| created_at      | datetime      | 创建时间                       |
 
 统计数据优先由历史记录实时计算，不单独维护复杂统计表。
 
@@ -461,7 +470,9 @@ Rust 数据层按 `models`、`database`、`persona_repository`、`hotword_reposi
 
 应用录音 WAV 在本地推理前转换为单声道 f32，并通过 `rubato` 高质量重采样到 16 kHz。模型上下文按路径缓存，每次转写创建独立推理状态。whisper.cpp 日志通过官方 hook 重定向，避免输出用户识别内容。
 
-`asr_provider = local` 时默认只调用本地模型。`allow_cloud_fallback` 默认 `false`；开启后，本地失败才使用 `fallback_asr_provider` 对应的云端配置。ASR 结果返回实际 Provider、模型和是否降级，历史记录保存这些快照。
+`asr.primary = local` 时默认只调用本地模型。只有用户主动加入并确认的云端 fallback 才能在本地失败后接收音频；ASR 结果返回实际 Provider、模型和是否降级，历史记录保存这些快照。
+
+配置格式版本为 v2，ASR/Text 各自保存 `primary`、`fallbacks` 和 Provider settings。v0.1.0 固定字段在首次读取时自动映射；旧 OpenAI Key 分别复制到 ASR 与 Text 的能力级凭据。迁移先保存新凭据与脱敏配置，失败时保留旧数据。
 
 ## 6. Prompt 设计
 
@@ -498,15 +509,15 @@ Prompt 工程师人格示例目标：
 
 稳定版本需要覆盖以下失败场景：
 
-| 场景 | 处理方式 |
-|---|---|
-| 未配置 API Key | 提示用户进入设置页配置 |
-| 麦克风权限缺失 | 提示开启系统麦克风权限 |
-| 录音失败 | 保持当前页面，允许重新录音 |
-| ASR 调用失败 | 展示错误信息，不写入历史 |
-| 快速文本模型调用失败 | 保留原始识别文本，允许复制原文或重试整理 |
-| 自动粘贴失败 | 文本复制到剪贴板并打开结果窗口，提示用户手动粘贴 |
-| 数据库写入失败 | 展示保存失败提示，不影响结果复制 |
+| 场景                 | 处理方式                                         |
+| -------------------- | ------------------------------------------------ |
+| 未配置 API Key       | 提示用户进入设置页配置                           |
+| 麦克风权限缺失       | 提示开启系统麦克风权限                           |
+| 录音失败             | 保持当前页面，允许重新录音                       |
+| ASR 调用失败         | 展示错误信息，不写入历史                         |
+| 快速文本模型调用失败 | 保留原始识别文本，允许复制原文或重试整理         |
+| 自动粘贴失败         | 文本复制到剪贴板并打开结果窗口，提示用户手动粘贴 |
+| 数据库写入失败       | 展示保存失败提示，不影响结果复制                 |
 
 ## 8. 安全与隐私设计
 
@@ -515,6 +526,7 @@ Prompt 工程师人格示例目标：
 需要明确说明：
 
 - 音频会发送给用户配置的 ASR Provider。
+- 有序 ASR fallback 可能把同一段音频发送给后续云端 Provider；本地到云端必须主动确认。
 - 原始识别文本会发送给用户配置的快速文本模型 Provider。
 - API Key 保存在操作系统凭据库中，不明文写入 `settings.json`。
 - 旧版明文 API Key 仅在系统凭据写入成功后清理，避免迁移失败造成数据丢失。
@@ -530,16 +542,15 @@ Prompt 工程师人格示例目标：
 
 ### 9.1 首页
 
-当前首页聚焦输入结果和效率反馈：
+当前首页聚焦运行状态和效率反馈：
 
-- 当前人格问候和人格说明。
-- 快捷键提示，优先显示长按模式快捷键，其次显示切换模式快捷键。
+- 运行就绪卡：麦克风、最终 ASR、实时模型、快捷键和当前人格。
 - 统计卡片：语音协作次数、累计口述时间、口述生成字数、预计节省时间、常用人格。
 - 最近历史记录，按今天、昨天和具体日期分组。
 - 每条历史记录展示人格、创建时间、录音时长、生成字数和整理结果摘要。
-- 每条历史记录支持复制和删除。
+- 每条历史记录支持播放保留录音、复制、重新识别、重新整理和删除。
 
-录音快速开始卡片已保留为组件，但当前首页可见结构暂时隐藏该入口。Rust 侧为快捷键录音建立 CaptureSession 并发出携带 `session_id` 的完成事件；前端串联 `process_recording_file`、`deliver_text`、历史刷新和错误提示。状态窗由 `public/indicator.html` 提供并在启动时预创建，不主动获取焦点。真实服务 smoke test、Windows 跨权限级别粘贴和首页可见输入入口仍需继续验证。
+首页不创建录音 controller，也不提供隐藏的上传入口。Rust CaptureSession 协调器独立完成录音、最终识别、整理、历史保存和文字投递；React 主窗口与悬浮窗先读取 `CaptureSnapshot`，再订阅类型化事件并用全局单调 revision 丢弃乱序状态。悬浮窗与主窗口共享 React 入口、主题 token、错误态和测试设施。
 
 ### 9.2 人格页
 
@@ -565,9 +576,9 @@ Prompt 工程师人格示例目标：
 设置页分为“通用”和“模型配置”两个 Tab：
 
 - 通用：长按模式快捷键、切换模式快捷键、macOS 独立 Fn、麦克风设备、录音时静音其他应用、输出方式、自动保存历史。
-- 模型配置：智谱 GLM-ASR-2512 API Key、Base URL、模型名；OpenAI Responses API Key、Base URL、模型名。
+- 模型配置：catalog 驱动的 ASR/Text primary、fallback 顺序，以及各 Provider 的 Key、Base URL、模型和能力选项。
 
-设置保存后通过 toast 提示结果。API Key 输入框使用密码模式，后端将密钥写入系统凭据库，前端配置结构保持兼容。
+设置变更自动进入串行保存队列：开关、下拉和快捷键立即保存，文本和 API Key 停止输入 600ms 后保存，失焦会立即 flush；成功显示“已保存”，失败保留待写配置并提供重试。API Key 输入框使用密码模式，后端将密钥写入系统凭据库。
 
 设置页顶部提供输入就绪卡片，通过 `read_input_readiness` 检查：
 
@@ -592,7 +603,7 @@ Prompt 工程师人格示例目标：
 3. 实现内置人格和人格选择。
 4. 建立 shadcn/ui + Tailwind 前端基础，迁移已有人格选择界面。
 5. 实现智谱 GLM-ASR-2512 配置与调用。
-6. 实现 OpenAI Responses API 配置与人格化整理。
+6. 实现文本 Provider 配置与人格化整理。
 7. 实现录音、转写、整理、复制的主流程。
 8. 实现历史记录和统计卡片。
 9. 实现快捷键、自动粘贴和错误兜底。

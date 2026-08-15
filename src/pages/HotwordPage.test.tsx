@@ -20,9 +20,14 @@ function renderPage(count: number) {
   render(
     <HotwordPage
       hotwords={hotwords(count)}
-      hotwordContext=""
-      hotwordStatus="已加载"
-      enabledHotwordCount={count}
+      bulkText=""
+      bulkCount={0}
+      isLoading={false}
+      isBulkDirty={false}
+      isBulkSaving={false}
+      onBulkTextChange={vi.fn()}
+      onSaveBulk={vi.fn()}
+      onClearBulk={vi.fn()}
       onCreateHotword={vi.fn()}
       onEditHotword={vi.fn()}
       onDeleteHotword={vi.fn()}
@@ -32,6 +37,13 @@ function renderPage(count: number) {
 }
 
 describe("HotwordPage", () => {
+  it("使用独立的添加框，不回填已保存热词", () => {
+    renderPage(2);
+
+    expect(screen.getByRole("heading", { name: "热词" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "添加热词" })).toHaveValue("");
+  });
+
   it("在 101 个启用且稳定去重后的热词时显示智谱限定提示", () => {
     renderPage(101);
 

@@ -117,6 +117,7 @@ pub enum AsrError {
     MissingAudioFile(PathBuf),
     UnsupportedAudioFormat(String),
     AudioTooLarge { max_bytes: u64, actual_bytes: u64 },
+    HttpStatus(u16),
     RequestFailed(String),
     InvalidResponse(String),
 }
@@ -140,6 +141,7 @@ impl fmt::Display for AsrError {
                 formatter,
                 "音频文件过大，最大支持 {max_bytes} 字节，当前为 {actual_bytes} 字节"
             ),
+            Self::HttpStatus(status) => write!(formatter, "ASR 服务返回 HTTP {status}"),
             Self::RequestFailed(message) => write!(formatter, "ASR 请求失败：{message}"),
             Self::InvalidResponse(message) => write!(formatter, "ASR 响应解析失败：{message}"),
         }
@@ -226,37 +228,45 @@ fn transcribe_with_openai(
     // 构建 multipart form
     let step1_start = std::time::Instant::now();
     let prompt = build_soft_prompt(request.context_prompt.as_deref(), &request.hotwords);
-    let mut form = ureq::unversioned::multipart::Form::new().text("model", config.model.trim());
-    if let Some(prompt) = prompt.as_deref() {
-        form = form.text("prompt", prompt);
-    }
-    let form = form
-        .file("file", audio_path)
+    let file_name = audio_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("recording.wav")
+        .to_string();
+    let audio_bytes = std::fs::read(audio_path)
+        .map_err(|error| AsrError::RequestFailed(format!("读取音频文件失败：{error}")))?;
+    let file_part = reqwest::blocking::multipart::Part::bytes(audio_bytes)
+        .file_name(file_name)
+        .mime_str(audio_mime_type(audio_path))
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
+    let mut form =
+        reqwest::blocking::multipart::Form::new().text("model", config.model.trim().to_string());
+    if let Some(prompt) = prompt.as_deref() {
+        form = form.text("prompt", prompt.to_string());
+    }
+    let form = form.part("file", file_part);
     eprintln!(
         "[⏱️ ASR OpenAI] 构建 multipart form - 耗时 {:?}",
         step1_start.elapsed()
     );
 
-    // 创建禁用自动状态码错误的 agent
+    // 创建统一的 blocking HTTP client。
     let step2_start = std::time::Instant::now();
-    let agent = ureq::Agent::config_builder()
-        .http_status_as_error(false)
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
         .build()
-        .new_agent();
+        .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
     eprintln!(
         "[⏱️ ASR OpenAI] 创建 HTTP agent - 耗时 {:?}",
         step2_start.elapsed()
     );
 
     let step3_start = std::time::Instant::now();
-    let response = agent
+    let response = client
         .post(&url)
-        .header(
-            "Authorization",
-            &format!("Bearer {}", config.api_key.trim()),
-        )
-        .send(form)
+        .bearer_auth(config.api_key.trim())
+        .multipart(form)
+        .send()
         .map_err(|error| AsrError::RequestFailed(error.to_string()))?;
     eprintln!(
         "[⏱️ ASR OpenAI] 发送 HTTP 请求并等待响应 - 耗时 {:?}",
@@ -265,22 +275,15 @@ fn transcribe_with_openai(
 
     // 检查状态码
     let step4_start = std::time::Instant::now();
-    let status_code = response.status().as_u16();
-    if status_code >= 400 && status_code < 600 {
-        let body = response.into_body().read_to_string().unwrap_or_default();
-        eprintln!(
-            "[⏱️ ASR OpenAI] Error: status={}, body={}",
-            status_code, body
-        );
-        return Err(AsrError::RequestFailed(format!(
-            "http status: {}, body: {}",
-            status_code, body
-        )));
+    let status = response.status();
+    let status_code = status.as_u16();
+    if !status.is_success() {
+        eprintln!("[⏱️ ASR OpenAI] Error: status={status_code}");
+        return Err(AsrError::HttpStatus(status_code));
     }
 
     let transcription: OpenAITranscriptionResponse = response
-        .into_body()
-        .read_json()
+        .json()
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
     eprintln!(
         "[⏱️ ASR OpenAI] 解析响应 - 耗时 {:?}",
@@ -317,9 +320,7 @@ fn transcribe_with_zhipu(
         eprintln!("无法读取音频文件的 WAV 规格信息");
     }
 
-    // 智谱网关可能在校验 Authorization 后提前拒绝上传。ureq 在仍写入
-    // multipart body 时会把这种响应表现为 Broken pipe，导致真正的 HTTP 状态和
-    // 错误体丢失。reqwest 对该场景的响应处理更稳健，并支持 HTTP/2。
+    // reqwest 对服务端提前拒绝 multipart 上传的场景响应处理稳定，并支持 HTTP/2。
     let file_name = audio_path
         .file_name()
         .and_then(|name| name.to_str())
@@ -363,11 +364,8 @@ fn transcribe_with_zhipu(
         .text()
         .map_err(|error| AsrError::InvalidResponse(error.to_string()))?;
     if !status.is_success() {
-        eprintln!("ASR Error Response: status={}, body={}", status_code, body);
-        return Err(AsrError::RequestFailed(format!(
-            "http status: {}, body: {}",
-            status_code, body
-        )));
+        eprintln!("ASR Error Response: status={status_code}");
+        return Err(AsrError::HttpStatus(status_code));
     }
 
     let transcription: ZhipuTranscriptionResponse = serde_json::from_str(&body)
@@ -418,29 +416,40 @@ pub fn build_asr_config(
     app: &tauri::AppHandle,
     config: &crate::data::AppConfig,
 ) -> Result<AsrConfig, String> {
-    if config.asr_provider == "local" {
-        let (fallback_api_key, fallback_base_url, fallback_model) =
-            config.cloud_asr_config(&config.fallback_asr_provider);
+    let provider = config.asr.primary.trim().to_string();
+    let settings = config
+        .asr
+        .settings
+        .get(&provider)
+        .cloned()
+        .ok_or_else(|| format!("缺少 ASR Provider 配置：{provider}"))?;
+    if provider == "local" {
+        let fallback_provider = config.asr.fallbacks.first().cloned().unwrap_or_default();
+        let fallback = config
+            .asr
+            .settings
+            .get(&fallback_provider)
+            .cloned()
+            .unwrap_or_default();
         return Ok(AsrConfig {
             provider: "local".to_string(),
             api_key: String::new(),
             base_url: String::new(),
-            model: config.local_asr_model.clone(),
+            model: settings.model,
             local_model_path: Some(crate::local_asr_model::model_path(app)?),
-            allow_cloud_fallback: config.allow_cloud_fallback,
-            fallback_provider: config.fallback_asr_provider.clone(),
-            fallback_api_key: fallback_api_key.to_string(),
-            fallback_base_url: fallback_base_url.to_string(),
-            fallback_model: fallback_model.to_string(),
+            allow_cloud_fallback: !fallback_provider.is_empty(),
+            fallback_provider,
+            fallback_api_key: fallback.api_key,
+            fallback_base_url: fallback.base_url,
+            fallback_model: fallback.model,
         });
     }
 
-    let (api_key, base_url, model) = config.selected_asr_config();
     Ok(AsrConfig {
-        provider: config.asr_provider.clone(),
-        api_key: api_key.to_string(),
-        base_url: base_url.to_string(),
-        model: model.to_string(),
+        provider,
+        api_key: settings.api_key,
+        base_url: settings.base_url,
+        model: settings.model,
         local_model_path: None,
         allow_cloud_fallback: false,
         fallback_provider: String::new(),
@@ -484,37 +493,4 @@ fn validate_audio_file(audio_path: &Path, config: &AsrConfig) -> Result<(), AsrE
 
 fn transcriptions_url(base_url: &str) -> String {
     format!("{}/audio/transcriptions", base_url.trim_end_matches('/'))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn transcribe_audio_path(
-    audio_path: String,
-    provider: String,
-    api_key: String,
-    base_url: String,
-    model: String,
-) -> Result<AsrTranscription, String> {
-    let config = AsrConfig {
-        provider,
-        api_key,
-        base_url,
-        model,
-        local_model_path: None,
-        allow_cloud_fallback: false,
-        fallback_provider: String::new(),
-        fallback_api_key: String::new(),
-        fallback_base_url: String::new(),
-        fallback_model: String::new(),
-    };
-
-    transcribe_audio_file(
-        &AsrRequest {
-            audio_path: PathBuf::from(audio_path),
-            hotwords: Vec::new(),
-            context_prompt: None,
-        },
-        &config,
-    )
-    .map_err(|error| error.to_string())
 }

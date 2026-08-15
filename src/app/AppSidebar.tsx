@@ -17,10 +17,11 @@ export function AppSidebar({
 }) {
   return (
     <Tabs
+      data-testid="app-sidebar"
       value={page}
       onValueChange={(value) => onPageChange(value as Page)}
       orientation="vertical"
-      className="fixed left-0 top-0 z-10 flex h-screen w-48 flex-col border-r bg-muted/30"
+      className="z-10 flex h-full w-48 shrink-0 flex-col border-r bg-muted/30"
     >
       <div className="border-b px-6 py-4">
         <h1 className="text-2xl font-semibold tracking-normal [font-family:Georgia,'Times_New_Roman',serif]">

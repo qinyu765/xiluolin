@@ -28,7 +28,149 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+.indicator-stage {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 6px;
+  background: transparent;
+}
+
+.indicator-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 75%) 0%,
+    rgb(255 255 255 / 8%) 35%,
+    rgb(255 255 255 / 4%) 65%,
+    rgb(255 255 255 / 50%) 100%
+  );
+  box-shadow:
+    0 0 16px rgb(255 255 255 / 8%),
+    0 0 32px rgb(255 255 255 / 4%);
+}
+
+.indicator-transcript,
+.indicator-message {
+  display: block;
+  min-width: 96px;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 11px;
+  padding: 7px 12px 6px;
+  background: rgb(0 0 0 / 25%);
+  color: rgb(255 255 255 / 95%);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.indicator-transcript {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.indicator-transcript::-webkit-scrollbar {
+  display: none;
+}
+
+.indicator-message {
+  text-overflow: ellipsis;
+}
+
+.indicator-shell--message .indicator-message {
+  animation: indicator-breathe 1.8s ease-in-out infinite;
+}
+
+.indicator-shell--completed {
+  animation: indicator-completed-exit 1.2s ease forwards;
+}
+
+.indicator-shell--completed .indicator-message {
+  color: rgb(255 255 255 / 95%);
+}
+
+.indicator-shell--failed {
+  animation: indicator-failed-exit 4s ease forwards;
+}
+
+.indicator-shell--failed .indicator-message {
+  color: rgb(255 255 255 / 95%);
+}
+
+.indicator-shell--notice .indicator-message {
+  animation: indicator-breathe 1.8s ease-in-out infinite;
+}
+
+.indicator-shell--notice-copied .indicator-message {
+  color: rgb(102 239 182 / 100%);
+}
+
+.indicator-shell--notice-failed .indicator-message {
+  color: rgb(255 137 128 / 100%);
+}
+
+@keyframes indicator-breathe {
+  0%,
+  100% {
+    opacity: 0.68;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
+}
+
+@keyframes indicator-completed-exit {
+  0%,
+  68% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes indicator-failed-exit {
+  0%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator-shell--message .indicator-message,
+  .indicator-shell--notice .indicator-message,
+  .indicator-shell--completed,
+  .indicator-shell--failed {
+    animation: none;
+  }
+
+  .indicator-transcript {
+    scroll-behavior: auto;
+  }
+}
+
 :root {
+  color-scheme: light;
   --radius: 0.5rem;
   --background: #f6f5f4;
   --foreground: rgba(0, 0, 0, 0.95);
@@ -50,6 +192,7 @@
   --ring: #097fe8;
 }
 
+/* 暂时固定浅色主题，深色 token 保留待整体视觉验证后恢复。 */
 .dark {
   --background: #31302e;
   --foreground: #ffffff;
@@ -76,8 +219,15 @@
     @apply border-border outline-ring/50;
   }
 
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
   body {
-    @apply min-h-screen bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased;
     min-width: 320px;
     font-family:
       Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
@@ -85,6 +235,12 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  body:has(.indicator-stage) {
+    min-width: 0;
+    overflow: hidden;
+    background: transparent;
   }
 
   button,

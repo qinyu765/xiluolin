@@ -31,6 +31,42 @@ fn hotword_roundtrip_keeps_enabled_state() {
 }
 
 #[test]
+fn adding_hotwords_keeps_existing_dictionary_entries_and_metadata() {
+    let database = open_test_database(&temp_db_path("hotword-add"));
+    let existing = database
+        .create_hotword(HotwordDraft {
+            text: "XiLuoLin".to_string(),
+            category: "产品名".to_string(),
+            enabled: false,
+        })
+        .expect("existing hotword should be created");
+
+    let hotwords = database
+        .add_hotwords(vec![
+            " XiLuoLin ".to_string(),
+            "新词".to_string(),
+            "新词".to_string(),
+        ])
+        .expect("hotwords should be added");
+
+    assert_eq!(hotwords.len(), 2);
+    let preserved = hotwords
+        .iter()
+        .find(|hotword| hotword.text == "XiLuoLin")
+        .expect("existing hotword should remain");
+    assert_eq!(preserved.id, existing.id);
+    assert_eq!(preserved.category, "产品名");
+    assert!(!preserved.enabled);
+
+    let added = hotwords
+        .iter()
+        .find(|hotword| hotword.text == "新词")
+        .expect("new hotword should be added");
+    assert_eq!(added.category, "");
+    assert!(added.enabled);
+}
+
+#[test]
 fn hotword_can_be_updated_deleted_and_formatted_as_context() {
     let database = open_test_database(&temp_db_path("hotword-crud-context"));
 
@@ -185,4 +221,48 @@ fn enabled_hotword_snapshot_stably_deduplicates_once_for_asr_and_context() {
 
     assert_eq!(snapshot.asr_hotwords, expected_asr_hotwords);
     assert_eq!(snapshot.hotword_context, expected_context);
+}
+
+#[test]
+fn replacing_hotwords_trims_deduplicates_and_preserves_existing_metadata() {
+    let database = open_test_database(&temp_db_path("hotword-replace"));
+    let existing = database
+        .create_hotword(HotwordDraft {
+            text: "  XiLuoLin  ".to_string(),
+            category: "产品名".to_string(),
+            enabled: false,
+        })
+        .expect("existing hotword should be created");
+    database
+        .create_hotword(HotwordDraft {
+            text: "旧词".to_string(),
+            category: "旧分类".to_string(),
+            enabled: true,
+        })
+        .expect("obsolete hotword should be created");
+
+    let replaced = database
+        .replace_hotwords(vec![
+            " XiLuoLin ".to_string(),
+            "".to_string(),
+            "XiLuoLin".to_string(),
+            "新词".to_string(),
+            "  ".to_string(),
+        ])
+        .expect("dictionary replacement should succeed");
+
+    assert_eq!(replaced.len(), 2);
+    assert_eq!(replaced[0].id, existing.id);
+    assert_eq!(replaced[0].text, "XiLuoLin");
+    assert_eq!(replaced[0].category, "产品名");
+    assert!(!replaced[0].enabled);
+    assert_eq!(replaced[1].text, "新词");
+    assert_eq!(replaced[1].category, "");
+    assert!(replaced[1].enabled);
+    assert!(!replaced.iter().any(|hotword| hotword.text == "旧词"));
+
+    let empty = database
+        .replace_hotwords(Vec::new())
+        .expect("an empty dictionary should be saved");
+    assert!(empty.is_empty());
 }

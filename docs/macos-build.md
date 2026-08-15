@@ -1,6 +1,6 @@
 # macOS Apple Silicon 构建与安装
 
-XiLuoLin `v0.1.0` 面向 macOS 13 及以上、Apple Silicon（arm64）提供未公证稳定版安装包。应用使用完整的 ad-hoc 签名以满足 Apple Silicon 运行要求，但没有 Developer ID 身份和 Apple 公证。
+XiLuoLin `v0.1.0` 面向 macOS 13 及以上、Apple Silicon（arm64）提供未公证安装包。仓库保留通用 ad-hoc 构建，同时提供使用本机 Apple Development 证书的稳定开发签名入口；两种方式都没有 Developer ID 身份和 Apple 公证。
 
 ## 环境
 
@@ -11,11 +11,32 @@ XiLuoLin `v0.1.0` 面向 macOS 13 及以上、Apple Silicon（arm64）提供未�
 
 ## 构建
 
+通用构建显式使用 ad-hoc 签名，适用于 CI 或没有开发证书的环境：
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
 pnpm tauri:build:macos:arm64
 ```
+
+ad-hoc 签名的代码身份与具体构建绑定。需要在同一台 Mac 上反复安装和体验麦克风、辅助功能时，应使用钥匙串中的个人 Apple Development 身份：
+
+```bash
+APPLE_SIGNING_IDENTITY="Apple Development: <name> (<team-id>)" \
+  pnpm tauri:build:macos:arm64:signed
+```
+
+`APPLE_SIGNING_IDENTITY` 只在当前命令的环境中传入，不应写入仓库、`.env`、日志或共享脚本。可以通过 `security find-identity -v -p codesigning` 查看当前钥匙串可用的身份。稳定签名入口会拒绝空值和 ad-hoc 的 `-`。
+
+本机个人开发者构建可直接执行以下命令。它只查找证书真实 TeamIdentifier 为个人 Team `P3F5KAG4P7` 的 Apple Development 证书；找不到时会失败，不会改用公司 Team 或 ad-hoc 签名：
+
+```bash
+pnpm tauri:build:macos:arm64:personal
+```
+
+这是免费 Personal Team 的本机开发签名，不提供 Developer ID 或公证能力；构建日志中的跳过公证提示属于预期结果。证书显示名中的 `2MWMD92VC6` 是个人证书标识，脚本按证书真实 OU/TeamIdentifier `P3F5KAG4P7` 选择身份，不会选择公司 Team。
+
+证书和对应私钥存在于当前 Mac 的钥匙串即可执行签名；macOS 系统设置当前登录哪个 Apple 账号、常用 Apple 账号位于哪台 Mac，都不参与运行时签名判断。
 
 产物位于：
 
@@ -35,7 +56,7 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0_aarch64.
 3. 如果仍被阻止，打开“系统设置 → 隐私与安全性”，在安全提示中选择“仍要打开”。
 4. 返回应用后按设置页提示授予麦克风和辅助功能权限。
 
-不同预览构建的 ad-hoc 代码身份可能变化，macOS 可能重新请求 Keychain、麦克风或辅助功能权限。
+不同 ad-hoc 构建的代码身份会变化，macOS 可能重新请求 Keychain、麦克风或辅助功能权限。同一张 Apple Development 证书签出的连续开发构建具有稳定的 designated requirement（DR），能在同一台 Mac 上复用授权；证书到期、撤销、重新签发或换 Mac 后仍可能需要重新授权一次。
 
 ## 卸载与数据
 
@@ -47,6 +68,17 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0_aarch64.
 - **辅助功能**：用于恢复录音开始时的应用窗口并发送 `Command+V`；未授权时识别结果仍会复制到剪贴板。
 - 设置页“语音输入就绪检查”可以读取权限状态、请求权限并打开对应的 macOS 设置页。
 
+签名构建会启用 Hardened Runtime，因此 bundle 必须携带 `com.apple.security.device.audio-input=true`；它允许程序向系统请求音频输入，但不会跳过用户的麦克风授权。应用未启用 App Sandbox，不应额外声明沙箱专用的麦克风 entitlement。
+
+如果系统设置显示 XiLuoLin 已开启，但应用仍报告未请求或未授权，通常是旧 ad-hoc 构建的授权与当前 DR 不匹配。确认已经安装稳定签名版本后，可以仅重置 XiLuoLin 的两项记录：
+
+```bash
+tccutil reset Microphone com.xiluolin.desktop
+tccutil reset Accessibility com.xiluolin.desktop
+```
+
+重置不会删除应用配置、历史、模型或录音，但会清除当前麦克风和辅助功能开关。重新启动 `/Applications/XiLuoLin.app`，按设置页提示分别授权即可。
+
 ## 验证产物
 
 ```bash
@@ -57,15 +89,20 @@ file "$APP/Contents/MacOS/xiluolin"
 plutil -p "$APP/Contents/Info.plist"
 codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -dv --verbose=4 "$APP"
+codesign -d -r - "$APP"
+codesign -d --entitlements :- "$APP"
 hdiutil verify "$DMG"
 shasum -a 256 "$DMG"
 ```
 
-预期主程序架构包含 `arm64`，`Info.plist` 包含 `LSMinimumSystemVersion = 13.0`、`CFBundleIdentifier = com.xiluolin.desktop` 和 `NSMicrophoneUsageDescription`。`codesign` 严格验证必须成功并显示 ad-hoc；由于没有 Apple 公证，`spctl` 拒绝属于预期行为。
+预期主程序架构包含 `arm64`，`Info.plist` 包含 `LSMinimumSystemVersion = 13.0`、`CFBundleIdentifier = com.xiluolin.desktop` 和 `NSMicrophoneUsageDescription`。`codesign` 严格验证必须成功。
+
+通用构建的 DR 只绑定具体 `cdhash`；稳定开发签名的 DR 应包含 `identifier "com.xiluolin.desktop"`、Apple 签名锚点和所选开发证书。签名 entitlements 应包含 `com.apple.security.device.audio-input = true`。由于没有 Apple 公证，两种构建的 `spctl` 拒绝都属于预期行为。
 
 ## 已知限制
 
-- 未使用 Developer ID 签名和 Apple 公证，Gatekeeper 需要用户手动允许；这属于当前稳定版的已知限制。
+- 免费 Apple Developer 账号可以创建本机开发签名，但不能生成 Developer ID 公证发行包；安装到其他 Mac 时仍可能被 Gatekeeper 阻止或要求额外确认。
+- 未使用 Developer ID 签名和 Apple 公证，Gatekeeper 需要用户手动允许；这是当前开发版的已知限制。
 - 只构建 Apple Silicon，不支持 Intel Mac。
 - 多窗口应用会优先恢复录音开始时的精确窗口；无法匹配时退化为恢复原应用。
 - 目标应用退出、权限不足或系统无法确认焦点时不会发送按键，文本保留在剪贴板。

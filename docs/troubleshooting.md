@@ -54,7 +54,9 @@
 
 - 确认 ASR 和文本整理使用了各自正确的 Provider 与 API Key。
 - 检查 Base URL 是否属于所选 Provider，模型名是否受该服务支持。
-- 重新保存配置后再测试，不要把 API Key 写入仓库、Issue 或截图。
+- 按 primary → fallback 顺序逐项检查，错误提示会指出失败的 Provider、模型、分类与 HTTP 状态；不要假定报错项一定是 primary。
+- 千问应确认 API Key、Workspace 与公共/专属地域地址匹配。Base URL 可以包含兼容模式前缀，应用会避免重复追加能力端点。
+- 修改字段后等待设置页显示“已保存”再测试；如果显示失败，可使用同一位置的“重试”，不要把 API Key 写入仓库、Issue 或截图。
 
 ### 超时、限流或服务异常
 
@@ -62,6 +64,8 @@
 - 使用短录音重试，避免同时发起多次处理。
 - 保留 HTTP 状态码和脱敏后的错误摘要，不记录请求中的音频、完整文本或认证头。
 - 若使用兼容 OpenAI 协议的服务，确认端点和响应结构与当前 Provider 实现兼容。
+- `401/403` 属于鉴权错误，`429` 属于限流，`5xx` 属于远端失败；超时与无效/空响应会单独分类。文本链全部失败会保留 ASR 原文，ASR 链全部失败则终止本次处理。
+- 本地 Whisper 后的云端 fallback 会上传音频；若不接受该行为，请从 ASR 调用链中删除云端项。
 
 ## 文本没有输出到目标应用
 
@@ -120,7 +124,6 @@ pnpm check
 - 脱敏后的错误信息。
 
 不要提交 API Key、私人录音、用户完整文本或完整本地路径。安全问题按照 [`../SECURITY.md`](../SECURITY.md) 私下报告。
-
 
 ## macOS：ASR 和文本整理完成后应用直接退出
 
@@ -196,4 +199,4 @@ account: app_credentials_v1
 
 如果仍出现 `asr_api_key`、`openai_api_key` 或 `zhipu_api_key`，说明钥匙串中还存在旧条目。退出应用并在“钥匙串访问”中搜索 `com.xiluolin.desktop` 和 `com.xiluolin.app`，确认能够重新获取 Key 后再删除旧的分散条目。
 
-`pnpm tauri dev` 使用 ad-hoc 开发签名，重新编译后系统可能重新确认授权。发布和长期测试应使用稳定签名的 `.app`。
+`pnpm tauri dev` 会在 macOS 上使用本机个人 Apple Development 证书签名 debug binary，重新编译后应继续匹配同一个应用身份。若本机找不到个人证书，开发启动会直接失败，不会悄悄退回 ad-hoc 签名；发布和长期测试仍应使用稳定签名的 `.app`。

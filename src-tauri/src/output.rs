@@ -1,71 +1,15 @@
 use arboard::{Clipboard, ImageData};
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::State;
 
 use crate::{
-    capture_session::{CaptureSessionState, CaptureSource, CaptureStatus},
+    capture_session::{
+        CaptureFailure, CapturePhase, CaptureSessionState, CaptureSource, CaptureStatus,
+    },
     focus_capture::{restore_focus, FocusRestoreLevel, FocusSnapshot},
     indicator,
 };
-
-const FALLBACK_WINDOW_LABEL: &str = "fallback-result";
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct FallbackResult {
-    pub text: String,
-    pub reason: String,
-    pub copied: bool,
-}
-
-pub struct FallbackResultState {
-    current: Mutex<Option<FallbackResult>>,
-}
-
-impl FallbackResultState {
-    pub fn new() -> Self {
-        Self {
-            current: Mutex::new(None),
-        }
-    }
-
-    fn replace(&self, result: FallbackResult) -> Result<(), String> {
-        let mut current = self
-            .current
-            .lock()
-            .map_err(|error| format!("失败结果状态锁定失败：{error}"))?;
-        *current = Some(result);
-        Ok(())
-    }
-
-    fn read(&self) -> Result<Option<FallbackResult>, String> {
-        self.current
-            .lock()
-            .map_err(|error| format!("失败结果状态锁定失败：{error}"))
-            .map(|current| current.clone())
-    }
-
-    fn mark_copied(&self) -> Result<(), String> {
-        let mut current = self
-            .current
-            .lock()
-            .map_err(|error| format!("失败结果状态锁定失败：{error}"))?;
-        if let Some(result) = current.as_mut() {
-            result.copied = true;
-        }
-        Ok(())
-    }
-
-    fn clear(&self) -> Result<(), String> {
-        let mut current = self
-            .current
-            .lock()
-            .map_err(|error| format!("失败结果状态锁定失败：{error}"))?;
-        *current = None;
-        Ok(())
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
@@ -84,43 +28,6 @@ pub struct OutputResult {
     pub target_restore_level: FocusRestoreLevel,
     pub clipboard_restored: bool,
     pub used_fallback: bool,
-}
-
-fn ensure_fallback_window(app: &AppHandle) -> Result<WebviewWindow, String> {
-    if let Some(window) = app.get_webview_window(FALLBACK_WINDOW_LABEL) {
-        return Ok(window);
-    }
-
-    WebviewWindowBuilder::new(
-        app,
-        FALLBACK_WINDOW_LABEL,
-        WebviewUrl::App("index.html?window=fallback".into()),
-    )
-    .title("语音输入结果")
-    .inner_size(520.0, 360.0)
-    .min_inner_size(420.0, 280.0)
-    .center()
-    .resizable(true)
-    .closable(false)
-    .decorations(true)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .visible(false)
-    .build()
-    .map_err(|error| format!("创建失败结果窗口失败：{error}"))
-}
-
-fn show_fallback_window(app: &AppHandle) -> Result<(), String> {
-    let window = ensure_fallback_window(app)?;
-    window
-        .show()
-        .map_err(|error| format!("显示失败结果窗口失败：{error}"))?;
-    window
-        .set_focus()
-        .map_err(|error| format!("聚焦失败结果窗口失败：{error}"))?;
-    // 结果文本只通过命令读取；这个事件只用于通知已经加载的窗口重新读取状态。
-    let _ = window.eval("window.dispatchEvent(new Event('fallback-result-updated'))");
-    Ok(())
 }
 
 #[derive(Debug)]
@@ -157,7 +64,16 @@ struct PasteOutcome {
 pub async fn deliver_text(
     app: tauri::AppHandle,
     sessions: State<'_, CaptureSessionState>,
-    fallback_state: State<'_, FallbackResultState>,
+    session_id: Option<String>,
+    history_id: Option<String>,
+    text: String,
+) -> Result<OutputResult, String> {
+    deliver_text_internal(&app, &sessions, session_id, history_id, text).await
+}
+
+pub async fn deliver_text_internal(
+    app: &tauri::AppHandle,
+    sessions: &CaptureSessionState,
     session_id: Option<String>,
     history_id: Option<String>,
     text: String,
@@ -172,7 +88,7 @@ pub async fn deliver_text(
         clipboard_copy(&text).await?;
         if let Some(history_id) = history_id {
             if let Err(error) =
-                crate::data::update_history_delivery_for_app(&app, &history_id, "copy")
+                crate::data::update_history_delivery_for_app(app, &history_id, "copy")
             {
                 eprintln!("更新历史投递方式失败：{error}");
             }
@@ -190,15 +106,16 @@ pub async fn deliver_text(
 
     let context = sessions.delivery_context(&session_id)?;
     sessions.update_status(&session_id, CaptureStatus::Delivering)?;
+    let _ = sessions.emit_snapshot(app);
     if context.source == CaptureSource::Hotkey {
-        let _ = indicator::update_indicator(&app, "delivering");
+        let _ = indicator::update_indicator(app, "delivering");
     }
 
     if context.source == CaptureSource::App {
         let result = clipboard_copy(&text).await;
         return finish_delivery(
-            &app,
-            &sessions,
+            app,
+            sessions,
             &session_id,
             result.map(|_| OutputResult {
                 method: OutputMethod::Clipboard,
@@ -221,8 +138,8 @@ pub async fn deliver_text(
                 outcome.target_restore_level, outcome.clipboard_restored
             );
             finish_delivery(
-                &app,
-                &sessions,
+                app,
+                sessions,
                 &session_id,
                 Ok(OutputResult {
                     method: OutputMethod::Paste,
@@ -258,23 +175,6 @@ pub async fn deliver_text(
                     clipboard_error.as_deref().unwrap_or("未知错误")
                 )
             };
-            let reason = if copied {
-                format!("自动粘贴未完成：{paste_error}")
-            } else {
-                format!(
-                    "自动粘贴和复制均未完成：{paste_error}；剪贴板错误：{}",
-                    clipboard_error.as_deref().unwrap_or("未知错误")
-                )
-            };
-            if let Err(error) = fallback_state.replace(FallbackResult {
-                text: text.clone(),
-                reason,
-                copied,
-            }) {
-                eprintln!("保存失败结果失败：{error}");
-            } else if let Err(error) = show_fallback_window(&app) {
-                eprintln!("显示失败结果窗口失败：{error}");
-            }
             let fallback = Ok(OutputResult {
                 method: OutputMethod::Manual,
                 success: false,
@@ -284,42 +184,18 @@ pub async fn deliver_text(
                 clipboard_restored: false,
                 used_fallback: true,
             });
-            finish_delivery(&app, &sessions, &session_id, fallback, true)
+            let delivery = finish_delivery(app, sessions, &session_id, fallback, false);
+            let notice_result = if copied {
+                indicator::finish_indicator_with_notice(app, "completed", "结果已复制", "copied")
+            } else {
+                indicator::finish_indicator_with_notice(app, "failed", "复制失败", "failed")
+            };
+            if let Err(error) = notice_result {
+                eprintln!("显示投递结果提示失败：{error}");
+            }
+            delivery
         }
     }
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn read_fallback_result(
-    state: State<'_, FallbackResultState>,
-) -> Result<Option<FallbackResult>, String> {
-    state.read()
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn copy_fallback_result(state: State<'_, FallbackResultState>) -> Result<(), String> {
-    let result = state
-        .read()?
-        .ok_or_else(|| "当前没有可复制的失败结果".to_string())?;
-    clipboard_copy(&result.text).await?;
-    state.mark_copied()
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn dismiss_fallback_result(
-    app: AppHandle,
-    state: State<'_, FallbackResultState>,
-) -> Result<(), String> {
-    state.clear()?;
-    if let Some(window) = app.get_webview_window(FALLBACK_WINDOW_LABEL) {
-        window
-            .hide()
-            .map_err(|error| format!("隐藏失败结果窗口失败：{error}"))?;
-    }
-    Ok(())
 }
 
 fn manual_paste_shortcut() -> &'static str {
@@ -359,13 +235,23 @@ fn finish_delivery(
                 }
             }
             sessions.finish(session_id, CaptureStatus::Completed)?;
+            let _ = sessions.emit_snapshot(app);
             if show_indicator {
                 let _ = indicator::finish_indicator(app, "completed");
             }
             Ok(result)
         }
         Err(error) => {
-            let _ = sessions.finish(session_id, CaptureStatus::Failed);
+            let _ = sessions.fail(
+                session_id,
+                CaptureFailure {
+                    code: "delivery_failed".to_string(),
+                    stage: CapturePhase::Delivering,
+                    recoverable: true,
+                    detail: error.clone(),
+                },
+            );
+            let _ = sessions.emit_snapshot(app);
             if show_indicator {
                 let _ = indicator::finish_indicator(app, "failed");
             }
@@ -464,27 +350,6 @@ async fn clipboard_copy(text: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn fallback_result_state_replaces_marks_copied_and_clears_sensitive_text() {
-        let state = FallbackResultState::new();
-        state
-            .replace(FallbackResult {
-                text: "私密内容".to_string(),
-                reason: "无法恢复目标窗口".to_string(),
-                copied: false,
-            })
-            .unwrap();
-        assert_eq!(state.read().unwrap().as_ref().unwrap().text, "私密内容");
-
-        state.mark_copied().unwrap();
-        assert!(state.read().unwrap().as_ref().unwrap().copied);
-
-        state.clear().unwrap();
-        assert!(state.read().unwrap().is_none());
-    }
-
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_paste_uses_ansi_v_keycode_without_layout_lookup() {

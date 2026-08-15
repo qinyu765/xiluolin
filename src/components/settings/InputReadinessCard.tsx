@@ -10,15 +10,9 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { commands } from "@/generated/tauri-bindings";
 import { cn } from "@/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { InputReadiness, ReadinessAction, ReadinessCheck } from "@/types";
 
 const CHECK_LABELS: Array<{
@@ -46,18 +40,18 @@ function StatusIcon({ check }: { check: ReadinessCheck }) {
   if (check.ready) {
     return (
       <CheckCircle2Icon
-        className="size-5 text-emerald-600"
+        className="size-4 text-emerald-600"
         aria-hidden="true"
       />
     );
   }
   if (check.blocking) {
     return (
-      <XCircleIcon className="size-5 text-destructive" aria-hidden="true" />
+      <XCircleIcon className="size-4 text-destructive" aria-hidden="true" />
     );
   }
   return (
-    <AlertTriangleIcon className="size-5 text-amber-500" aria-hidden="true" />
+    <AlertTriangleIcon className="size-4 text-amber-500" aria-hidden="true" />
   );
 }
 
@@ -94,8 +88,10 @@ export function InputReadinessCard({
     const handleRefresh = () => void refresh();
     void refresh(true);
     window.addEventListener("focus", handleRefresh);
+    window.addEventListener("xiluolin:readiness-changed", handleRefresh);
     return () => {
       window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("xiluolin:readiness-changed", handleRefresh);
     };
   }, [refresh, refreshRevision]);
 
@@ -121,56 +117,112 @@ export function InputReadinessCard({
   );
 
   const summary = readiness?.can_dictate
-    ? "快捷键语音输入已就绪"
+    ? ""
     : readiness?.can_process
       ? "录音和模型已就绪，请检查全局快捷键"
       : "存在阻断项，请按下方提示完善配置";
+  const detail = error
+    ? `检查失败：${error}`
+    : isLoading && !readiness
+      ? "正在检查语音输入环境…"
+      : summary;
+  const checks = readiness
+    ? CHECK_LABELS.map(({ key, label }) => ({
+        key,
+        label,
+        check: readiness[key],
+      }))
+    : [];
+  const problemChecks = checks.filter(({ check }) => !check.ready);
 
   return (
-    <Card>
-      <CardHeader className="grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5">
-        <div className="min-w-0">
-          <CardTitle>语音输入就绪检查</CardTitle>
-          <CardDescription className="mt-1.5">
-            {error ? `检查失败：${error}` : summary}
-          </CardDescription>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="row-span-2 self-start"
-          onClick={() => void refresh(true)}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <RefreshCwIcon className="size-4" aria-hidden="true" />
-          )}
-          重新检查
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {readiness ? (
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-6">
-            {CHECK_LABELS.map(({ key, label }, index) => {
-              const check = readiness[key];
-              return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardContent className="p-3 sm:p-4">
+        <div className="grid gap-2 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(0,1.6fr)_auto] sm:items-center">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div
+              className={cn(
+                "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                readiness?.can_dictate
+                  ? "bg-emerald-500/10 text-emerald-600"
+                  : "bg-amber-500/10 text-amber-600",
+              )}
+            >
+              {readiness?.can_dictate ? (
+                <CheckCircle2Icon className="size-4" aria-hidden="true" />
+              ) : (
+                <AlertTriangleIcon className="size-4" aria-hidden="true" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">语音输入就绪检查</p>
+              {detail ? (
+                <p
+                  className={cn(
+                    "mt-0.5 text-xs leading-4 text-muted-foreground",
+                    error && "text-destructive",
+                  )}
+                >
+                  {detail}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {readiness ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {checks.map(({ key, label, check }) => (
                 <div
                   key={key}
                   className={cn(
-                    "flex min-h-24 gap-3 rounded-lg border p-3",
-                    index < 3 ? "md:col-span-2" : "md:col-span-3",
+                    "inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium",
+                    check.ready
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : check.blocking
+                        ? "border-destructive/20 bg-destructive/5 text-destructive"
+                        : "border-amber-200 bg-amber-50 text-amber-700",
                   )}
+                >
+                  <StatusIcon check={check} />
+                  {label}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 justify-self-end"
+            aria-label="重新检查"
+            onClick={() => void refresh(true)}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2Icon
+                className="size-3.5 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <RefreshCwIcon className="size-3.5" aria-hidden="true" />
+            )}
+          </Button>
+
+          {problemChecks.length > 0 ? (
+            <div className="mt-3 grid gap-3 border-t pt-3 sm:col-span-3 sm:grid-cols-2">
+              {problemChecks.map(({ key, label, check }) => (
+                <div
+                  key={key}
+                  className="flex gap-2.5 rounded-lg bg-muted/45 p-3"
                 >
                   <StatusIcon check={check} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{label}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
                       {check.detail}
                     </p>
-                    {check.actions.length > 0 && (
+                    {check.actions.length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {check.actions.map((action) => (
                           <Button
@@ -202,21 +254,13 @@ export function InputReadinessCard({
                           </Button>
                         ))}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-            正在检查语音输入环境...
-          </div>
-        )}
-        <p className="mt-4 text-xs leading-5 text-muted-foreground">
-          自动粘贴属于非阻断能力。即使不可用，识别结果仍会保存到历史并尝试复制；失败时可在结果窗口中恢复。
-        </p>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

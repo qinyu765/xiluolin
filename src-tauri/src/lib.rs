@@ -2,6 +2,7 @@ pub mod app_migration;
 pub mod asr;
 pub mod audio_control;
 pub mod bindings;
+pub mod capture_coordinator;
 pub mod capture_session;
 pub mod credentials;
 pub mod data;
@@ -16,7 +17,10 @@ pub mod macos_fn;
 pub mod macos_permissions;
 pub mod output;
 pub mod pipeline;
+pub mod providers;
 pub mod readiness;
+pub mod realtime_asr;
+pub mod realtime_asr_model;
 pub mod recording;
 pub mod recording_storage;
 mod recording_worker;
@@ -45,7 +49,6 @@ pub fn run() {
     builder
         .manage(capture_session::CaptureSessionState::new())
         .manage(recording::RecordingState::new())
-        .manage(output::FallbackResultState::new())
         .manage(macos_fn::FnHoldManager::new())
         .setup(move |app| {
             event_bindings.mount_events(app);

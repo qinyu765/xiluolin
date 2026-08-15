@@ -11,7 +11,11 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    exclude: [...configDefaults.exclude, "scripts/asr-eval.test.mjs"],
+    exclude: [
+      ...configDefaults.exclude,
+      ".worktrees/**",
+      "scripts/**/*.test.mjs",
+    ],
     setupFiles: ["./src/test/setup.ts"],
     css: true,
     restoreMocks: true,

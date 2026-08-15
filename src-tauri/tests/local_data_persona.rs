@@ -205,7 +205,7 @@ fn ensure_default_persona_repairs_missing_and_multiple_defaults() {
 }
 
 #[test]
-fn conditional_delete_cannot_remove_a_persona_made_default_by_another_connection() {
+fn deleting_the_current_default_reassigns_general_persona_first() {
     let database = open_test_database(&temp_db_path("conditional-default-delete"));
     let connection = rusqlite::Connection::open(database.path()).unwrap();
     connection
@@ -218,13 +218,12 @@ fn conditional_delete_cannot_remove_a_persona_made_default_by_another_connection
         )
         .unwrap();
 
-    let error = database
+    database
         .delete_persona("verbatim")
-        .expect_err("production deletion must reject a persona made default by another connection");
-    assert!(error.contains("默认人格不可删除"));
-    assert!(database
-        .list_personas()
-        .unwrap()
+        .expect("the current custom default should be deleted");
+    let personas = database.list_personas().unwrap();
+    assert!(personas
         .iter()
-        .any(|persona| persona.id == "verbatim" && persona.is_default));
+        .any(|persona| persona.id == GENERAL_PERSONA_ID && persona.is_default));
+    assert!(!personas.iter().any(|persona| persona.id == "verbatim"));
 }

@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "resources": {
+      "target/x86_64-pc-windows-msvc/release/*.dll": ""
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
+  }
+}

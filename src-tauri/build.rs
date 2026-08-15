@@ -1,4 +1,7 @@
-use std::{env, fs, path::PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 fn main() {
     stage_windows_runtime().expect("无法准备 Windows sherpa-onnx 运行库");
@@ -33,8 +36,21 @@ fn stage_windows_runtime() -> Result<(), Box<dyn std::error::Error>> {
                 .file_name()
                 .ok_or("Windows 运行库路径缺少文件名")?
                 .to_owned();
-            fs::copy(&path, runtime_dir.join(file_name))?;
+            copy_if_changed(&path, &runtime_dir.join(file_name))?;
         }
+    }
+
+    Ok(())
+}
+
+fn copy_if_changed(source: &Path, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let source_bytes = fs::read(source)?;
+    let destination_is_current = fs::read(destination)
+        .map(|destination_bytes| destination_bytes == source_bytes)
+        .unwrap_or(false);
+
+    if !destination_is_current {
+        fs::write(destination, source_bytes)?;
     }
 
     Ok(())

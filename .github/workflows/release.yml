@@ -171,7 +171,21 @@ jobs:
       - name: Build macOS DMG
         if: runner.os == 'macOS'
         shell: bash
-        run: pnpm tauri bundle --target "${{ matrix.target }}" --bundles dmg --no-sign
+        run: |
+          app="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app"
+          dmg_dir="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
+          version="$(node -p "require('./package.json').version")"
+          staging="$RUNNER_TEMP/xiluolin-dmg"
+          mkdir -p "$staging" "$dmg_dir"
+          ditto "$app" "$staging/XiLuoLin.app"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create \
+            -volname "XiLuoLin" \
+            -srcfolder "$staging" \
+            -fs HFS+ \
+            -format UDZO \
+            -ov \
+            "$dmg_dir/XiLuoLin_${version}_aarch64.dmg"
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
           CMAKE_OSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}

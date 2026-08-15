@@ -151,7 +151,47 @@ jobs:
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --target "${{ matrix.target }}"
 
-      - name: Build installer
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: pnpm tauri build --target "${{ matrix.target }}" --bundles app --no-sign
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+
+      - name: Sign macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app"
+          codesign --force --deep --sign - \
+            --entitlements src-tauri/Entitlements.plist \
+            "$app"
+
+      - name: Build macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app"
+          dmg_dir="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
+          version="$(node -p "require('./package.json').version")"
+          staging="$RUNNER_TEMP/xiluolin-dmg"
+          mkdir -p "$staging" "$dmg_dir"
+          ditto "$app" "$staging/XiLuoLin.app"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create \
+            -volname "XiLuoLin" \
+            -srcfolder "$staging" \
+            -fs HFS+ \
+            -format UDZO \
+            -ov \
+            "$dmg_dir/XiLuoLin_${version}_aarch64.dmg"
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
         run: pnpm tauri build --target "${{ matrix.target }}" --bundles "${{ matrix.bundles }}"
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}

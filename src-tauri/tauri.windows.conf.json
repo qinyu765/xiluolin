@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "resources": {
+      "windows/runtime/": ""
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
+  }
+}

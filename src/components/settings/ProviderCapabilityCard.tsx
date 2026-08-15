@@ -245,8 +245,10 @@ function ProviderSummaryRow({
 
 function ProviderStatus({
   status,
+  showLabel = false,
 }: {
   status: ReturnType<typeof providerConfigurationStatus>;
+  showLabel?: boolean;
 }) {
   return (
     <span
@@ -261,9 +263,61 @@ function ProviderStatus({
       ) : (
         <AlertCircleIcon className="size-3.5" aria-hidden="true" />
       )}
-      <span className="hidden sm:inline">{status.label}</span>
+      <span className={showLabel ? undefined : "hidden sm:inline"}>
+        {status.label}
+      </span>
       <span className="sr-only">{status.label}</span>
     </span>
+  );
+}
+
+function ProviderChainCard({
+  capability,
+  descriptor,
+  settings,
+  routeLabel,
+  selected,
+  onClick,
+}: {
+  capability: ProviderCapability;
+  descriptor: ProviderDescriptor;
+  settings: ProviderSettings;
+  routeLabel: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const status = providerConfigurationStatus(descriptor, settings);
+  const model =
+    settings.model?.trim() || descriptor.default_model || "默认模型";
+  const roleColor = capability === "asr" ? "text-sky-700" : "text-violet-700";
+
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      aria-label={`${routeLabel} Provider ${descriptor.name}`}
+      className={
+        selected
+          ? "min-w-0 rounded-lg border border-primary/45 bg-primary/5 p-3 text-left shadow-sm outline-none ring-2 ring-primary/10 transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+          : "min-w-0 rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      }
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={`truncate text-[11px] font-semibold uppercase tracking-[0.12em] ${roleColor}`}
+        >
+          {routeLabel}
+        </span>
+        <ProviderStatus status={status} showLabel />
+      </div>
+      <span className="mt-2 block truncate text-sm font-semibold">
+        {descriptor.name}
+      </span>
+      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+        {model}
+      </span>
+    </button>
   );
 }
 
@@ -291,6 +345,8 @@ function ProviderEditorDialog({
   const selectedDescriptor = descriptors.find(
     (descriptor) => descriptor.id === selectedProviderId,
   );
+  const selectedFallbackIndex = fallbacks.indexOf(selectedProviderId ?? "");
+  const selectedIsFallback = selectedFallbackIndex >= 0;
 
   const selectProvider = (providerId: string | null) => {
     onSelectedProviderChange(providerId);
@@ -359,8 +415,8 @@ function ProviderEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!flex h-[min(90vh,48rem)] max-h-[calc(100dvh-2rem)] min-h-0 max-w-5xl flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12 sm:px-6">
+      <DialogContent className="!flex max-h-[calc(100dvh-2rem)] min-h-0 max-w-4xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-3.5 pr-12 sm:px-6">
           <DialogTitle className="flex items-center gap-2 text-base">
             <span>{title}</span>
             <span className="text-muted-foreground">·</span>
@@ -373,155 +429,114 @@ function ProviderEditorDialog({
 
         <div
           data-testid="provider-editor-body"
-          className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,auto)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[17rem_minmax(0,1fr)] lg:grid-rows-none"
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
         >
-          <aside
-            data-testid="provider-editor-sidebar"
-            className="min-h-0 overflow-y-auto overscroll-contain border-b bg-muted/25 p-4 lg:border-r lg:border-b-0 sm:p-5"
+          <section
+            data-testid="provider-chain-section"
+            className="shrink-0 border-b bg-muted/25 px-4 py-4 sm:px-6"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold">调用链</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  最多 1 个主 Provider + 2 个备用
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-2.5">
+                <ListOrderedIcon
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">调用链</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    最多 1 个主 Provider + 2 个备用，按顺序依次尝试
+                  </p>
+                </div>
               </div>
-              <ListOrderedIcon
-                className="size-4 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </div>
 
-            <div className="mt-4 grid gap-2">
-              <Label
-                htmlFor={`${capability}-dialog-primary`}
-                className="text-xs text-muted-foreground"
-              >
-                主 Provider
-              </Label>
-              <Select
-                value={primary}
-                onValueChange={(value) => {
-                  const descriptor = descriptors.find(
-                    (item) => item.id === value,
-                  );
-                  if (descriptor) updateProvider(descriptor);
-                }}
-              >
-                <SelectTrigger id={`${capability}-dialog-primary`}>
-                  <SelectValue placeholder="选择 Provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {descriptors.map((descriptor) => (
-                    <SelectItem key={descriptor.id} value={descriptor.id}>
-                      {descriptor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="mt-5 grid gap-2">
-              <p className="text-xs text-muted-foreground">备用顺序</p>
-              {fallbacks.map((providerId, index) => {
-                const descriptor = descriptors.find(
-                  (item) => item.id === providerId,
-                );
-                return (
-                  <div
-                    key={providerId}
-                    className={
-                      selectedProviderId === providerId
-                        ? "rounded-lg border border-primary/40 bg-primary/5 p-2"
-                        : "rounded-lg border bg-background p-2"
-                    }
-                  >
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => selectProvider(providerId)}
-                    >
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {descriptor?.name ?? providerId}
-                      </span>
-                      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
-                    </button>
-                    <div className="mt-1 flex justify-end gap-0.5">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-7"
-                        disabled={index === 0}
-                        aria-label={`上移 ${providerId}`}
-                        onClick={() =>
-                          setFallbacks(move(fallbacks, index, index - 1))
-                        }
-                      >
-                        <ArrowUpIcon className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-7"
-                        disabled={index === fallbacks.length - 1}
-                        aria-label={`下移 ${providerId}`}
-                        onClick={() =>
-                          setFallbacks(move(fallbacks, index, index + 1))
-                        }
-                      >
-                        <ArrowDownIcon className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-7"
-                        aria-label={`删除 ${providerId}`}
-                        onClick={() =>
-                          setFallbacks(
-                            fallbacks.filter((id) => id !== providerId),
-                          )
-                        }
-                      >
-                        <Trash2Icon className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-              {fallbacks.length < 2 && availableFallbacks.length > 0 ? (
-                <Select value="" onValueChange={addFallback}>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <Select
+                  value={primary}
+                  onValueChange={(value) => {
+                    const descriptor = descriptors.find(
+                      (item) => item.id === value,
+                    );
+                    if (descriptor) updateProvider(descriptor);
+                  }}
+                >
                   <SelectTrigger
-                    id={`${capability}-dialog-add-fallback`}
-                    aria-label={`添加 ${capability === "asr" ? "ASR" : "文本"} 备用 Provider`}
+                    id={`${capability}-dialog-primary`}
+                    aria-label="主 Provider"
+                    className="h-8 w-full text-xs sm:w-44"
                   >
-                    <PlusIcon className="size-4" aria-hidden="true" />
-                    <SelectValue placeholder="添加备用 Provider" />
+                    <SelectValue placeholder="选择主 Provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableFallbacks.map((descriptor) => (
+                    {descriptors.map((descriptor) => (
                       <SelectItem key={descriptor.id} value={descriptor.id}>
                         {descriptor.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              ) : null}
+
+                {fallbacks.length < 2 && availableFallbacks.length > 0 ? (
+                  <Select value="" onValueChange={addFallback}>
+                    <SelectTrigger
+                      id={`${capability}-dialog-add-fallback`}
+                      aria-label={`添加 ${capability === "asr" ? "ASR" : "文本"} 备用 Provider`}
+                      className="h-8 w-full text-xs sm:w-44"
+                    >
+                      <PlusIcon className="size-3.5" aria-hidden="true" />
+                      <SelectValue placeholder="添加备用" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableFallbacks.map((descriptor) => (
+                        <SelectItem key={descriptor.id} value={descriptor.id}>
+                          {descriptor.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+              </div>
             </div>
-          </aside>
+
+            {routeIds.length > 0 ? (
+              <div
+                data-testid="provider-chain"
+                className="mt-3 grid gap-2 sm:grid-cols-3"
+              >
+                {routeIds.map((providerId, index) => {
+                  const descriptor = descriptors.find(
+                    (item) => item.id === providerId,
+                  );
+                  if (!descriptor) return null;
+                  return (
+                    <ProviderChainCard
+                      key={providerId}
+                      capability={capability}
+                      descriptor={descriptor}
+                      settings={
+                        routing.settings?.[providerId] ??
+                        defaultSettings(descriptor)
+                      }
+                      routeLabel={index === 0 ? "主" : `备 ${index}`}
+                      selected={selectedProviderId === providerId}
+                      onClick={() => selectProvider(providerId)}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-lg border border-dashed bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+                先选择主 Provider，之后可以添加备用 Provider。
+              </div>
+            )}
+          </section>
 
           <div
             data-testid="provider-editor-scroll"
-            className="min-h-0 min-w-0 overflow-y-auto overscroll-contain p-4 sm:p-6"
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6"
           >
             {selectedDescriptor && selectedSettings ? (
-              <div>
-                <div className="flex items-start justify-between gap-3 border-b pb-4">
+              <div className="mx-auto max-w-3xl">
+                <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       {selectedProviderId === primary && primary
@@ -542,12 +557,78 @@ function ProviderEditorDialog({
                           : ""}
                     </p>
                   </div>
-                  <ProviderStatus
-                    status={providerConfigurationStatus(
-                      selectedDescriptor,
-                      selectedSettings,
-                    )}
-                  />
+                  <div className="flex shrink-0 items-center gap-2">
+                    <ProviderStatus
+                      status={providerConfigurationStatus(
+                        selectedDescriptor,
+                        selectedSettings,
+                      )}
+                      showLabel
+                    />
+                    {selectedIsFallback ? (
+                      <div className="flex items-center gap-0.5 rounded-md border bg-background p-0.5">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-7"
+                          disabled={selectedFallbackIndex === 0}
+                          aria-label={`上移 ${selectedProviderId}`}
+                          title="上移"
+                          onClick={() =>
+                            setFallbacks(
+                              move(
+                                fallbacks,
+                                selectedFallbackIndex,
+                                selectedFallbackIndex - 1,
+                              ),
+                            )
+                          }
+                        >
+                          <ArrowUpIcon className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-7"
+                          disabled={
+                            selectedFallbackIndex === fallbacks.length - 1
+                          }
+                          aria-label={`下移 ${selectedProviderId}`}
+                          title="下移"
+                          onClick={() =>
+                            setFallbacks(
+                              move(
+                                fallbacks,
+                                selectedFallbackIndex,
+                                selectedFallbackIndex + 1,
+                              ),
+                            )
+                          }
+                        >
+                          <ArrowDownIcon className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-7 text-destructive hover:text-destructive"
+                          aria-label={`删除 ${selectedProviderId}`}
+                          title="删除"
+                          onClick={() =>
+                            setFallbacks(
+                              fallbacks.filter(
+                                (id) => id !== selectedProviderId,
+                              ),
+                            )
+                          }
+                        >
+                          <Trash2Icon className="size-3.5" />
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <ProviderFields
@@ -571,7 +652,7 @@ function ProviderEditorDialog({
                 />
               </div>
             ) : (
-              <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+              <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 text-center">
                 <div>
                   <p className="text-sm font-medium">先选择一个 Provider</p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -603,14 +684,14 @@ function ProviderFields({
   onModelChanged: () => void;
 }) {
   return (
-    <div className="grid gap-4 pt-5">
+    <div className="grid gap-3 pt-4">
       {descriptor.capabilities.local_model_management &&
       capability === "asr" ? (
         <LocalAsrSettings onModelChanged={onModelChanged} />
       ) : null}
 
       {descriptor.fields.length > 0 ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2">
           {descriptor.fields.map((field) => (
             <ProviderField
               key={field.key}

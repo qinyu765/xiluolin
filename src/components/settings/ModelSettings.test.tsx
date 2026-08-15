@@ -331,7 +331,7 @@ test("只在弹窗中显示所选 Provider 的完整配置", async () => {
   expect(screen.getByText("语言提示")).toBeInTheDocument();
 });
 
-test("Provider 弹窗保留可滚动内容区并提供更大的关闭按钮", async () => {
+test("Provider 弹窗用横向调用链卡片组织内容并保留详情滚动区", async () => {
   const user = userEvent.setup();
   const next = config();
   next.asr.primary = "qwen-audio";
@@ -348,23 +348,30 @@ test("Provider 弹窗保留可滚动内容区并提供更大的关闭按钮", as
   );
 
   expect(screen.getByRole("dialog")).toHaveClass(
-    "h-[min(90vh,48rem)]",
+    "max-h-[calc(100dvh-2rem)]",
     "!flex",
+    "max-w-4xl",
     "flex-col",
   );
   expect(screen.getByTestId("provider-editor-body")).toHaveClass(
     "flex-1",
     "overflow-hidden",
-    "lg:grid-cols-[17rem_minmax(0,1fr)]",
+    "flex-col",
   );
-  expect(screen.getByTestId("provider-editor-sidebar")).toHaveClass(
-    "overflow-y-auto",
+  expect(screen.getByTestId("provider-chain-section")).toHaveClass(
+    "shrink-0",
+    "border-b",
   );
+  expect(screen.getByTestId("provider-chain")).toHaveClass("sm:grid-cols-3");
   expect(screen.getByTestId("provider-editor-scroll")).toHaveClass(
     "min-h-0",
     "min-w-0",
+    "flex-1",
     "overflow-y-auto",
   );
+  expect(
+    screen.queryByTestId("provider-editor-sidebar"),
+  ).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "关闭" })).toHaveClass("size-9");
 });
 
@@ -384,6 +391,9 @@ test("弹窗内调整备用顺序仍沿用原有路由更新", async () => {
 
   const manageButtons = await screen.findAllByRole("button", { name: "管理" });
   await user.click(manageButtons[0]);
+  await user.click(
+    screen.getByRole("button", { name: "备 2 Provider Qwen-Audio 3.0 ASR" }),
+  );
   await user.click(screen.getByRole("button", { name: "上移 qwen-audio" }));
 
   expect(updateConfig).toHaveBeenLastCalledWith(
@@ -391,6 +401,39 @@ test("弹窗内调整备用顺序仍沿用原有路由更新", async () => {
       asr: expect.objectContaining({
         primary: "openai",
         fallbacks: ["qwen-audio", "local"],
+      }),
+    },
+    "immediate",
+  );
+});
+
+test("选中的备用 Provider 可以从详情工具栏删除", async () => {
+  const user = userEvent.setup();
+  const updateConfig = vi.fn();
+  const next = config();
+  next.asr.primary = "openai";
+  next.asr.fallbacks = ["local", "qwen-audio"];
+  render(
+    <ModelSettings
+      {...requiredProps}
+      appConfig={next}
+      updateConfig={updateConfig}
+    />,
+  );
+
+  await user.click(
+    await screen.findByRole("button", { name: /OpenAI-compatible ASR/ }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "备 1 Provider 本地 Whisper" }),
+  );
+  await user.click(screen.getByRole("button", { name: "删除 local" }));
+
+  expect(updateConfig).toHaveBeenLastCalledWith(
+    {
+      asr: expect.objectContaining({
+        primary: "openai",
+        fallbacks: ["qwen-audio"],
       }),
     },
     "immediate",

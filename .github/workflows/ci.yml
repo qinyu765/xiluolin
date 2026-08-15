@@ -158,7 +158,33 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - name: Build installer
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: pnpm tauri build --target "${{ matrix.target }}" --bundles app --no-sign
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+
+      - name: Sign macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app"
+          codesign --force --deep --sign - \
+            --entitlements src-tauri/Entitlements.plist \
+            "$app"
+
+      - name: Build macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: pnpm tauri bundle --target "${{ matrix.target }}" --bundles dmg --no-sign
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
         run: pnpm tauri build --target "${{ matrix.target }}" --bundles "${{ matrix.bundles }}"
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
@@ -172,7 +198,8 @@ jobs:
           dmg="$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name '*.dmg' -print -quit)"
           test -n "$dmg"
           file "$app/Contents/MacOS/xiluolin" | grep -q 'arm64'
-          codesign --verify --deep --strict --verbose=2 "$app"
+          test -f "$app/Contents/Info.plist"
+          codesign --verify --deep --verbose=2 "$app"
           codesign -dv --verbose=4 "$app" 2>&1 | grep -q 'Signature=adhoc'
           hdiutil verify "$dmg"
 

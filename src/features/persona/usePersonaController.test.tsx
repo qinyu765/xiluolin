@@ -144,6 +144,50 @@ describe("usePersonaController", () => {
     expect(onConfigLoaded).toHaveBeenCalledWith(fallbackConfig);
   });
 
+  it("deletes a non-default custom persona without changing the default", async () => {
+    const generalPersona = {
+      ...verbatimPersona,
+      id: "general",
+      name: "通用人格",
+      is_default: true,
+    };
+    const customPersona = {
+      ...verbatimPersona,
+      id: "custom",
+      name: "自定义人格",
+      is_default: false,
+      processing_mode: "polish",
+    };
+    const currentConfig = {
+      ...refreshedConfig,
+      default_persona_id: "general",
+    };
+    mocks.commands.listPersonas.mockResolvedValue([
+      generalPersona,
+      customPersona,
+    ]);
+    mocks.commands.deletePersona.mockResolvedValue({
+      personas: [generalPersona],
+      config: currentConfig,
+    });
+    const onConfigLoaded = vi.fn();
+    const { result } = renderHook(() => usePersonaController(onConfigLoaded));
+
+    await waitFor(() => expect(result.current.selectedId).toBe("general"));
+
+    act(() => result.current.requestDelete(customPersona));
+    expect(result.current.deleteTarget).toEqual(customPersona);
+
+    await act(async () => {
+      await result.current.confirmDelete();
+    });
+
+    expect(mocks.commands.deletePersona).toHaveBeenCalledWith("custom");
+    expect(result.current.selectedId).toBe("general");
+    expect(result.current.deleteTarget).toBeNull();
+    expect(onConfigLoaded).toHaveBeenCalledWith(currentConfig);
+  });
+
   it("keeps the delete confirmation open when deletion fails", async () => {
     const customPersona = {
       ...verbatimPersona,

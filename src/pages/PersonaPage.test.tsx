@@ -4,8 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import { PersonaPage } from "./PersonaPage";
 
 describe("PersonaPage", () => {
-  it("只为选中的自定义人格提供删除入口，并直接切换默认人格", () => {
+  it("为所有人格显示删除入口并禁用通用人格", () => {
     const onSelectPersona = vi.fn();
+    const onRequestDeletePersona = vi.fn();
     render(
       <PersonaPage
         personas={[
@@ -42,21 +43,24 @@ describe("PersonaPage", () => {
         ]}
         onCreatePersona={vi.fn()}
         onEditPersona={vi.fn()}
-        onRequestDeletePersona={vi.fn()}
+        onRequestDeletePersona={onRequestDeletePersona}
         onSelectPersona={onSelectPersona}
       />,
     );
 
     expect(
-      screen.queryByRole("button", { name: "删除 通用人格" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "删除 通用人格" }),
+    ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "删除 自定义人格" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "删除 其他人格" }),
-    ).not.toBeInTheDocument();
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "删除 其他人格" })).toBeEnabled();
     expect(screen.queryByText("设为默认")).not.toBeInTheDocument();
+
+    screen.getByRole("button", { name: "删除 其他人格" }).click();
+    expect(onRequestDeletePersona).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "other" }),
+    );
 
     screen.getByRole("button", { name: "选择 其他人格 作为默认人格" }).click();
     expect(onSelectPersona).toHaveBeenCalledWith("other");

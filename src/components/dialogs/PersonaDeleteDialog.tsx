@@ -33,7 +33,10 @@ export function PersonaDeleteDialog({
           <DialogTitle>删除人格？</DialogTitle>
           <DialogDescription>
             删除「{persona?.name ?? "当前人格"}
-            」后无法恢复。当前人格会切换为通用人格。
+            」后无法恢复。
+            {persona?.is_default
+              ? " 当前人格会切换为通用人格。"
+              : " 当前默认人格不会改变。"}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

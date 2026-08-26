@@ -56,7 +56,6 @@ export function PersonaPage({
             {personas.length > 0 ? (
               personas.map((persona) => {
                 const isGeneralPersona = persona.id === GENERAL_PERSONA_ID;
-                const canDelete = persona.is_default && !isGeneralPersona;
                 return (
                   <section
                     key={persona.id}
@@ -126,19 +125,20 @@ export function PersonaPage({
                         >
                           <PencilIcon className="size-4" aria-hidden="true" />
                         </Button>
-                        {canDelete ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                            onClick={() => onRequestDeletePersona(persona)}
-                            aria-label={`删除 ${persona.name}`}
-                            title="删除"
-                          >
-                            <Trash2Icon className="size-4" aria-hidden="true" />
-                          </Button>
-                        ) : null}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                          onClick={() => onRequestDeletePersona(persona)}
+                          disabled={isGeneralPersona}
+                          aria-label={`删除 ${persona.name}`}
+                          title={
+                            isGeneralPersona ? "系统内置人格不可删除" : "删除"
+                          }
+                        >
+                          <Trash2Icon className="size-4" aria-hidden="true" />
+                        </Button>
                       </div>
                     </div>
                   </section>

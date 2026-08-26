@@ -6,6 +6,8 @@ import type { AppConfig, Persona, PersonaDraft } from "@/types";
 import { emptyPersonaDraft } from "@/types";
 import { toErrorMessage } from "@/utils/error";
 
+const GENERAL_PERSONA_ID = "general";
+
 export function usePersonaController(
   onConfigLoaded: (config: AppConfig) => void,
 ) {
@@ -95,7 +97,7 @@ export function usePersonaController(
   };
 
   const requestDelete = (persona: Persona) => {
-    if (persona.id === "general" || !persona.is_default) return;
+    if (persona.id === GENERAL_PERSONA_ID) return;
     setDeleteTarget(persona);
   };
 
@@ -104,12 +106,13 @@ export function usePersonaController(
 
     setIsDeleting(true);
     try {
+      const wasDefault = deleteTarget.is_default;
       const update = await commands.deletePersona(deleteTarget.id);
       setPersonas(update.personas);
       setSelectedId(update.config.default_persona_id);
       onConfigLoaded(update.config as AppConfig);
       setDeleteTarget(null);
-      toast.success("人格已删除，已切换为通用人格");
+      toast.success(wasDefault ? "人格已删除，已切换为通用人格" : "人格已删除");
     } catch (error) {
       toast.error(`删除人格失败：${toErrorMessage(error)}`);
     } finally {

@@ -2,23 +2,23 @@
 
 **简体中文** | [English](README.en.md)
 
-XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入助手。它将短语音转换为可直接使用的文本，并通过人格化整理、热词、历史记录和桌面输出减少打字、编辑与润色成本。
+XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入助手。它将短语音转换为可直接使用的文本，并通过人格化整理、热词、历史记录和桌面输出减少打字、编辑与润色成本。应用录音单次最长 28 秒，外部音频处理上限为 30 秒。
 
-- **语音输入能力**：支持全局组合快捷键和应用内录音流程；macOS 可显式开启独立 Fn 按住录音，短按取消，25 秒提示并于 28 秒自动停止
-- **智能识别**：支持智谱 GLM-ASR-2512、OpenAI Whisper 和本地 Whisper；本地模式使用官方 whisper.cpp `ggml-base-q5_1.bin`，可离线转写
+- **语音输入能力**：支持全局组合快捷键和 Rust Capture 流程；macOS 可显式开启独立 Fn 按住录音，短按取消，25 秒提示并于 28 秒自动停止
+- **智能识别**：支持智谱 GLM-ASR-2512、OpenAI-compatible、Qwen-Audio、Qwen3-ASR 和本地 Whisper；本地模式使用官方 whisper.cpp `ggml-base-q5_1.bin`，可离线转写
 - **实验性实时字幕**：默认关闭；可显式下载约 199.3 MB 的中英双语 Zipformer 混合量化候选模型，在悬浮窗中增量显示录音文字；它不替代最终 ASR，预览失败也不会影响最终识别、历史和投递
 - **人格化整理**：默认使用不可修改的“通用人格”进行自然、精炼的轻量整理；“原文听写”会跳过文本模型，也可切换其他内置或自定义人格
-- **热词词典**：启用热词同时影响 ASR 和文本整理；智谱原生接收前 100 个稳定去重热词，OpenAI 和本地 Whisper 使用软提示
+- **热词词典**：启用热词同时影响 ASR 和文本整理；智谱与 Qwen-Audio 原生接收前 100 个稳定去重热词，Qwen3-ASR 使用 system glossary，OpenAI 和本地 Whisper 使用软提示
 - **Capture 历史**：保存原始文本、整理结果、人格、输入来源、实际 Provider/模型、降级和投递方式；保留录音可试听、重新转写，原始文本可用当前人格重新整理
 - **统计反馈**：展示语音协作次数、累计口述时间、生成字数、预计节省时间、常用人格
-- **输出方式**：Windows 和 macOS 保存并恢复录音开始时的目标窗口；macOS 需要辅助功能权限，自动粘贴失败时复制并打开可恢复的结果窗口供手动粘贴
+- **输出方式**：Windows 和 macOS 保存并恢复录音开始时的目标窗口；macOS 需要辅助功能权限，自动粘贴失败时复制到剪贴板并在悬浮窗提示手动粘贴
 - **就绪检查**：设置页统一展示麦克风、ASR、文本 Provider、全局快捷键和自动粘贴能力；自动粘贴不可用不阻断识别、历史保存和复制兜底
 
 XiLuoLin 由个人发起并持续维护，欢迎社区通过 Issue、Discussion 和 Pull Request 参与。
 
 ## 稳定版下载
 
-`v0.1.0` 是首个稳定版，提供以下公开安装包：
+`v0.2.0` 是当前稳定版，提供以下公开安装包：
 
 - macOS 13+ Apple Silicon：提供 ad-hoc 签名、未经 Apple 公证的 DMG，首次启动需要手动允许。
 - Windows 10/11 x64：提供未签名 NSIS 安装包，可能触发 Microsoft Defender SmartScreen。
@@ -29,11 +29,11 @@ XiLuoLin 由个人发起并持续维护，欢迎社区通过 Issue、Discussion 
 
 ## 产品方向
 
-- 当前阶段：核心模块、质量门禁、凭据安全、可靠投递、输入就绪检查和可追溯 Capture 历史已实现，已发布 `v0.1.0` 稳定版并继续真实场景验证
+- 当前阶段：核心模块、质量门禁、凭据安全、可靠投递、输入就绪检查和可追溯 Capture 历史已实现，已发布 `v0.2.0` 稳定版并继续真实场景验证
 - 开发基线：`main`（常规任务直接在 `main` 上完成验证、提交和推送）
-- 已完成代码层能力：Tauri v2 + React 基础骨架、本地数据层、内置人格与自定义人格、热词词典、智谱 ASR Provider、可配置文本整理 Provider、短音频处理流程、历史记录、统计卡片、录音模块、全局快捷键注册、复制与自动粘贴模块、错误提示、左侧导航、人格管理页、热词页和设置页、快捷键录音事件监听和自动输出
+- 已完成代码层能力：Tauri v2 + React 基础骨架、本地数据层、内置人格与自定义人格、热词词典、多 Provider ASR/文本路由、本地 Whisper、实验性实时预览、短音频处理流程、历史记录、统计卡片、录音模块、全局快捷键注册、复制与自动粘贴模块、错误提示、左侧导航、人格管理页、热词页和设置页、快捷键录音事件监听和自动输出
 - 当前界面：采用左侧导航结构，包含首页、人格、热词、设置四个页面；首页聚焦运行就绪、五项统计和时间分段历史记录
-- 当前限制：应用以全局快捷键作为主要输入入口；上传处理命令保留，但首页不提供上传入口
+- 当前限制：应用以全局快捷键作为主要输入入口；应用录音 25 秒提示、28 秒自动停止，超过 30 秒的外部音频会在请求前拒绝；上传处理命令保留，但首页不提供上传入口
 - 待完成验证：真实 API Key 下的完整语音 smoke test、Windows 跨权限窗口、macOS 多应用自动粘贴、目标窗口关闭后的降级和首页可见输入入口
 - 前端 UI 方向：采用 Tailwind CSS + shadcn/ui，参考 Notion 风格的桌面效率工具界面
   XiLuoLin 关注“从说出来到真正可用”的完整输入体验：
@@ -56,8 +56,8 @@ XiLuoLin 由个人发起并持续维护，欢迎社区通过 Issue、Discussion 
 - SQLite 本地数据层与系统凭据库存储
 - 内置人格、自定义人格和默认人格
 - 热词词典、历史记录和统计卡片
-- 智谱 GLM-ASR-2512 Provider
-- 智谱与 OpenAI-compatible 文本整理 Provider
+- 智谱、OpenAI-compatible、Qwen-Audio、Qwen3-ASR 和本地 Whisper ASR Provider
+- 智谱、OpenAI-compatible 与千问文本整理 Provider
 - 录音、全局快捷键、录音指示器和短音频处理流程
 - 剪贴板、自动粘贴及错误提示
 - 首页、人格、热词和设置页面
@@ -139,8 +139,8 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 ## 配置与使用
 
 1. 启动应用并进入“设置”；macOS 用户先在就绪检查中授予麦克风和辅助功能权限。
-2. 选择智谱、OpenAI 或本地 Whisper ASR；本地模式需要先下载模型。
-3. 选择智谱或 OpenAI-compatible 文本处理服务，并配置对应的 API Key、Base URL 和模型名。
+2. 选择智谱、OpenAI-compatible、Qwen-Audio、Qwen3-ASR 或本地 Whisper ASR；本地模式需要先下载模型。
+3. 选择智谱、OpenAI-compatible 或千问文本处理服务，并配置对应的 API Key、Base URL 和模型名。
 4. 选择麦克风、快捷键和输出方式；macOS 可在授权辅助功能后手动开启独立 Fn。
 5. 首次使用默认选择“通用人格”；需要逐字保留时选择“原文听写”，如需结构化输出则切换其他内置人格或创建自定义人格。
 6. 添加需要重点识别的项目名、人名和技术词。
@@ -148,14 +148,25 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 
 设置页的开关、下拉和快捷键会立即自动保存；文本与 API Key 停止输入约 600ms 后保存，失焦会立即提交。保存失败时可在设置页直接重试。
 
-真实服务演示仍需在本机配置 API Key 和麦克风权限后执行 smoke test；首页可见录音 / 上传入口当前隐藏，全局快捷键是主要输入入口。快捷键触发时状态窗会依次显示录音、识别、整理、输入和完成状态，且不会主动获取键盘焦点。
+真实服务演示仍需在本机配置 API Key 和麦克风权限后执行 smoke test；首页当前不提供录音 / 上传入口，全局快捷键是主要输入入口。快捷键触发时状态窗会依次显示录音、识别、整理、输入和完成状态，且不会主动获取键盘焦点。
 详细步骤、验证路径和错误场景见 [使用与验证指南](docs/usage-guide.md)。
+
+## 使用预览
+
+README 预留 macOS 稳定核心闭环的演示位：设置 Provider 和快捷键 → 在目标输入框中按快捷键录一段短语音 → 等待识别、整理并自动粘贴。视频应从 [`v0.2.0 Release`](https://github.com/qinyu765/xiluolin/releases/tag/v0.2.0) 下载，文件名固定为 `xiluolin-usage-macos-v0.2.0.mp4`；当前 Release 尚未上传该资产，录制和上传步骤见 [`docs/demo-recording.md`](docs/demo-recording.md)。
+
+<!--
+<video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">
+  <source src="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4" type="video/mp4">
+  你的浏览器不支持 HTML 视频，请打开 <a href="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4">演示视频</a>。
+</video>
+-->
 
 ## 本地 ASR
 
 1. 在设置页的“语音识别服务”中选择“本地 Whisper（离线）”。
 2. 下载并验证 `ggml-base-q5_1.bin` 模型，模型约 57 MB，保存在应用数据目录的 `models` 文件夹。
-3. 默认关闭云端降级；如需在本地失败时回退，可显式开启并选择智谱或 OpenAI。
+3. 默认关闭云端降级；如需在本地失败时回退，可显式开启并选择其他支持的云端 ASR Provider。
 4. 本地首版支持 WAV。应用麦克风录音会生成兼容 WAV；MP3 上传请暂时使用云端 ASR。
 5. 历史记录会显示实际使用的 Provider 和模型；发生云端降级时会明确标记。
 

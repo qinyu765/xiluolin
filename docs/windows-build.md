@@ -1,6 +1,6 @@
 # Windows x64 构建与安装
 
-XiLuoLin `v0.1.0` 面向 Windows 10/11 x64 提供未签名的 NSIS 稳定版安装包。Windows ARM64、Microsoft Store 和已签名安装包不在本次发布范围内。
+XiLuoLin `v0.2.0` 面向 Windows 10/11 x64 提供未签名的 NSIS 稳定版安装包。Windows ARM64、Microsoft Store 和已签名安装包不在本次发布范围内。
 
 ## 环境
 
@@ -21,7 +21,7 @@ pnpm tauri:build:windows:x64
 产物位于：
 
 ```text
-src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XiLuoLin_0.1.0_x64-setup.exe
+src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XiLuoLin_0.2.0_x64-setup.exe
 ```
 
 ## 安装

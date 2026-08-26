@@ -9,10 +9,11 @@
 3. [`requirements-analysis.md`](./requirements-analysis.md)：产品场景、能力边界和验收目标。
 4. [`solution-design.md`](./solution-design.md)：当前架构、模块、数据模型和关键流程。
 5. [`usage-guide.md`](./usage-guide.md)：安装、Provider 配置、使用和验证步骤。
-6. [`troubleshooting.md`](./troubleshooting.md)：录音、快捷键、Provider 和跨应用输出排查。
-7. [`asr-quality-evaluation.md`](./asr-quality-evaluation.md)：ASR 基准指标、模型替换门槛和桌面验收。
-8. [`macos-build.md`](./macos-build.md)：Apple Silicon 本地构建、安装和权限说明。
-9. [`windows-build.md`](./windows-build.md)：Windows x64 构建、安装和 SmartScreen 说明。
+6. [`demo-recording.md`](./demo-recording.md)：README macOS 使用预览的录制、压缩和 Release 上传约定。
+7. [`troubleshooting.md`](./troubleshooting.md)：录音、快捷键、Provider 和跨应用输出排查。
+8. [`asr-quality-evaluation.md`](./asr-quality-evaluation.md)：ASR 基准指标、模型替换门槛和桌面验收。
+9. [`macos-build.md`](./macos-build.md)：Apple Silicon 本地构建、安装和权限说明。
+10. [`windows-build.md`](./windows-build.md)：Windows x64 构建、安装和 SmartScreen 说明。
 
 ## 当前文档
 
@@ -22,6 +23,7 @@
 | [`requirements-analysis.md`](./requirements-analysis.md) | 产品需求、范围和验收标准 | 产品与开发人员 |
 | [`solution-design.md`](./solution-design.md) | 当前技术架构和设计约束 | 开发人员 |
 | [`usage-guide.md`](./usage-guide.md) | 配置、使用和端到端验证 | 用户与测试人员 |
+| [`demo-recording.md`](./demo-recording.md) | README 使用预览的录制与 Release 交付 | 维护者、贡献者 |
 | [`troubleshooting.md`](./troubleshooting.md) | 当前故障定位和恢复方法 | 用户与开发人员 |
 | [`asr-quality-evaluation.md`](./asr-quality-evaluation.md) | ASR 质量基准、模型替换和桌面验收 | 维护者、测试人员 |
 | [`macos-build.md`](./macos-build.md) | macOS Apple Silicon 构建与安装 | 用户、维护者、测试人员 |

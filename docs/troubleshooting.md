@@ -80,12 +80,34 @@ XiLuoLin 当前优先把结果写入剪贴板并模拟粘贴；自动粘贴失�
 
 ### 自动粘贴失败
 
-- 结果窗口会保留完整识别文本；如果提示已复制，可切回目标应用手动执行 `Ctrl+V`，macOS 使用 `Command+V`。
-- 如果剪贴板复制也失败，在结果窗口点击“复制结果”或“再次复制”。关闭窗口后其临时文本会从进程内存中清除。
+- 自动粘贴失败时，悬浮窗会提示结果已复制；切回目标应用手动执行 `Ctrl+V`，macOS 使用 `Command+V`。
+- 当前版本不打开独立结果窗口；如果剪贴板复制也失败，应在日志中记录错误并重新执行一次短语音输入。
 - macOS 打开“设置 → 语音输入就绪检查”，确认辅助功能权限已授权；必要时使用“打开辅助功能设置”。
 - 检查目标应用是否禁止模拟键盘、剪贴板或自动化操作。
 - Windows 下，低权限进程通常不能向高权限窗口注入输入；让两个应用使用相同权限级别。
 - 检查安全软件、远程桌面或沙盒是否拦截剪贴板和模拟按键。
+
+### 系统设置已开启辅助功能，但应用仍提示未授权
+
+macOS 的辅助功能和麦克风授权不仅按应用显示名称匹配，还会结合应用的代码签名身份（designated requirement）判断。GitHub Release 使用 ad-hoc 签名；每次构建或下载都可能产生不同的 `cdhash`。因此，系统设置中显示“XiLuoLin”已开启，仍可能对应旧的 ad-hoc 副本，而不是当前正在运行的应用。
+
+排查时：
+
+1. 退出所有 XiLuoLin，只保留 `/Applications/XiLuoLin.app` 作为实际启动入口。
+2. 使用 [`macOS 构建与安装`](./macos-build.md) 中的 `pnpm tauri:build:macos:arm64:personal` 生成并安装本机 Apple Development 签名包，不要用公开 Release DMG 覆盖它。
+3. 确认签名身份和完整性：
+
+   ```bash
+   APP="/Applications/XiLuoLin.app"
+   codesign --verify --deep --strict --verbose=2 "$APP"
+   codesign -dv --verbose=4 "$APP" 2>&1 | grep -E 'Identifier=|Authority=|TeamIdentifier='
+   ```
+
+   预期看到 `Authority=Apple Development`、`TeamIdentifier` 和 `valid on disk`。
+
+4. 返回应用点击“重新检查”；如果仍不匹配，再按照构建文档中的 `tccutil reset` 说明重置 XiLuoLin 的麦克风和辅助功能记录，然后重新授权。
+
+完整的 ad-hoc 与 Apple Development 签名差异、产物路径和权限恢复边界见 [`macos-build.md`](./macos-build.md)。
 
 ### 出现重复文本或字符
 

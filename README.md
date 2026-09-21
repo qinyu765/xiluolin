@@ -2,6 +2,17 @@
 
 **简体中文** | [English](README.en.md)
 
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-01.gif)
+
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-02.gif)
+
+<!--
+<video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">
+  <source src="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4" type="video/mp4">
+  你的浏览器不支持 HTML 视频，请打开 <a href="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4">演示视频</a>。
+</video>
+-->
+
 XiLuoLin 是一个面向办公、写作和编程场景的开源 AI 语音输入助手。它将短语音转换为可直接使用的文本，并通过人格化整理、热词、历史记录和桌面输出减少打字、编辑与润色成本。应用录音单次最长 28 秒，外部音频处理上限为 30 秒。
 
 - **语音输入能力**：支持全局组合快捷键和 Rust Capture 流程；macOS 可显式开启独立 Fn 按住录音，短按取消，25 秒提示并于 28 秒自动停止
@@ -150,19 +161,6 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 
 真实服务演示仍需在本机配置 API Key 和麦克风权限后执行 smoke test；首页当前不提供录音 / 上传入口，全局快捷键是主要输入入口。快捷键触发时状态窗会依次显示录音、识别、整理、输入和完成状态，且不会主动获取键盘焦点。
 详细步骤、验证路径和错误场景见 [使用与验证指南](docs/usage-guide.md)。
-
-## 使用预览
-
-![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-01.gif)
-
-![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-02.gif)
-
-<!--
-<video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">
-  <source src="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4" type="video/mp4">
-  你的浏览器不支持 HTML 视频，请打开 <a href="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4">演示视频</a>。
-</video>
--->
 
 ## 本地 ASR
 

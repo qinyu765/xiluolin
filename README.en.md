@@ -2,6 +2,17 @@
 
 [简体中文](README.md) | **English**
 
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-01.gif)
+
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-02.gif)
+
+<!--
+<video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">
+  <source src="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4" type="video/mp4">
+  Your browser does not support HTML video; open the <a href="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4">demo video</a> instead.
+</video>
+-->
+
 XiLuoLin is an open-source AI voice input assistant for office work, writing, and programming. It turns short voice recordings into ready-to-use text and reduces the effort spent typing, editing, and polishing through persona-based rewriting, hotwords, local history, and desktop text delivery. An application recording is limited to 28 seconds; externally selected audio is limited to 30 seconds.
 
 XiLuoLin is independently initiated and actively maintained. Community participation through Issues, Discussions, and Pull Requests is welcome.
@@ -133,19 +144,6 @@ GitHub Actions runs frontend, Windows/macOS Rust, dependency-security, and secre
 Settings are saved automatically: switches, selects, and shortcuts save immediately; text and API key fields save about 600 ms after typing stops and flush on blur. If a save fails, retry it from the Settings status indicator.
 
 See the [usage and verification guide](docs/usage-guide.md) for detailed setup, validation paths, and failure scenarios.
-
-## Usage Preview
-
-![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-01.gif)
-
-![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-02.gif)
-
-<!--
-<video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">
-  <source src="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4" type="video/mp4">
-  Your browser does not support HTML video; open the <a href="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4">demo video</a> instead.
-</video>
--->
 
 ## Privacy and Security
 

@@ -153,7 +153,9 @@ GitHub Actions 会在 `main` push 和面向 `main` 的 Pull Request 上运行前
 
 ## 使用预览
 
-README 预留 macOS 稳定核心闭环的演示位：设置 Provider 和快捷键 → 在目标输入框中按快捷键录一段短语音 → 等待识别、整理并自动粘贴。视频应从 [`v0.2.0 Release`](https://github.com/qinyu765/xiluolin/releases/tag/v0.2.0) 下载，文件名固定为 `xiluolin-usage-macos-v0.2.0.mp4`；当前 Release 尚未上传该资产，录制和上传步骤见 [`docs/demo-recording.md`](docs/demo-recording.md)。
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-01.gif)
+
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-02.gif)
 
 <!--
 <video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">

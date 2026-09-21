@@ -55,6 +55,13 @@ gh release view v0.2.0 --json assets,url
 
 上传完成后，把 `README.md` 和 `README.en.md` 中 `Usage Preview` / `使用预览` 下方的 HTML 注释解除注释，并保留普通下载链接作为 GitHub 不渲染 `<video>` 时的兜底。若视频尚未上传，不要解除注释，避免 README 出现失效播放器。
 
+## 使用预览 GIF
+
+README 的「使用预览」内嵌两个 GIF 资产，分别展示通用模式和翻译人格的输入效果。GIF 不提交到 Git，与视频一样以 Release 资产 URL 引用：
+
+- 命名：`xiluolin-usage-macos-v0.2.0-01.gif`（通用模式）、`xiluolin-usage-macos-v0.2.0-02.gif`（翻译人格）。
+- 上传：`gh release upload v0.2.0 <file>...`；替换时用同名资产覆盖（`--clobber`），README 无需改动。
+
 ## README 片段
 
 上传资产后使用以下片段，中文和英文 README 只替换文案，不改变文件名和 Release URL：

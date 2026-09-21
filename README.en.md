@@ -136,7 +136,9 @@ See the [usage and verification guide](docs/usage-guide.md) for detailed setup, 
 
 ## Usage Preview
 
-The README reserves a macOS stable-core-flow demo slot: configure a Provider and shortcut → record a short phrase in a target text field → wait for recognition, rewriting, and automatic paste. The video will be downloaded from the [`v0.2.0 Release`](https://github.com/qinyu765/xiluolin/releases/tag/v0.2.0) with the fixed name `xiluolin-usage-macos-v0.2.0.mp4`; the Release does not contain this asset yet. See [`docs/demo-recording.md`](docs/demo-recording.md) for the recording and upload procedure.
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-01.gif)
+
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-02.gif)
 
 <!--
 <video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">

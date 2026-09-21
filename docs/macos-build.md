@@ -1,6 +1,6 @@
 # macOS Apple Silicon 构建与安装
 
-XiLuoLin `v0.1.0` 面向 macOS 13 及以上、Apple Silicon（arm64）提供未公证安装包。仓库保留通用 ad-hoc 构建，同时提供使用本机 Apple Development 证书的稳定开发签名入口；两种方式都没有 Developer ID 身份和 Apple 公证。
+XiLuoLin `v0.2.0` 面向 macOS 13 及以上、Apple Silicon（arm64）提供未公证安装包。仓库保留通用 ad-hoc 构建，同时提供使用本机 Apple Development 证书的稳定开发签名入口；两种方式都没有 Developer ID 身份和 Apple 公证。
 
 ## 环境
 
@@ -38,11 +38,32 @@ pnpm tauri:build:macos:arm64:personal
 
 证书和对应私钥存在于当前 Mac 的钥匙串即可执行签名；macOS 系统设置当前登录哪个 Apple 账号、常用 Apple 账号位于哪台 Mac，都不参与运行时签名判断。
 
+### 公开 Release 与本机稳定体验包
+
+仓库中的两类 macOS 产物用途不同，不能混用来验证系统权限：
+
+| 产物 | 签名方式 | 适用场景 | 辅助功能/麦克风授权稳定性 |
+| --- | --- | --- | --- |
+| GitHub Release 的 DMG | ad-hoc（`codesign --sign -`） | 没有开发证书的通用下载和发布 | 代码身份绑定当前构建的 `cdhash`，重新下载或重新构建后可能需要重新授权 |
+| `pnpm tauri:build:macos:arm64:personal` 生成的 `.app`/DMG | Apple Development | 当前 Mac 的长期开发和权限验证 | 同一证书签出的连续构建具有稳定的 designated requirement（DR），更适合反复测试 |
+
+因此，排查辅助功能或麦克风权限时，应将本机稳定签名产物安装到 `/Applications/XiLuoLin.app`，不要再用 GitHub Release 的 ad-hoc DMG 覆盖它。Finder 中显示同一个“XiLuoLin”名称并不代表 macOS 认为它们是同一个授权身份。
+
+可以用下面的命令确认当前运行包的身份；稳定开发签名应看到 `Authority=Apple Development`、`TeamIdentifier` 和 `valid on disk`，而不是只有 `cdhash` 的 ad-hoc 身份：
+
+```bash
+APP="/Applications/XiLuoLin.app"
+codesign --verify --deep --strict --verbose=2 "$APP"
+codesign -dv --verbose=4 "$APP" 2>&1 | grep -E 'Identifier=|Authority=|TeamIdentifier='
+```
+
+如果公开 Release 和本机稳定签名包同时存在，最终应以实际启动的 `/Applications/XiLuoLin.app` 为准；不要只根据系统设置中的应用名称判断授权是否匹配。
+
 产物位于：
 
 ```text
 src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app
-src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0_aarch64.dmg
+src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.2.0_aarch64.dmg
 ```
 
 最低系统版本固定为 macOS 13。构建脚本同时设置 `MACOSX_DEPLOYMENT_TARGET` 和 `CMAKE_OSX_DEPLOYMENT_TARGET`，确保 Tauri Bundle 与 whisper.cpp 原生编译使用相同目标。
@@ -83,7 +104,7 @@ tccutil reset Accessibility com.xiluolin.desktop
 
 ```bash
 APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/XiLuoLin.app"
-DMG="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.1.0_aarch64.dmg"
+DMG="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/XiLuoLin_0.2.0_aarch64.dmg"
 
 file "$APP/Contents/MacOS/xiluolin"
 plutil -p "$APP/Contents/Info.plist"

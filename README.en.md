@@ -2,13 +2,13 @@
 
 [简体中文](README.md) | **English**
 
-XiLuoLin is an open-source AI voice input assistant for office work, writing, and programming. It turns short voice recordings into ready-to-use text and reduces the effort spent typing, editing, and polishing through persona-based rewriting, hotwords, local history, and desktop text delivery.
+XiLuoLin is an open-source AI voice input assistant for office work, writing, and programming. It turns short voice recordings into ready-to-use text and reduces the effort spent typing, editing, and polishing through persona-based rewriting, hotwords, local history, and desktop text delivery. An application recording is limited to 28 seconds; externally selected audio is limited to 30 seconds.
 
 XiLuoLin is independently initiated and actively maintained. Community participation through Issues, Discussions, and Pull Requests is welcome.
 
 ## Stable Release Downloads
 
-`v0.1.0` is the first stable release:
+`v0.2.0` is the current stable release:
 
 - macOS 13+ on Apple Silicon: an ad-hoc-signed, non-notarized DMG that requires manual approval on first launch.
 - Windows 10/11 x64: an unsigned NSIS installer that may trigger Microsoft Defender SmartScreen.
@@ -21,12 +21,12 @@ Download only from [GitHub Releases](https://github.com/qinyu765/xiluolin/releas
 
 XiLuoLin focuses on the complete workflow from speaking an idea to getting text that can be used immediately:
 
-- **Voice capture**: microphone recording, short-audio processing, global shortcuts, and recording status feedback.
-- **Speech recognition**: Zhipu GLM-ASR-2512, OpenAI Whisper, and an offline local Whisper model; macOS can explicitly enable hold-Fn recording with short-tap cancellation.
+- **Voice capture**: microphone recording, short-audio processing, global shortcuts, and recording status feedback; macOS can explicitly enable hold-Fn recording with short-tap cancellation.
+- **Speech recognition**: Zhipu GLM-ASR-2512, OpenAI-compatible, Qwen-Audio, Qwen3-ASR, and an offline local Whisper model.
 - **Experimental live captions**: disabled by default; an explicitly downloaded bilingual Zipformer mixed-quantization candidate (about 199.3 MB) provides incremental overlay text without replacing final ASR. Preview failures do not affect final recognition, history, or delivery.
 - **Persona-based rewriting**: use polished built-in or custom personas, or select Verbatim Dictation to preserve the raw ASR wording while only normalizing whitespace.
-- **Hotword dictionary**: enabled hotwords globally bias ASR; Zhipu receives up to 100 native hotwords, OpenAI and local Whisper use soft prompts, and similar technical terms may compete.
-- **Desktop delivery**: clipboard and automatic paste output with a recoverable result window when a preferred method is unavailable.
+- **Hotword dictionary**: enabled hotwords globally bias ASR; Zhipu and Qwen-Audio receive up to 100 native hotwords, Qwen3-ASR uses a system glossary, and OpenAI/local Whisper use soft prompts.
+- **Desktop delivery**: clipboard and automatic paste output; when automatic paste fails, the result is copied to the clipboard and the overlay tells the user to paste manually.
 - **Local data**: store history, personas, hotwords, settings, and personal productivity statistics locally.
 - **Open extensibility**: maintain clear Provider and business-module boundaries for additional cloud services, local models, and cross-platform integrations.
 
@@ -40,9 +40,9 @@ Major capabilities already implemented:
 - SQLite local data layer and operating-system credential storage
 - Built-in personas, custom personas, and default persona selection
 - Hotword dictionary, input history, and statistics
-- Zhipu GLM-ASR-2512 Provider
-- OpenAI Responses API text-rewriting Provider
-- Recording, global shortcuts, a recording indicator, and short-audio processing
+- Zhipu, OpenAI-compatible, Qwen-Audio, Qwen3-ASR, and local Whisper ASR Providers
+- Zhipu, OpenAI-compatible, and Qwen text-rewriting Providers
+- Recording, global shortcuts, a recording indicator, and a 25-second warning / 28-second automatic stop for application recordings
 - An experimental React live-transcript overlay with explicit, checksummed local model downloads; the candidate model remains No-Go for production redistribution until its training-data license chain is auditable
 - Clipboard delivery, automatic paste, and error feedback
 - Home, persona, hotword, and settings pages
@@ -51,7 +51,7 @@ Major capabilities already implemented:
 Current priorities:
 
 - Verify microphone, shortcut, credential-store, and cross-application delivery behavior across operating systems
-- Improve the home-page voice entry point and recording-state experience
+- Improve the home-page voice entry point and recording-state experience; the global shortcut remains the primary input entry today
 - Validate the stable installers and continue improving release and compatibility documentation
 - Improve Provider configuration, failure recovery, and automated testing
 - Continue improving contributor documentation, Issue management, and technical decision records
@@ -122,8 +122,8 @@ GitHub Actions runs frontend, Windows/macOS Rust, dependency-security, and secre
 ## Configuration and Usage
 
 1. Start the application and open **Settings**.
-2. Configure Zhipu GLM-ASR-2512 or another supported ASR service.
-3. Configure the OpenAI Responses API or a compatible text-processing service.
+2. Configure Zhipu GLM-ASR-2512, OpenAI-compatible, Qwen-Audio, Qwen3-ASR, or the offline local Whisper model.
+3. Configure Zhipu, OpenAI-compatible, or Qwen text processing.
 4. Optionally download the verified bilingual Zipformer model under **Settings → Model configuration** to enable live overlay captions.
 5. Select the microphone, shortcuts, and output method. On macOS, hold-Fn recording can be enabled after Accessibility permission is granted.
 6. Select Verbatim Dictation when no text-model rewriting is wanted, or use a polished built-in/custom persona.
@@ -133,6 +133,19 @@ GitHub Actions runs frontend, Windows/macOS Rust, dependency-security, and secre
 Settings are saved automatically: switches, selects, and shortcuts save immediately; text and API key fields save about 600 ms after typing stops and flush on blur. If a save fails, retry it from the Settings status indicator.
 
 See the [usage and verification guide](docs/usage-guide.md) for detailed setup, validation paths, and failure scenarios.
+
+## Usage Preview
+
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-01.gif)
+
+![](https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0-02.gif)
+
+<!--
+<video controls preload="metadata" poster="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.png" width="960">
+  <source src="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4" type="video/mp4">
+  Your browser does not support HTML video; open the <a href="https://github.com/qinyu765/xiluolin/releases/download/v0.2.0/xiluolin-usage-macos-v0.2.0.mp4">demo video</a> instead.
+</video>
+-->
 
 ## Privacy and Security
 

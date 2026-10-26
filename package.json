@@ -64,17 +64,19 @@
     "prettier": "^3.9.5",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.64.0",
-    "vite": "^7.3.5",
-    "vitest": "^4.1.11"
+    "vite": "^7.3.7",
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "overrides": {
       "@babel/core": "7.29.7",
-      "brace-expansion": "5.0.9",
+      "brace-expansion": "5.0.12",
       "esbuild": "0.28.1",
       "nanoid": "3.3.18",
       "postcss": "8.5.25",
-      "undici": "7.29.0"
+      "source-map-js": "1.2.2",
+      "undici": "7.30.1",
+      "zod@^4.0.0": "4.6.6"
     }
   },
   "packageManager": "pnpm@10.26.2",

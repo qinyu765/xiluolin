@@ -55,6 +55,13 @@ before(async () => {
     [
       "#!/bin/sh",
       "certificate_name=$(cat)",
+      'if [ "$*" != "x509 -noout -subject -nameopt compat" ]; then',
+      '  case "$certificate_name" in',
+      '    *Company*) echo "subject=OU=FK9K4NGB5Q1, CN=Company" ;;',
+      '    *Personal*) echo "subject=OU=P3F5KAG4P7, CN=Personal" ;;',
+      "  esac",
+      "  exit 0",
+      "fi",
       'case "$certificate_name" in',
       '  *Company*) echo "subject= /OU=FK9K4NGB5Q1/CN=Company" ;;',
       '  *Personal*) echo "subject= /OU=P3F5KAG4P7/CN=Personal" ;;',

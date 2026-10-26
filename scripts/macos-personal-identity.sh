@@ -22,7 +22,7 @@ find_personal_apple_signing_identity() {
 
       certificate_team="$(
         security find-certificate -a -p -c "$certificate_name" 2>/dev/null |
-          openssl x509 -noout -subject 2>/dev/null |
+          openssl x509 -noout -subject -nameopt compat 2>/dev/null |
           sed -n 's#.*\/OU=\([^/]*\).*#\1#p' |
           head -n 1
       )"

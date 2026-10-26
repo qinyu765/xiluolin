@@ -53,7 +53,7 @@ gh release upload v0.2.0 \
 gh release view v0.2.0 --json assets,url
 ```
 
-上传完成后，把 `README.md` 和 `README.en.md` 顶部演示 GIF 之后的 HTML 注释解除注释，并保留普通下载链接作为 GitHub 不渲染 `<video>` 时的兜底。若视频尚未上传，不要解除注释，避免 README 出现失效播放器。
+上传完成后，把 `README.md` 和 `README.zh-CN.md` 顶部演示 GIF 之后的 HTML 注释解除注释，并保留普通下载链接作为 GitHub 不渲染 `<video>` 时的兜底。若视频尚未上传，不要解除注释，避免 README 出现失效播放器。
 
 ## 使用预览 GIF
 
